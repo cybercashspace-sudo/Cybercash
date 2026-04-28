@@ -1,0 +1,67 @@
+name: Publish Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Git tag to publish
+        required: true
+        default: v0.0.0
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Cache Buildozer downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: ${{ runner.os }}-buildozer-release-${{ hashFiles('buildozer.spec', 'build_apk_ci.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-release-
+            ${{ runner.os }}-buildozer-
+
+      - name: Install Ubuntu build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git rsync zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            zlib1g-dev libncurses-dev libtinfo6 cmake libffi-dev libssl-dev \
+            ccache
+
+      - name: Build debug APK
+        env:
+          KIVY_API_URL: https://cybercash.space
+          CYBERCASH_API_URL: https://cybercash.space
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: bash ./build_apk_ci.sh
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          name: ${{ inputs.tag_name || github.ref_name }}
+          generate_release_notes: true
+          files: |
+            bin/*.apk
+            bin/*.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
