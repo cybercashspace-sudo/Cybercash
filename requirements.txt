@@ -1,0 +1,60 @@
+fastapi
+uvicorn[standard]
+
+# Database
+
+sqlalchemy
+psycopg2-binary
+alembic
+aiosqlite
+
+# Auth & Security
+
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+Werkzeug # Added for password hashing
+
+# Email system
+
+fastapi-mail
+email-validator
+aiosmtplib
+
+# Environment config
+
+python-dotenv
+
+# Data validation
+
+pydantic
+
+# Async support
+
+httpx
+requests
+websocket-client
+redis
+twilio
+pywebview
+
+# Testing
+
+pytest
+pytest-asyncio
+
+# File handling (future KYC uploads)
+
+python-multipart
+
+# Date & time utils
+
+python-dateutil
+
+# JSON handling
+
+orjson
+
+# Production server (optional)
+
+gunicorn
