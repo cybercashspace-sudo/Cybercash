@@ -7,9 +7,10 @@ export PIP_DISABLE_PIP_VERSION_CHECK="${PIP_DISABLE_PIP_VERSION_CHECK:-1}"
 
 stage_dir=".ci-android-src"
 artifact_dir="bin"
+app_src_dir="$stage_dir/android_app_src"
 
 rm -rf "$stage_dir" "$artifact_dir"
-mkdir -p "$stage_dir" "$artifact_dir"
+mkdir -p "$stage_dir" "$artifact_dir" "$app_src_dir"
 
 rsync -a --delete \
   --exclude '.git/' \
@@ -61,8 +62,6 @@ copy_paths=(
   app.py
   main.py
   app_config.json
-  buildozer.spec
-  requirements.txt
   api
   components
   core
@@ -75,24 +74,44 @@ copy_paths=(
 
 for path in "${copy_paths[@]}"; do
   if [ -e "$path" ]; then
-    rsync -a "$path" "$stage_dir/"
+    rsync -a "$path" "$app_src_dir/"
   fi
 done
 
-if [ ! -f "$stage_dir/main.py" ]; then
+if [ ! -f "$app_src_dir/main.py" ]; then
   echo "Staged Android source is missing main.py" >&2
-  find "$stage_dir" -maxdepth 2 -type f | sort >&2
+  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
   exit 1
 fi
 
-if [ ! -f "$stage_dir/app.py" ]; then
+if [ ! -f "$app_src_dir/app.py" ]; then
   echo "Staged Android source is missing app.py" >&2
-  find "$stage_dir" -maxdepth 2 -type f | sort >&2
+  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
   exit 1
 fi
 
+python3 - <<'PY'
+from pathlib import Path
+
+spec_path = Path(".ci-android-src") / "buildozer.spec"
+text = spec_path.read_text(encoding="utf-8")
+updated = []
+replaced = False
+for line in text.splitlines():
+    if line.startswith("source.dir ="):
+        updated.append("source.dir = android_app_src")
+        replaced = True
+    else:
+        updated.append(line)
+if not replaced:
+    raise SystemExit("buildozer.spec missing source.dir")
+spec_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+PY
+
+echo "Staged Android app source:"
+find "$app_src_dir" -maxdepth 2 -type f | sort | head -n 60
 echo "Staged Android entrypoint files:"
-ls -l "$stage_dir/main.py" "$stage_dir/app.py"
+ls -l "$app_src_dir/main.py" "$app_src_dir/app.py"
 
 python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
