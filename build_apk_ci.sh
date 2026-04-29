@@ -57,6 +57,43 @@ rsync -a --delete \
   --exclude 'user_data.json' \
   ./ "$stage_dir/"
 
+copy_paths=(
+  app.py
+  main.py
+  app_config.json
+  buildozer.spec
+  requirements.txt
+  api
+  components
+  core
+  screens
+  services
+  storage.py
+  theme.py
+  utils
+)
+
+for path in "${copy_paths[@]}"; do
+  if [ -e "$path" ]; then
+    rsync -a "$path" "$stage_dir/"
+  fi
+done
+
+if [ ! -f "$stage_dir/main.py" ]; then
+  echo "Staged Android source is missing main.py" >&2
+  find "$stage_dir" -maxdepth 2 -type f | sort >&2
+  exit 1
+fi
+
+if [ ! -f "$stage_dir/app.py" ]; then
+  echo "Staged Android source is missing app.py" >&2
+  find "$stage_dir" -maxdepth 2 -type f | sort >&2
+  exit 1
+fi
+
+echo "Staged Android entrypoint files:"
+ls -l "$stage_dir/main.py" "$stage_dir/app.py"
+
 python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
 

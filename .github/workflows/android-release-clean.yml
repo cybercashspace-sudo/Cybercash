@@ -18,6 +18,8 @@ jobs:
   publish-release:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -53,6 +55,17 @@ jobs:
           CYBERCASH_API_URL: https://cybercash.space
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: bash ./build_apk_ci.sh
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybercash-release-build-logs
+          path: |
+            buildozer.log
+            .buildozer/**/*.log
+            .ci-android-src/.buildozer/**/*.log
+          if-no-files-found: ignore
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
