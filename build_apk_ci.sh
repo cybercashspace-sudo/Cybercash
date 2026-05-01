@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
+  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+elif [ -d /usr/lib/jvm/temurin-17-jdk-amd64 ]; then
+  export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
+fi
+if [ -z "${JAVA_HOME:-}" ]; then
+  echo "JAVA_HOME is not set and no JDK 17 install was found." >&2
+  exit 1
+fi
 export PATH="$JAVA_HOME/bin:$PATH"
+java -version
 export PIP_DISABLE_PIP_VERSION_CHECK="${PIP_DISABLE_PIP_VERSION_CHECK:-1}"
 
 stage_dir="ci_android_src"
