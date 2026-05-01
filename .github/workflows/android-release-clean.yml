@@ -65,6 +65,7 @@ jobs:
             buildozer.log
             .buildozer/**/*.log
             .ci-android-src/.buildozer/**/*.log
+            ci_android_src/.buildozer/**/*.log
           if-no-files-found: ignore
 
       - name: Publish GitHub release

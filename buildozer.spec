@@ -4,7 +4,7 @@ package.name = cybercash
 package.domain = org.cybercash
 source.dir = .
 source.include_exts = py,kv,json,png,jpg,jpeg,atlas,ttf,otf,mp4
-source.exclude_dirs = .buildozer,.buildozer-venv,.git,.github,.kivy_runtime,.venv,.pytest_cache,.qodo,.vscode,build,dist,android_build,node_modules,venv,Lib,Scripts,DLLs,include,libs,Tools,tcl,share,backend,frontend,kivy_frontend,admin-panel,Admin_Dashboard,BoG_Submission_Pack,Compliance_Policies,Doc,postgres_local,public,cyber_cash,__pycache__
+source.exclude_dirs = .buildozer,.buildozer-venv,.git,.github,.kivy_runtime,.venv,.pytest_cache,.qodo,.vscode,.ci-android-src,ci_android_src,build,dist,android_build,node_modules,venv,Lib,Scripts,DLLs,include,libs,Tools,tcl,share,backend,frontend,kivy_frontend,admin-panel,Admin_Dashboard,BoG_Submission_Pack,Compliance_Policies,Doc,postgres_local,public,cyber_cash,__pycache__
 source.exclude_patterns = *.log,*.pdb,*.dll,*.exe,*.pyc,*.db,*.env,*.key,package-lock.json,package.json,user_data.json,session.json,start_test.txt,README*,LICENSE*,CYBERCASH_FULL_APP.zip,*/__pycache__/*,__pycache__/*
 version = 1.0.0
 requirements = python3,kivy,kivymd==1.2.0,requests,python-dotenv,pyjnius

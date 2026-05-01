@@ -5,7 +5,7 @@ export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
 export PATH="$JAVA_HOME/bin:$PATH"
 export PIP_DISABLE_PIP_VERSION_CHECK="${PIP_DISABLE_PIP_VERSION_CHECK:-1}"
 
-stage_dir=".ci-android-src"
+stage_dir="ci_android_src"
 artifact_dir="bin"
 app_src_dir="$stage_dir"
 
@@ -48,7 +48,7 @@ fi
 python3 - <<'PY'
 from pathlib import Path
 
-spec_path = Path(".ci-android-src") / "buildozer.spec"
+spec_path = Path("ci_android_src") / "buildozer.spec"
 text = spec_path.read_text(encoding="utf-8")
 updated = []
 replaced = False

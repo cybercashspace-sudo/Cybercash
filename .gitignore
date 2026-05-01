@@ -2,6 +2,7 @@
 .buildozer-venv/
 .ci-buildozer-venv/
 .ci-android-src/
+ci_android_src/
 .kivy/
 .pytest_cache/
 .venv/
