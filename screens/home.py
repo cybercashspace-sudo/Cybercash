@@ -24,9 +24,9 @@ from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_mes
 from core.responsive_screen import ResponsiveScreen
 from storage import save_token
 
-FONT_REGULAR = "kivy_frontend/assets/fonts/Inter-Regular.ttf"
-FONT_SEMIBOLD = "kivy_frontend/assets/fonts/Inter-SemiBold.ttf"
-FONT_BOLD = "kivy_frontend/assets/fonts/Inter-Bold.ttf"
+FONT_REGULAR = "Roboto"
+FONT_SEMIBOLD = "Roboto"
+FONT_BOLD = "Roboto"
 POSITIVE_COLOR = [0.60, 0.88, 0.72, 1]
 NEGATIVE_COLOR = [0.98, 0.48, 0.41, 1]
 TX_CARD_BG = [0.09, 0.10, 0.12, 0.88]
@@ -44,9 +44,9 @@ KV = """
 #:set GOLD (0.95, 0.80, 0.47, 1)
 #:set GOLD_SOFT (0.92, 0.74, 0.36, 0.98)
 #:set TEXT_MAIN (0.95, 0.94, 0.90, 1)
-#:set FONT_REGULAR "kivy_frontend/assets/fonts/Inter-Regular.ttf"
-#:set FONT_SEMI "kivy_frontend/assets/fonts/Inter-SemiBold.ttf"
-#:set FONT_BOLD "kivy_frontend/assets/fonts/Inter-Bold.ttf"
+#:set FONT_REGULAR "Roboto"
+#:set FONT_SEMI "Roboto"
+#:set FONT_BOLD "Roboto"
 <MoreActionsContent>:
     orientation: "vertical"
     adaptive_height: True
@@ -370,7 +370,7 @@ KV = """
             Rectangle:
                 pos: self.pos
                 size: self.size
-                source: "kivy_frontend/assets/background.png"
+                source: root.background_source
             Color:
                 rgba: app.ui_overlay
             Rectangle:
@@ -902,7 +902,8 @@ KV = """
 
 
 class HomeScreen(ResponsiveScreen):
-    avatar_source = StringProperty("kivy_frontend/assets/avatars/0249945389.png")
+    avatar_source = StringProperty("")
+    background_source = StringProperty("")
     greeting_text = StringProperty("Hello, John")
     notification_count_text = StringProperty("1")
     notification_badge_visible = BooleanProperty(True)
@@ -920,6 +921,7 @@ class HomeScreen(ResponsiveScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
+        self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
         self._update_balance_display()
         self._more_actions_popup = None
         self._agent_verify_sequence = 0
@@ -942,15 +944,18 @@ class HomeScreen(ResponsiveScreen):
 
     @staticmethod
     def _resolve_avatar_source() -> str:
-        candidates = (
+        return HomeScreen._resolve_asset_source(
             "assets/avatar.png",
             "kivy_frontend/assets/avatar.png",
             "kivy_frontend/assets/avatars/0249945389.png",
         )
+
+    @staticmethod
+    def _resolve_asset_source(*candidates: str) -> str:
         for candidate in candidates:
             if os.path.exists(candidate):
                 return candidate
-        return candidates[-1]
+        return ""
 
     @staticmethod
     def _safe_first_name(value: str) -> str:

@@ -27,9 +27,9 @@ AGENT_REGISTRATION_FEE_GHS = 100.0
 AGENT_STARTUP_LOAN_GHS = 50.0
 AGENT_VERIFY_POLL_INTERVAL_SECONDS = 3
 AGENT_VERIFY_MAX_POLLS = 40
-FONT_REGULAR = "kivy_frontend/assets/fonts/Inter-Regular.ttf"
-FONT_SEMIBOLD = "kivy_frontend/assets/fonts/Inter-SemiBold.ttf"
-FONT_BOLD = "kivy_frontend/assets/fonts/Inter-Bold.ttf"
+FONT_REGULAR = "Roboto"
+FONT_SEMIBOLD = "Roboto"
+FONT_BOLD = "Roboto"
 TX_CARD_BG = [0.09, 0.10, 0.12, 0.88]
 TX_ICON_BG = [0.18, 0.24, 0.20, 0.96]
 POSITIVE_COLOR = [0.61, 0.88, 0.72, 1]
@@ -46,9 +46,9 @@ KV = """
 #:set GOLD_SOFT (0.92, 0.74, 0.36, 0.98)
 #:set TEXT_MAIN (0.94, 0.93, 0.89, 1)
 #:set TEXT_SUB (0.72, 0.72, 0.74, 1)
-#:set FONT_REG "kivy_frontend/assets/fonts/Inter-Regular.ttf"
-#:set FONT_SEMI "kivy_frontend/assets/fonts/Inter-SemiBold.ttf"
-#:set FONT_BOLD "kivy_frontend/assets/fonts/Inter-Bold.ttf"
+#:set FONT_REG "Roboto"
+#:set FONT_SEMI "Roboto"
+#:set FONT_BOLD "Roboto"
 #:import sp kivy.metrics.sp
 <DashboardScreen>:
     MDBoxLayout:
