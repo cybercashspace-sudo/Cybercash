@@ -123,7 +123,7 @@ PIP_TIMEOUT="${PIP_TIMEOUT:-120}"
 PIP_RETRIES="${PIP_RETRIES:-10}"
 
 python -m pip install --upgrade pip setuptools wheel --default-timeout "$PIP_TIMEOUT" --retries "$PIP_RETRIES"
-python -m pip install --upgrade "cython<3" buildozer --default-timeout "$PIP_TIMEOUT" --retries "$PIP_RETRIES"
+python -m pip install --upgrade "cython<3" "buildozer==1.5.0" --default-timeout "$PIP_TIMEOUT" --retries "$PIP_RETRIES"
 
 cd "$STAGE_DIR"
 

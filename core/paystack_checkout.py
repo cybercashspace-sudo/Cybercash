@@ -8,6 +8,30 @@ import time
 from pathlib import Path
 
 
+def _is_android() -> bool:
+    try:
+        from kivy.utils import platform
+
+        return str(platform).lower() == "android"
+    except Exception:
+        return False
+
+
+def _open_android_url(url: str) -> bool:
+    try:
+        from jnius import autoclass
+
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        Intent = autoclass("android.content.Intent")
+        Uri = autoclass("android.net.Uri")
+        activity = PythonActivity.mActivity
+        intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        activity.startActivity(intent)
+        return True
+    except Exception:
+        return False
+
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -60,6 +84,9 @@ def warmup_paystack_checkout(*, delay_seconds: float = 0.0) -> bool:
     first real checkout window opens faster on slower devices.
     """
 
+    if _is_android():
+        return True
+
     global _WARMUP_STARTED
     if not _HAS_WEBVIEW or _RUNNER is None:
         return False
@@ -89,6 +116,21 @@ def open_paystack_checkout(url: str, title: str = "CYBER CASH Checkout", delay_s
     url = str(url or "").strip()
     if not url:
         return False
+
+    if _is_android():
+        delay = float(delay_seconds or 0.0)
+        if delay <= 0:
+            return _open_android_url(url)
+
+        def _launch_android() -> None:
+            try:
+                time.sleep(delay)
+                _open_android_url(url)
+            except Exception:
+                pass
+
+        threading.Thread(target=_launch_android, daemon=True).start()
+        return True
 
     if not _HAS_WEBVIEW:
         return False

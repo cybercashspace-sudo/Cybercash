@@ -9,7 +9,7 @@ stage_dir=".ci-android-src"
 artifact_dir="bin"
 app_src_dir="$stage_dir/android_app_src"
 
-rm -rf "$stage_dir" "$artifact_dir"
+rm -rf "$stage_dir"
 mkdir -p "$stage_dir" "$artifact_dir" "$app_src_dir"
 
 rsync -a --delete \
@@ -119,8 +119,48 @@ source .ci-buildozer-venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install "Cython<3" "buildozer==1.5.0"
 
+git config --global http.version HTTP/1.1 || true
+git config --global http.lowSpeedLimit 0 || true
+git config --global http.lowSpeedTime 999999 || true
+git config --global http.postBuffer 524288000 || true
+
 pushd "$stage_dir" >/dev/null
+
+p4a_parent_dir=".buildozer/android/platform"
+p4a_dir="$p4a_parent_dir/python-for-android"
+mkdir -p "$p4a_parent_dir"
+
+if ! git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
+   ! git -C "$p4a_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+  rm -rf "$p4a_dir"
+  echo "Pre-cloning python-for-android with retries..."
+  for attempt in 1 2 3 4 5; do
+    echo "python-for-android clone attempt $attempt/5"
+    if git clone --depth 1 --single-branch --branch master https://github.com/kivy/python-for-android.git "$p4a_dir"; then
+      break
+    fi
+    rm -rf "$p4a_dir"
+    if [ "$attempt" -eq 5 ]; then
+      echo "Failed to pre-clone python-for-android after multiple attempts." >&2
+      exit 1
+    fi
+    sleep $((attempt * 10))
+  done
+fi
+
 buildozer android debug
 popd >/dev/null
 
-find "$stage_dir/bin" -maxdepth 1 \( -name '*.apk' -o -name '*.aab' \) -exec cp {} "$artifact_dir/" \;
+shopt -s nullglob
+artifacts=("$stage_dir"/bin/*.apk "$stage_dir"/bin/*.aab)
+
+if [ "${#artifacts[@]}" -eq 0 ]; then
+  echo "Build completed, but no APK or AAB was found in $stage_dir/bin" >&2
+  exit 1
+fi
+
+cp -f "${artifacts[@]}" "$artifact_dir/"
+echo "Android artifacts copied to $artifact_dir:"
+for artifact in "${artifacts[@]}"; do
+  echo " - $artifact_dir/$(basename "$artifact")"
+done
