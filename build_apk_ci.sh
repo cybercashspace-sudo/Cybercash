@@ -83,6 +83,7 @@ pushd "$stage_dir" >/dev/null
 
 p4a_parent_dir=".buildozer/android/platform"
 p4a_dir="$p4a_parent_dir/python-for-android"
+private_app_dir=".buildozer/android/app"
 mkdir -p "$p4a_parent_dir"
 
 if ! git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
@@ -103,7 +104,31 @@ if ! git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
   done
 fi
 
-buildozer android debug
+seed_private_app_dir() {
+  rm -rf "$private_app_dir"
+  mkdir -p "$private_app_dir"
+  rsync -a --delete \
+    --exclude '.buildozer/' \
+    --exclude 'bin/' \
+    --exclude '__pycache__/' \
+    --exclude '*.pyc' \
+    ./ "$private_app_dir/"
+  if [ ! -f "$private_app_dir/main.py" ]; then
+    echo "Private Android app dir is missing main.py after seeding." >&2
+    find "$private_app_dir" -maxdepth 2 -type f | sort >&2
+    exit 1
+  fi
+  echo "Seeded Android private app entrypoint:"
+  ls -l "$private_app_dir/main.py" "$private_app_dir/app.py"
+}
+
+seed_private_app_dir
+
+if ! buildozer android debug; then
+  echo "Buildozer failed; private app dir contents:" >&2
+  find "$private_app_dir" -maxdepth 2 -type f | sort | head -n 120 >&2 || true
+  exit 1
+fi
 popd >/dev/null
 
 shopt -s nullglob
