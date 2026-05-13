@@ -3,7 +3,7 @@ set -euo pipefail
 
 export PIP_DISABLE_PIP_VERSION_CHECK="${PIP_DISABLE_PIP_VERSION_CHECK:-1}"
 
-stage_dir=".ci-android-src"
+stage_dir="ci_android_src"
 artifact_dir="bin"
 app_src_dir="$stage_dir"
 
