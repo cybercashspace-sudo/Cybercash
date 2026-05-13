@@ -19,6 +19,7 @@ from backend.services.kyc_service import process_agent_kyc
 from backend.services.commission_service import record_commission
 from backend.services.agent_startup_loan import grant_startup_loan_credit
 from backend.services.settings_service import get_or_create_platform_settings
+from utils.network import detect_network, normalize_ghana_number
 import json # Import json
 import uuid # Import uuid
 import os

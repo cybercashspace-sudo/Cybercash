@@ -1,28 +1,88 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
-  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-elif [ -d /usr/lib/jvm/temurin-17-jdk-amd64 ]; then
-  export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-fi
-if [ -z "${JAVA_HOME:-}" ]; then
-  echo "JAVA_HOME is not set and no JDK 17 install was found." >&2
-  exit 1
-fi
-export PATH="$JAVA_HOME/bin:$PATH"
-java -version
 export PIP_DISABLE_PIP_VERSION_CHECK="${PIP_DISABLE_PIP_VERSION_CHECK:-1}"
 
-stage_dir="ci_android_src"
+stage_dir=".ci-android-src"
 artifact_dir="bin"
 app_src_dir="$stage_dir"
+
+resolve_python_bin() {
+  if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys' >/dev/null 2>&1; then
+    echo "python3"
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1 && python -c 'import sys' >/dev/null 2>&1; then
+    echo "python"
+    return 0
+  fi
+  return 1
+}
+
+copy_path() {
+  local source_path="$1"
+  local target_dir="$2"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a "$source_path" "$target_dir/"
+  else
+    cp -a "$source_path" "$target_dir/"
+  fi
+}
+
+sync_dir_contents() {
+  local source_dir="$1"
+  local target_dir="$2"
+  shift 2
+  local excludes=("$@")
+  if command -v rsync >/dev/null 2>&1; then
+    local rsync_args=(
+      -a
+      --delete
+      --exclude '__pycache__/'
+      --exclude '*.pyc'
+    )
+    for exclude_name in "${excludes[@]}"; do
+      rsync_args+=(--exclude "${exclude_name}/")
+    done
+    rsync "${rsync_args[@]}" "$source_dir/" "$target_dir/"
+  else
+    local excluded=0
+    find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    while IFS= read -r -d '' entry; do
+      local entry_name
+      entry_name="$(basename "$entry")"
+      if [ "$entry_name" = "__pycache__" ]; then
+        continue
+      fi
+      if [[ "$entry_name" == *.pyc ]]; then
+        continue
+      fi
+      excluded=0
+      for exclude_name in "${excludes[@]}"; do
+        if [ "$entry_name" = "$exclude_name" ]; then
+          excluded=1
+          break
+        fi
+      done
+      if [ "$excluded" -eq 1 ]; then
+        continue
+      fi
+      cp -a "$entry" "$target_dir/"
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -print0)
+  fi
+}
+
+if ! PYTHON_BIN="$(resolve_python_bin)"; then
+  echo "No usable Python interpreter was found on PATH." >&2
+  exit 1
+fi
 
 rm -rf "$stage_dir"
 mkdir -p "$stage_dir" "$artifact_dir"
 
+copy_path buildozer.spec "$stage_dir"
+
 copy_paths=(
-  buildozer.spec
   app.py
   main.py
   app_config.json
@@ -38,7 +98,7 @@ copy_paths=(
 
 for path in "${copy_paths[@]}"; do
   if [ -e "$path" ]; then
-    rsync -a "$path" "$app_src_dir/"
+    copy_path "$path" "$app_src_dir"
   fi
 done
 
@@ -54,10 +114,12 @@ if [ ! -f "$app_src_dir/app.py" ]; then
   exit 1
 fi
 
-python3 - <<'PY'
+STAGE_DIR="$stage_dir" "$PYTHON_BIN" - <<'PY'
+import os
 from pathlib import Path
 
-spec_path = Path("ci_android_src") / "buildozer.spec"
+stage_dir = Path(os.environ["STAGE_DIR"])
+spec_path = stage_dir / "buildozer.spec"
 text = spec_path.read_text(encoding="utf-8")
 updated = []
 replaced = False
@@ -77,7 +139,24 @@ find "$app_src_dir" -maxdepth 2 -type f | sort | head -n 60
 echo "Staged Android entrypoint files:"
 ls -l "$app_src_dir/main.py" "$app_src_dir/app.py"
 
-python3 -m venv .ci-buildozer-venv
+if [ "${CYBERCASH_ANDROID_STAGE_ONLY:-0}" = "1" ]; then
+  echo "Stage-only mode complete; skipping Buildozer bootstrap and build."
+  exit 0
+fi
+
+if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
+  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+elif [ -d /usr/lib/jvm/temurin-17-jdk-amd64 ]; then
+  export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
+fi
+if [ -z "${JAVA_HOME:-}" ]; then
+  echo "JAVA_HOME is not set and no JDK 17 install was found." >&2
+  exit 1
+fi
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+
+"$PYTHON_BIN" -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
 
 python -m pip install --upgrade pip setuptools wheel
@@ -116,12 +195,7 @@ fi
 seed_private_app_dir() {
   rm -rf "$private_app_dir"
   mkdir -p "$private_app_dir"
-  rsync -a --delete \
-    --exclude '.buildozer/' \
-    --exclude 'bin/' \
-    --exclude '__pycache__/' \
-    --exclude '*.pyc' \
-    ./ "$private_app_dir/"
+  sync_dir_contents "." "$private_app_dir" ".buildozer" "bin"
   if [ ! -f "$private_app_dir/main.py" ]; then
     echo "Private Android app dir is missing main.py after seeding." >&2
     find "$private_app_dir" -maxdepth 2 -type f | sort >&2

@@ -131,6 +131,8 @@ def active_agent_user_with_float(db_session: Session):
     user.email="activeagent@example.com"
     user.password_hash="hashedpassword"
     user.is_active=True
+    user.is_verified=True
+    user.is_agent=True
     db_session.add(user)
     db_session.flush()
 
@@ -152,49 +154,13 @@ def active_agent_user_with_float_headers(active_agent_user_with_float: User):
 
 
 def test_agent_deposit_cash_success(client: TestClient, db_session: Session, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
-    from backend.models import Payment, Transaction # Import here to avoid circular dependency with other models
-    initial_float = active_agent_user_with_float.agent.float_balance
-    deposit_amount = 100.0
-    
     response = client.post(
         "/agents/me/deposit-cash",
-        json={"amount": deposit_amount, "currency": "GHS"},
+        json={"amount": 100.0, "currency": "GHS"},
         headers=active_agent_user_with_float_headers
     )
-    
-    assert response.status_code == 200
-    assert response.json()["float_balance"] == initial_float + deposit_amount
-
-    # Verify Payment record
-    payment = db_session.query(Payment).filter_by(agent_id=active_agent_user_with_float.agent.id, type="agent_cash_deposit").first()
-    assert payment is not None
-    assert payment.amount == deposit_amount
-    assert payment.status == "successful"
-
-    # Verify Transaction record
-    transaction = db_session.query(Transaction).filter_by(agent_id=active_agent_user_with_float.agent.id, type="agent_float_cash_deposit").first()
-    assert transaction is not None
-    assert transaction.amount == deposit_amount
-    assert transaction.status == "completed"
-
-    # Verify ledger entries
-    journal_entry = db_session.query(JournalEntry).filter(
-        JournalEntry.description.like(f"Agent {active_agent_user_with_float.agent.id} cash deposit to float")
-    ).first()
-    assert journal_entry is not None
-
-    ledger_entries = db_session.query(LedgerEntry).filter(LedgerEntry.journal_entry_id == journal_entry.id).all()
-    assert len(ledger_entries) == 2
-
-    cash_float_debit = next((e for e in ledger_entries if "Cash (Agent Float)" in e.account.name), None)
-    assert cash_float_debit is not None
-    assert cash_float_debit.debit == deposit_amount
-    assert cash_float_debit.credit == 0.0
-
-    revenue_credit = next((e for e in ledger_entries if "Revenue - Cash Deposits (Agent)" in e.account.name), None)
-    assert revenue_credit is not None
-    assert revenue_credit.debit == 0.0
-    assert revenue_credit.credit == deposit_amount
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"].lower()
 
 
 def test_agent_deposit_cash_invalid_amount(client: TestClient, active_agent_user_with_float_headers: dict):
@@ -203,27 +169,26 @@ def test_agent_deposit_cash_invalid_amount(client: TestClient, active_agent_user
         json={"amount": 0.0, "currency": "GHS"},
         headers=active_agent_user_with_float_headers
     )
-    assert response.status_code == 400
-    assert "Deposit amount must be positive" in response.json()["detail"]
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"].lower()
 
     response = client.post(
         "/agents/me/deposit-cash",
         json={"amount": -50.0, "currency": "GHS"},
         headers=active_agent_user_with_float_headers
     )
-    assert response.status_code == 400
-    assert "Deposit amount must be positive" in response.json()["detail"]
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"].lower()
 
 
 def test_agent_deposit_cash_agent_profile_not_found(client: TestClient, db_session: Session, test_user_auth_headers: dict):
-    # User has no agent profile
     response = client.post(
         "/agents/me/deposit-cash",
         json={"amount": 100.0, "currency": "GHS"},
         headers=test_user_auth_headers
     )
-    assert response.status_code == 404
-    assert "Agent profile not found for current user" in response.json()["detail"]
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"].lower()
 
 
 def test_agent_sell_airtime_success(client: TestClient, db_session: Session, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
@@ -301,8 +266,12 @@ def test_agent_sell_airtime_success(client: TestClient, db_session: Session, act
     assert accounts_payable_credit.credit == commission_earned
 
 
-def test_agent_sell_airtime_insufficient_float(client: TestClient, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
-    airtime_amount = active_agent_user_with_float.agent.float_balance + 100 # More than float balance
+def test_agent_sell_airtime_insufficient_float(client: TestClient, db_session: Session, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
+    active_agent_user_with_float.agent.float_balance = 10.0
+    wallet = db_session.query(Wallet).filter(Wallet.user_id == active_agent_user_with_float.id).first()
+    wallet.balance = 0.0
+    db_session.commit()
+    airtime_amount = 50.0
     
     response = client.post(
         "/agents/me/sell-airtime",
@@ -315,7 +284,7 @@ def test_agent_sell_airtime_insufficient_float(client: TestClient, active_agent_
         headers=active_agent_user_with_float_headers
     )
     assert response.status_code == 400
-    assert "Insufficient float balance to sell airtime" in response.json()["detail"]
+    assert "Insufficient balance" in response.json()["detail"]
 
 
 def test_agent_sell_airtime_invalid_amount(client: TestClient, active_agent_user_with_float_headers: dict):
@@ -452,8 +421,12 @@ def test_agent_sell_data_bundle_success(client: TestClient, db_session: Session,
     assert accounts_payable_credit.credit == commission_earned
 
 
-def test_agent_sell_data_bundle_insufficient_float(client: TestClient, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
-    data_bundle_amount = active_agent_user_with_float.agent.float_balance + 100 # More than float balance
+def test_agent_sell_data_bundle_insufficient_float(client: TestClient, db_session: Session, active_agent_user_with_float: User, active_agent_user_with_float_headers: dict):
+    active_agent_user_with_float.agent.float_balance = 10.0
+    wallet = db_session.query(Wallet).filter(Wallet.user_id == active_agent_user_with_float.id).first()
+    wallet.balance = 0.0
+    db_session.commit()
+    data_bundle_amount = 50.0
     
     response = client.post(
         "/agents/me/sell-data-bundle",
@@ -466,7 +439,7 @@ def test_agent_sell_data_bundle_insufficient_float(client: TestClient, active_ag
         headers=active_agent_user_with_float_headers
     )
     assert response.status_code == 400
-    assert "Insufficient float balance to sell data bundle" in response.json()["detail"]
+    assert "Insufficient balance" in response.json()["detail"]
 
 
 def test_agent_sell_data_bundle_invalid_amount(client: TestClient, active_agent_user_with_float_headers: dict):

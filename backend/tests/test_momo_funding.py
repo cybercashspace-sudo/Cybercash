@@ -29,32 +29,15 @@ def test_momo_funding_initiate_creates_pending_payment_and_transaction(client, d
         db_session.add(user)
         db_session.commit()
 
-        with patch(
-            "backend.routes.payments.momo_service.initiate_deposit",
-            new=AsyncMock(
-                return_value={
-                    "status": "pending",
-                    "message": "Awaiting confirmation",
-                    "processor_transaction_id": "MOMO_DEP_REF_1",
-                }
-            ),
-        ):
-            response = client.post(
-                "/payments/momo/deposit/initiate",
-                json={"amount": 100.0, "currency": "GHS", "phone_number": "0240000000"},
-            )
+        response = client.post(
+            "/payments/momo/deposit/initiate",
+            json={"amount": 100.0, "currency": "GHS", "phone_number": "0240000000"},
+        )
 
-        assert response.status_code == 202
-        payment = db_session.query(Payment).filter(Payment.user_id == 300).first()
-        tx = db_session.query(Transaction).filter(Transaction.user_id == 300).first()
-        wallet = db_session.query(Wallet).filter(Wallet.user_id == 300).first()
-
-        assert payment is not None
-        assert payment.status == "awaiting_confirmation"
-        assert tx is not None
-        assert tx.status == "pending"
-        assert tx.type == "FUNDING"
-        assert wallet is not None
+        assert response.status_code == 403
+        assert "Use Paystack deposit instead" in response.json()["detail"]
+        assert db_session.query(Payment).filter(Payment.user_id == 300).first() is None
+        assert db_session.query(Transaction).filter(Transaction.user_id == 300).first() is None
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 

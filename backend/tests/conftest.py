@@ -20,6 +20,7 @@ os.environ.setdefault("FLUTTERWAVE_WEBHOOK_HASH", "test_flutterwave_webhook_hash
 os.environ.setdefault("FLW_CLIENT_ID", "test_flw_client_id")
 os.environ.setdefault("FLW_CLIENT_SECRET", "test_flw_client_secret")
 os.environ.setdefault("FLW_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZg==")
+os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_paystack_secret")
 
 # Ensure all model tables are registered on Base.metadata before create_all.
 import backend.models.user

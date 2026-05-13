@@ -6,7 +6,14 @@ from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivymd.app import MDApp
 
+from core.kivymd_compat import (
+    install_kivymd_font_style_compat,
+    register_font_style_aliases,
+)
 from core.theme_manager import ThemeManager
+
+install_kivymd_font_style_compat()
+
 from screens.splash import SplashScreen
 from screens.login import LoginScreen
 from screens.register import RegisterScreen
@@ -100,6 +107,7 @@ class CyberCashApp(MDApp):
         if os.path.exists(theme_path):
             Builder.load_file(theme_path)
         self.theme_cls.theme_style = "Dark"
+        register_font_style_aliases(self.theme_cls.font_styles)
         # This KivyMD build errors on "Amber"; the app's gold styling comes from CyberTheme.
         self.theme_cls.primary_palette = "Green"
         self.pending_momo = ""

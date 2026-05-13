@@ -13,53 +13,58 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+STANDARD_ACCOUNT_DEFINITIONS = [
+    # Assets
+    {"name": "Cash (External Bank)", "type": "Asset", "description": "Cash held in external bank accounts."},
+    {"name": "Crypto Hot Wallet (Asset)", "type": "Asset", "description": "Cryptocurrency held in hot wallets."},
+    {"name": "Loan Principal (Asset)", "type": "Asset", "description": "Outstanding loan principal owed by customers."},
+    # Liabilities
+    {"name": "Customer Wallets (Liability)", "type": "Liability", "description": "Funds owed to customers in their fiat wallets."},
+    {"name": "Agent Float (Liability)", "type": "Liability", "description": "Digital float owed to agents."},
+    {"name": "Customer Escrow (Liability)", "type": "Liability", "description": "Funds held in escrow for customers."},
+    {"name": "Customer Investments (Liability)", "type": "Liability", "description": "Funds held in customer investment accounts."},
+    {"name": "Customer Crypto Balances (Liability)", "type": "Liability", "description": "Cryptocurrency owed to customers in their crypto wallets."},
+    {"name": "Commissions Payable (Liability)", "type": "Liability", "description": "Commissions earned by agents, not yet paid out."},
+    {"name": "Accounts Payable (Agent Commission)", "type": "Liability", "description": "Commission payable to agents from airtime/data sales."},
+    # Revenue
+    {"name": "Revenue - Agent Fees", "type": "Revenue", "description": "Revenue from agent registration fees."},
+    {"name": "Revenue - Transaction Fees", "type": "Revenue", "description": "Revenue from various transaction fees."},
+    {"name": "Revenue - FX Margins", "type": "Revenue", "description": "Revenue generated from FX rate differences."},
+    {"name": "Revenue - Airtime Margins", "type": "Revenue", "description": "Profit margin from airtime/data sales."},
+    {"name": "Revenue - Airtime Sales", "type": "Revenue", "description": "Gross revenue from agent airtime sales."},
+    {"name": "Revenue - Data Bundle Sales", "type": "Revenue", "description": "Gross revenue from agent data bundle sales."},
+    {"name": "Revenue - Cash Deposits (Agent)", "type": "Revenue", "description": "Cash deposits to agent float wallets."},
+    {"name": "Revenue - Card Usage Share", "type": "Revenue", "description": "Revenue share from virtual card usage."},
+    {"name": "Revenue - Loan Interest", "type": "Revenue", "description": "Interest earned on loans."},
+    {"name": "Revenue - Investment Management Fees", "type": "Revenue", "description": "Fees from managing customer investments."},
+    # Expenses
+    {"name": "Commissions Expense", "type": "Expense", "description": "Expense incurred for agent commissions."},
+    {"name": "Commission Expense (Agent)", "type": "Expense", "description": "Commission expense on agent airtime/data sales."},
+    {"name": "Revenue Payout (Expense)", "type": "Expense", "description": "Expense for admin-initiated revenue payouts."},
+    {"name": "Investment Payout (Expense)", "type": "Expense", "description": "Payouts to customers from investment gains (if tracked as expense)."},
+    # Agent float asset
+    {"name": "Cash (Agent Float)", "type": "Asset", "description": "Cash backing agent float balances."},
+]
+
+
 class LedgerService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.standard_accounts: Dict[str, Account] = {}
+
+    @staticmethod
+    def _standard_account_blueprint(name: str) -> Optional[dict]:
+        for definition in STANDARD_ACCOUNT_DEFINITIONS:
+            if definition["name"] == name:
+                return definition
+        return None
 
     async def _initialize_standard_accounts(self):
         """
         Ensures standard accounts exist in the database.
         These are the root accounts for a double-entry system.
         """
-        accounts_to_create = [
-            # Assets
-            {"name": "Cash (External Bank)", "type": "Asset", "description": "Cash held in external bank accounts."},
-            {"name": "Crypto Hot Wallet (Asset)", "type": "Asset", "description": "Cryptocurrency held in hot wallets."},
-            {"name": "Loan Principal (Asset)", "type": "Asset", "description": "Outstanding loan principal owed by customers."},
-            
-            # Liabilities
-            {"name": "Customer Wallets (Liability)", "type": "Liability", "description": "Funds owed to customers in their fiat wallets."},
-            {"name": "Agent Float (Liability)", "type": "Liability", "description": "Digital float owed to agents."},
-            {"name": "Customer Escrow (Liability)", "type": "Liability", "description": "Funds held in escrow for customers."},
-            {"name": "Customer Investments (Liability)", "type": "Liability", "description": "Funds held in customer investment accounts."},
-            {"name": "Customer Crypto Balances (Liability)", "type": "Liability", "description": "Cryptocurrency owed to customers in their crypto wallets."},
-            {"name": "Commissions Payable (Liability)", "type": "Liability", "description": "Commissions earned by agents, not yet paid out."},
-            {"name": "Accounts Payable (Agent Commission)", "type": "Liability", "description": "Commission payable to agents from airtime/data sales."},
-
-            # Revenue
-            {"name": "Revenue - Agent Fees", "type": "Revenue", "description": "Revenue from agent registration fees."},
-            {"name": "Revenue - Transaction Fees", "type": "Revenue", "description": "Revenue from various transaction fees."},
-            {"name": "Revenue - FX Margins", "type": "Revenue", "description": "Revenue generated from FX rate differences."},
-            {"name": "Revenue - Airtime Margins", "type": "Revenue", "description": "Profit margin from airtime/data sales."},
-            {"name": "Revenue - Airtime Sales", "type": "Revenue", "description": "Gross revenue from agent airtime sales."},
-            {"name": "Revenue - Data Bundle Sales", "type": "Revenue", "description": "Gross revenue from agent data bundle sales."},
-            {"name": "Revenue - Cash Deposits (Agent)", "type": "Revenue", "description": "Cash deposits to agent float wallets."},
-            {"name": "Revenue - Card Usage Share", "type": "Revenue", "description": "Revenue share from virtual card usage."},
-            {"name": "Revenue - Loan Interest", "type": "Revenue", "description": "Interest earned on loans."},
-            {"name": "Revenue - Investment Management Fees", "type": "Revenue", "description": "Fees from managing customer investments."},
-            
-            # Expenses
-            {"name": "Commissions Expense", "type": "Expense", "description": "Expense incurred for agent commissions."},
-            {"name": "Commission Expense (Agent)", "type": "Expense", "description": "Commission expense on agent airtime/data sales."},
-            {"name": "Revenue Payout (Expense)", "type": "Expense", "description": "Expense for admin-initiated revenue payouts."},
-            {"name": "Investment Payout (Expense)", "type": "Expense", "description": "Payouts to customers from investment gains (if tracked as expense)."},
-
-            # Agent float asset
-            {"name": "Cash (Agent Float)", "type": "Asset", "description": "Cash backing agent float balances."},
-
-        ]
+        accounts_to_create = STANDARD_ACCOUNT_DEFINITIONS
 
         account_names = [acc_data["name"] for acc_data in accounts_to_create]
         result = await self.db.execute(select(Account).filter(Account.name.in_(account_names)))
@@ -117,7 +122,16 @@ class LedgerService:
                     self.db.add(account)
                     await self.db.flush()
                 else:
-                    raise ValueError(f"Ledger account '{name}' not found.")
+                    blueprint = self._standard_account_blueprint(name)
+                    if not blueprint:
+                        raise ValueError(f"Ledger account '{name}' not found.")
+                    account = Account(
+                        name=blueprint["name"],
+                        type=blueprint["type"],
+                        description=blueprint["description"],
+                    )
+                    self.db.add(account)
+                    await self.db.flush()
             self.standard_accounts[name] = account # Cache it
         return account
 

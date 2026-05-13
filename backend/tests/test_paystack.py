@@ -112,6 +112,7 @@ def test_initiate_paystack_payment_auth_failure_maps_to_gateway_error(client: Te
     from backend.services import paystack_service as paystack_module
 
     monkeypatch.setattr(paystack_module.settings, "PAYSTACK_SECRET_KEY", "sk_test_fake", raising=False)
+    monkeypatch.setattr(paystack_module, "get_paystack_secret_key_candidates", lambda: ["sk_test_fake"], raising=True)
 
     class FakeResponse:
         status_code = 401
@@ -135,7 +136,7 @@ def test_initiate_paystack_payment_auth_failure_maps_to_gateway_error(client: Te
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        async def post(self, *args, **kwargs):
+        async def request(self, *args, **kwargs):
             return FakeResponse()
 
     monkeypatch.setattr(paystack_module.httpx, "AsyncClient", FakeAsyncClient, raising=True)
