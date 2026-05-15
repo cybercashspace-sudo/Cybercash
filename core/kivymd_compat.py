@@ -1,9 +1,69 @@
 from __future__ import annotations
 
+from typing import Mapping
+
 from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.properties import ColorProperty, OptionProperty, StringProperty
 import kivymd.uix.button as kivymd_button_module
+
+
+_LEGACY_FONT_STYLE_ALIASES = {
+    "Title": "H6",
+    "Headline": "H5",
+    "Body": "Body1",
+    "Label": "Caption",
+}
+
+
+def install_kivymd_font_style_compat() -> None:
+    """Teach pre-2.0 KivyMD builds about the Material 3 font-style names."""
+
+    try:
+        from kivymd.font_definitions import theme_font_styles
+        from kivymd.uix.label import MDLabel
+    except Exception:
+        return
+
+    if not isinstance(theme_font_styles, list):
+        return
+
+    for alias in _LEGACY_FONT_STYLE_ALIASES:
+        if alias not in theme_font_styles:
+            theme_font_styles.append(alias)
+
+    try:
+        font_style_prop = MDLabel.font_style
+        options = list(getattr(font_style_prop, "options", ()) or ())
+        changed = False
+        for alias in _LEGACY_FONT_STYLE_ALIASES:
+            if alias not in options:
+                options.append(alias)
+                changed = True
+        if changed:
+            font_style_prop.options = tuple(options)
+    except Exception:
+        pass
+
+
+def register_font_style_aliases(theme_font_styles: Mapping | dict) -> None:
+    """Mirror Material 3 font-style names into a ThemeManager font map."""
+
+    if not isinstance(theme_font_styles, dict):
+        return
+
+    for alias, legacy_name in _LEGACY_FONT_STYLE_ALIASES.items():
+        if alias in theme_font_styles or legacy_name not in theme_font_styles:
+            continue
+
+        legacy_style = theme_font_styles[legacy_name]
+        if isinstance(legacy_style, list):
+            theme_font_styles[alias] = list(legacy_style)
+        elif isinstance(legacy_style, dict):
+            theme_font_styles[alias] = dict(legacy_style)
+        else:
+            theme_font_styles[alias] = legacy_style
+
 
 try:
     from kivymd.uix.button import MDButton, MDButtonIcon, MDButtonText

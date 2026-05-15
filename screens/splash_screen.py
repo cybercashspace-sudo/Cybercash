@@ -60,7 +60,7 @@ KV = """
 
                 MDCard:
                     size_hint_y: None
-                    height: dp(136 * root.layout_scale)
+                    height: dp(188 * root.layout_scale)
                     radius: [dp(28 * root.layout_scale)]
                     padding: [dp(18 * root.layout_scale)] * 4
                     md_bg_color: SURFACE
@@ -68,25 +68,14 @@ KV = """
 
                     MDBoxLayout:
                         orientation: "vertical"
-                        spacing: dp(8 * root.layout_scale)
+                        spacing: dp(10 * root.layout_scale)
 
-                        MDBoxLayout:
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDIcon:
-                                icon: "shield-check"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                font_size: sp(34 * root.icon_scale)
-
-                            MDLabel:
-                                text: "CYBER CASH"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                font_style: "Headline"
-                                font_size: sp(26 * root.text_scale)
-                                bold: True
+                        Image:
+                            source: root.logo_source
+                            allow_stretch: True
+                            keep_ratio: True
+                            size_hint_y: None
+                            height: dp(104 * root.layout_scale)
 
                         MDBoxLayout:
                             size_hint_y: None
@@ -208,6 +197,7 @@ KV = """
 
 
 class SplashScreen(ResponsiveScreen):
+    logo_source = StringProperty("assets/cybercash_logo.png")
     status_text = StringProperty("Securing wallet channels...")
 
     def __init__(self, **kwargs):
