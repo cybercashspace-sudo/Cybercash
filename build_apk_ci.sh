@@ -87,6 +87,7 @@ copy_paths=(
   main.py
   app_config.json
   api
+  assets
   components
   core
   screens

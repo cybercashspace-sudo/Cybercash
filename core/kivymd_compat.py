@@ -48,6 +48,21 @@ def install_kivymd_font_style_compat() -> None:
         pass
 
 
+def register_legacy_button_aliases() -> None:
+    """Keep older screen imports compatible across KivyMD versions.
+
+    Android is pinned to KivyMD 1.2.0, where the legacy button classes already
+    exist. Newer or partial desktop environments may not expose the same names;
+    this hook is intentionally best-effort so importing the screens package does
+    not fail before the app can install the rest of its compatibility shims.
+    """
+
+    try:
+        import kivymd.uix.button  # noqa: F401
+    except Exception:
+        return
+
+
 def register_font_style_aliases(theme_font_styles: Mapping | dict) -> None:
     """Mirror Material 3 font-style names into a ThemeManager font map."""
 
