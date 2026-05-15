@@ -2,8 +2,14 @@ import os
 import json
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from core.message_sanitizer import sanitize_backend_message
+
+try:
+    from urllib3.util.retry import Retry
+except Exception:
+    Retry = None
 
 try:
     from dotenv import load_dotenv
@@ -21,6 +27,12 @@ try:
 except Exception:
     kivy_platform = ""
 
+MOBILE_BACKEND_URL = "https://cybercash.space"
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 8
+DEFAULT_READ_TIMEOUT_SECONDS = 45
+DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
+RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+
 
 def _normalize_api_url(raw_value: str) -> str:
     cleaned_value = str(raw_value or "").strip().rstrip("/")
@@ -31,6 +43,10 @@ def _normalize_api_url(raw_value: str) -> str:
     return cleaned_value
 
 
+def _is_mobile_platform() -> bool:
+    return str(kivy_platform or "").strip().lower() in {"android", "ios"}
+
+
 def _default_api_url() -> str:
     """Default API URL when no env var or app_config.json override is provided.
 
@@ -38,9 +54,8 @@ def _default_api_url() -> str:
     - Android/iOS: avoid 127.0.0.1 (phone != your PC).
     """
 
-    platform_name = str(kivy_platform or "").strip().lower()
-    if platform_name in {"android", "ios"}:
-        return "https://cybercash.space"
+    if _is_mobile_platform():
+        return MOBILE_BACKEND_URL
     return "http://127.0.0.1:8000"
 
 
@@ -80,12 +95,40 @@ def resolve_api_url() -> str:
     return DEFAULT_API_URL
 
 
+def _coerce_timeout(timeout):
+    if timeout is None:
+        return DEFAULT_TIMEOUT
+    if isinstance(timeout, (tuple, list)) and len(timeout) == 2:
+        return float(timeout[0]), float(timeout[1])
+    return DEFAULT_CONNECT_TIMEOUT_SECONDS, float(timeout)
+
+
 API_URL = resolve_api_url()
 
 
 class APIClient:
     def __init__(self, base_url: str | None = None):
         self.base_url = str(base_url or API_URL).rstrip("/")
+        self.session = requests.Session()
+        self._install_retries()
+
+    def _install_retries(self) -> None:
+        if Retry is None:
+            return
+
+        retry = Retry(
+            total=2,
+            connect=2,
+            read=1,
+            status=2,
+            backoff_factor=0.6,
+            status_forcelist=RETRY_STATUS_CODES,
+            allowed_methods=frozenset({"GET", "POST", "PUT", "PATCH"}),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     @staticmethod
     def _safe_json(response):
@@ -95,6 +138,13 @@ class APIClient:
             text = (response.text or "").strip()
             return {"detail": sanitize_backend_message(text or f"HTTP {response.status_code}")}
 
+    @staticmethod
+    def _timeout_message(exc: Exception) -> str:
+        message = sanitize_backend_message(exc)
+        if isinstance(exc, requests.exceptions.Timeout) or "timed out" in message.lower():
+            return "Backend connection timed out. Please check your internet connection and try again."
+        return message
+
     def request(
         self,
         method: str,
@@ -102,16 +152,16 @@ class APIClient:
         payload: dict | None = None,
         params: dict | None = None,
         headers: dict | None = None,
-        timeout: int = 12,
+        timeout=DEFAULT_TIMEOUT,
     ) -> dict:
         try:
-            response = requests.request(
+            response = self.session.request(
                 method=method.upper(),
                 url=f"{self.base_url}{path}",
                 json=payload,
                 params=params,
                 headers=headers or {},
-                timeout=timeout,
+                timeout=_coerce_timeout(timeout),
             )
             data = self._safe_json(response)
             return {
@@ -123,20 +173,14 @@ class APIClient:
             return {
                 "ok": False,
                 "status_code": 0,
-                "data": {"detail": sanitize_backend_message(exc)},
+                "data": {"detail": self._timeout_message(exc)},
             }
 
+    def warmup(self) -> None:
+        self.request("GET", "/health", timeout=(5, 20))
+
     def post(self, path: str, payload: dict, headers: dict | None = None):
-        try:
-            response = requests.post(
-                f"{self.base_url}{path}",
-                json=payload,
-                headers=headers or {},
-                timeout=12,
-            )
-            return self._safe_json(response)
-        except Exception as exc:
-            return {"detail": sanitize_backend_message(exc)}
+        return self.request("POST", path, payload=payload, headers=headers)["data"]
 
     def get(self, path: str, params: dict | None = None, headers: dict | None = None):
         return self.request("GET", path, params=params, headers=headers)

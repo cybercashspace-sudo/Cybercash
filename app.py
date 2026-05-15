@@ -1,12 +1,21 @@
 import logging
 import os
+import threading
 
 from kivy.properties import ColorProperty, StringProperty
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivymd.app import MDApp
 
+from api.client import api_client
+from core.kivymd_compat import (
+    install_kivymd_font_style_compat,
+    register_font_style_aliases,
+)
 from core.theme_manager import ThemeManager
+
+install_kivymd_font_style_compat()
+
 from screens.splash import SplashScreen
 from screens.login import LoginScreen
 from screens.register import RegisterScreen
@@ -95,11 +104,18 @@ class CyberCashApp(MDApp):
         if self.theme_manager:
             self.theme_manager.toggle()
 
+    def _warm_backend(self) -> None:
+        try:
+            api_client.warmup()
+        except Exception:
+            pass
+
     def build(self):
         theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kivy_frontend", "ui_theme.kv")
         if os.path.exists(theme_path):
             Builder.load_file(theme_path)
         self.theme_cls.theme_style = "Dark"
+        register_font_style_aliases(self.theme_cls.font_styles)
         # This KivyMD build errors on "Amber"; the app's gold styling comes from CyberTheme.
         self.theme_cls.primary_palette = "Green"
         self.pending_momo = ""
@@ -155,5 +171,7 @@ class CyberCashApp(MDApp):
             sm.current = "splash"
         elif sm.has_screen("login"):
             sm.current = "login"
+
+        threading.Thread(target=self._warm_backend, daemon=True).start()
 
         return sm
