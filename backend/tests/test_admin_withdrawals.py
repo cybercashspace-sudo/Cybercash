@@ -1,11 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient # Keep for type hinting, though client will be a fixture
 from sqlalchemy.orm import Session # Added for type hinting
+import json
 
 # Import app to ensure all models are loaded via its dependencies
 from backend.main import app
 from backend.database import Base, get_db # Import Base explicitly here
-from backend.models import User, Payment, CryptoTransaction, Account 
+from backend.models import User, Payment, CryptoTransaction, Account, Transaction, Wallet
 
 # Explicitly import all model modules at the top level
 # This ensures Base.metadata knows about all models when create_all is called.
@@ -162,3 +163,71 @@ def test_initiate_crypto_withdrawal_admin_success(client: TestClient, admin_auth
     # Total amount = amount + fee
     assert crypto_hot_wallet_account.balance == -(0.001 + 0.00005) # Credited
     assert revenue_payout_account.balance == (0.001 + 0.00005) # Debited
+
+
+def test_approve_fiat_withdrawal_uses_request_callback_url(
+    client: TestClient,
+    admin_auth_headers: dict,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured: dict[str, str] = {}
+
+    async def fake_momo_withdrawal(*args, **kwargs):
+        captured["callback_url"] = str(kwargs.get("callback_url", ""))
+        return {
+            "status": "pending",
+            "message": "Simulated Momo initiation.",
+            "processor_transaction_id": "MOMO_APPROVAL_TEST_ID",
+        }
+
+    from backend.services.momo import MomoService
+
+    monkeypatch.setattr(MomoService, "initiate_withdrawal", fake_momo_withdrawal, raising=True)
+
+    payout_user = User(
+        email="withdrawal-user@example.com",
+        password_hash="hashedpassword",
+        is_active=True,
+    )
+    db_session.add(payout_user)
+    db_session.commit()
+    db_session.refresh(payout_user)
+
+    wallet = Wallet(user_id=payout_user.id, balance=250.0, currency="GHS")
+    db_session.add(wallet)
+    db_session.commit()
+    db_session.refresh(wallet)
+
+    payment = Payment(
+        user_id=payout_user.id,
+        processor="momo",
+        type="withdrawal",
+        amount=50.0,
+        currency="GHS",
+        status="pending_admin_approval",
+        metadata_json=json.dumps({"phone_number": "0241234567"}),
+    )
+    db_session.add(payment)
+    db_session.commit()
+    db_session.refresh(payment)
+
+    transaction = Transaction(
+        user_id=payout_user.id,
+        wallet_id=wallet.id,
+        type="momo_withdrawal_initiate",
+        amount=50.0,
+        currency="GHS",
+        status="pending_admin_approval",
+    )
+    db_session.add(transaction)
+    db_session.commit()
+
+    response = client.put(
+        f"/admin/withdrawals/fiat/{payment.id}/approve-reject",
+        headers=admin_auth_headers,
+        json={"status": "approved", "reason": "ok"},
+    )
+
+    assert response.status_code == 200
+    assert captured["callback_url"] == f"http://testserver/payments/momo/callback/{payment.id}"

@@ -161,6 +161,31 @@ async def agent_cash_deposit(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer account not found.")
 
     commission_earned = round(gross_amount * float(agent.commission_rate or 0.0), 2)
+    result = await db.execute(select(Loan).filter(
+        Loan.agent_id == agent.id,
+        Loan.status.in_(loan_service.OPEN_LOAN_STATUSES),
+        Loan.outstanding_balance > 0
+    ))
+    active_loan = result.scalars().first()
+
+    loan_repayment_amount = 0.0
+    if active_loan:
+        repayment_percentage = settings.LOAN_REPAYMENT_PERCENTAGE
+        loan_repayment_amount = min(commission_earned * repayment_percentage, active_loan.outstanding_balance)
+
+        active_loan.outstanding_balance -= loan_repayment_amount
+        if active_loan.outstanding_balance <= 0:
+            active_loan.outstanding_balance = 0
+            active_loan.status = "repaid"
+            active_loan.repayment_date = datetime.now()
+        elif active_loan.repayment_due_date and datetime.now() > active_loan.repayment_due_date:
+            active_loan.status = "overdue"
+        db.add(active_loan)
+        await loan_service.sync_wallet_loan_balance(
+            db,
+            agent.user_id,
+            active_agent_id=agent.id,
+        )
 
     try:
         transaction = await transaction_engine.process_transaction(
@@ -184,6 +209,30 @@ async def agent_cash_deposit(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if loan_repayment_amount > 0:
+        agent.commission_balance -= loan_repayment_amount
+        db.add(agent)
+        await record_commission(
+            db,
+            agent_id=agent.id,
+            user_id=customer_user_id,
+            amount=-loan_repayment_amount,
+            currency=request.currency,
+            commission_type="LOAN_REPAYMENT_OFFSET",
+            status="offset",
+            transaction=transaction,
+            metadata={"source": "agent_cash_deposit_auto_repayment"},
+        )
+
+        await transaction_engine.ledger_service.create_journal_entry(
+            description=f"Auto Loan Repayment from Commission (Agent {agent.id})",
+            ledger_entries_data=[
+                {"account_name": "Commissions Payable (Liability)", "debit": loan_repayment_amount},
+                {"account_name": "Loan Principal (Asset)", "credit": loan_repayment_amount}
+            ],
+            transaction=transaction
+        )
 
     return transaction
 

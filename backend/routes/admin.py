@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import List, Optional
@@ -45,7 +45,6 @@ from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.momo import MomoService
 from backend.services.crypto import CryptoService
 from backend.services.bank import BankService, get_bank_service # New import
-from backend.services.payout_service import PayoutService, get_payout_service
 from backend.services.settings_service import get_or_create_platform_settings
 from backend.services import loan_service # New Import
 
@@ -713,7 +712,8 @@ async def get_pending_fiat_withdrawals(
 @router.put("/withdrawals/fiat/{payment_id}/approve-reject", response_model=PaymentResponse)
 async def approve_reject_fiat_withdrawal(
     payment_id: int,
-    request: WithdrawalApprovalRequest,
+    decision: WithdrawalApprovalRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
     ledger_service: LedgerService = Depends(get_ledger_service)
@@ -745,14 +745,14 @@ async def approve_reject_fiat_withdrawal(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated internal transaction not found.")
 
 
-        if request.status == "approved":
+        if decision.status == "approved":
             # Initiate actual Momo withdrawal
             momo_response = await momo_service.initiate_withdrawal(
                 phone_number=json.loads(db_payment.metadata_json).get("phone_number"),
                 amount=db_payment.amount,
                 currency=db_payment.currency,
                 user_id=db_payment.user_id,
-                callback_url=f"http://localhost:8000/payments/momo/callback/{db_payment.id}" # Example callback
+                callback_url=str(http_request.url_for("momo_callback_handler", payment_id=db_payment.id)).strip(),
             )
 
             if momo_response["status"] == "failed":
@@ -782,12 +782,12 @@ async def approve_reject_fiat_withdrawal(
             await db.refresh(db_payment)
             await db.refresh(db_transaction)
         
-        elif request.status == "rejected":
+        elif decision.status == "rejected":
             # Revert wallet balance (already deducted optimistically)
             user_wallet.balance += db_payment.amount
             db_payment.status = "rejected"
             db_transaction.status = "rejected"
-            db_payment.metadata_json = json.dumps({**json.loads(db_payment.metadata_json), "admin_rejection_reason": request.reason})
+            db_payment.metadata_json = json.dumps({**json.loads(db_payment.metadata_json), "admin_rejection_reason": decision.reason})
 
             # Create reversal ledger entry
             await ledger_service.create_journal_entry(
@@ -995,21 +995,92 @@ async def initiate_bank_withdrawal_admin(
 @router.post("/withdrawals/momo/initiate", response_model=PaymentResponse)
 async def initiate_momo_withdrawal_admin(
     request: MomoWithdrawalInitiateRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    payout_service: PayoutService = Depends(get_payout_service),
+    ledger_service: LedgerService = Depends(get_ledger_service),
 ):
     """
     Admin initiates a Mobile Money withdrawal for revenue payout.
     """
-    return await payout_service.initiate_momo_payout(
-        current_user=admin_user,
-        amount=request.amount,
-        account_number=request.phone_number,
-        currency=request.currency,
-        network=request.network,
-        notes=request.notes,
-        requested_user_id=admin_user.id,
-    )
+    try:
+        result = await db.execute(select(Wallet).filter(Wallet.user_id == admin_user.id))
+        admin_wallet = result.scalars().first()
+        if not admin_wallet:
+            admin_wallet = Wallet(user_id=admin_user.id, balance=0.0, currency=request.currency)
+            db.add(admin_wallet)
+            await db.flush()
+
+        new_payment = Payment(
+            user_id=admin_user.id,
+            amount=request.amount,
+            currency=request.currency,
+            type="withdrawal",
+            processor="momo",
+            status="pending",
+            metadata_json=json.dumps(
+                {
+                    "phone_number": request.phone_number,
+                    "network": request.network,
+                    "notes": request.notes,
+                    "initiated_by_admin_id": admin_user.id,
+                }
+            ),
+        )
+        db.add(new_payment)
+        await db.flush()
+
+        momo_response = await momo_service.initiate_withdrawal(
+            phone_number=request.phone_number,
+            amount=request.amount,
+            currency=request.currency,
+            user_id=admin_user.id,
+            callback_url=str(http_request.url_for("momo_callback_handler", payment_id=new_payment.id)).strip(),
+        )
+
+        if momo_response["status"] == "failed":
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=momo_response["message"])
+
+        new_payment.status = "awaiting_confirmation"
+        new_payment.processor_transaction_id = momo_response.get("processor_transaction_id")
+        db.add(new_payment)
+
+        new_transaction = Transaction(
+            user_id=admin_user.id,
+            wallet_id=admin_wallet.id,
+            amount=request.amount,
+            currency=request.currency,
+            type="admin_momo_withdrawal_initiate",
+            status="awaiting_confirmation",
+            metadata_json=json.dumps(
+                {
+                    "payment_id": new_payment.id,
+                    "phone_number": request.phone_number,
+                    "network": request.network,
+                    "notes": request.notes,
+                }
+            ),
+        )
+        db.add(new_transaction)
+        await db.flush()
+
+        await ledger_service.create_journal_entry(
+            description=f"Admin initiated momo withdrawal to {request.phone_number}",
+            ledger_entries_data=[
+                {"account_name": "Revenue Payout (Expense)", "debit": request.amount, "credit": 0.0},
+                {"account_name": "Cash (External Bank)", "debit": 0.0, "credit": request.amount},
+            ],
+            payment=new_payment,
+            transaction=new_transaction,
+            auto_commit=False,
+        )
+
+        await db.commit()
+        await db.refresh(new_payment)
+        return new_payment
+    finally:
+        await db.close()
 
 
 @router.post("/withdrawals/crypto/initiate", response_model=CryptoTransactionResponse)

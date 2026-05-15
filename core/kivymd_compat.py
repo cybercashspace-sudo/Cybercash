@@ -1,138 +1,82 @@
 from __future__ import annotations
 
-from kivy.clock import Clock
-from kivy.factory import Factory
-from kivy.properties import ColorProperty, OptionProperty, StringProperty
-import kivymd.uix.button as kivymd_button_module
-
-try:
-    from kivymd.uix.button import MDButton, MDButtonIcon, MDButtonText
-    _HAS_MODERN_BUTTON_API = True
-except ImportError:
-    from kivymd.uix.button import (  # type: ignore[attr-defined]
-        MDFlatButton as _LegacyFlatButton,
-        MDFillRoundFlatIconButton as _LegacyFillRoundFlatIconButton,
-        MDRaisedButton as _LegacyRaisedButton,
-        MDTextButton as _LegacyTextButtonBuiltin,
-    )
-    _HAS_MODERN_BUTTON_API = False
-
-if _HAS_MODERN_BUTTON_API:
-    class _LegacyTextButton(MDButton):
-        text = StringProperty("")
-        theme_text_color = OptionProperty("Primary", options=("Primary", "Custom"))
-        text_color = ColorProperty([1, 1, 1, 1])
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._text_widget = MDButtonText()
-            self.add_widget(self._text_widget)
-            self.bind(
-                text=self._sync_text_widget,
-                theme_text_color=self._sync_text_widget,
-                text_color=self._sync_text_widget,
-            )
-            Clock.schedule_once(self._sync_text_widget, 0)
-
-        def _sync_text_widget(self, *_args):
-            self._text_widget.text = str(self.text or "")
-            self._text_widget.theme_text_color = self.theme_text_color
-            if self.theme_text_color == "Custom":
-                self._text_widget.text_color = list(self.text_color)
-
-        def on_md_bg_color(self, _instance, value):
-            if value is not None:
-                self.theme_bg_color = "Custom"
+from typing import Mapping
 
 
-    class MDRaisedButton(_LegacyTextButton):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.style = "filled"
+_LEGACY_FONT_STYLE_ALIASES = {
+    "Title": "H6",
+    "Headline": "H5",
+    "Body": "Body1",
+    "Label": "Caption",
+}
 
 
-    class MDFlatButton(_LegacyTextButton):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.style = "text"
+def install_kivymd_font_style_compat() -> None:
+    """Teach pre-2.0 KivyMD builds about the Material 3 font-style names.
+
+    Desktop currently runs on KivyMD 2.x, where styles such as ``Title`` and
+    ``Headline`` are valid. The Android APK build is pinned to KivyMD 1.2.0,
+    which still expects legacy names like ``H6`` and ``Body1``. This shim adds
+    the newer names as aliases only when an older font-style registry is
+    detected.
+    """
+
+    try:
+        from kivymd.font_definitions import theme_font_styles
+        from kivymd.uix.label import MDLabel
+    except Exception:
+        return
+
+    if not isinstance(theme_font_styles, list):
+        return
+
+    for alias in _LEGACY_FONT_STYLE_ALIASES:
+        if alias not in theme_font_styles:
+            theme_font_styles.append(alias)
+
+    try:
+        font_style_prop = MDLabel.font_style
+        options = list(getattr(font_style_prop, "options", ()) or ())
+        changed = False
+        for alias in _LEGACY_FONT_STYLE_ALIASES:
+            if alias not in options:
+                options.append(alias)
+                changed = True
+        if changed:
+            font_style_prop.options = tuple(options)
+    except Exception:
+        pass
 
 
-    class MDTextButton(_LegacyTextButton):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.style = "text"
-            self.theme_bg_color = "Custom"
-            self.md_bg_color = [0, 0, 0, 0]
+def register_legacy_button_aliases() -> None:
+    """Keep older screen imports compatible across KivyMD versions.
 
+    Android is pinned to KivyMD 1.2.0, where the legacy button classes already
+    exist. Newer or partial desktop environments may not expose the same names;
+    this hook is intentionally best-effort so importing the screens package does
+    not fail before the app can install the rest of its compatibility shims.
+    """
 
-    class MDFillRoundFlatIconButton(MDButton):
-        text = StringProperty("")
-        icon = StringProperty("")
-        theme_text_color = OptionProperty("Primary", options=("Primary", "Custom"))
-        text_color = ColorProperty([1, 1, 1, 1])
-        theme_icon_color = OptionProperty("Primary", options=("Primary", "Custom"))
-        icon_color = ColorProperty([1, 1, 1, 1])
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.style = "filled"
-            self.radius = [20]
-            self._icon_widget = MDButtonIcon()
-            self._text_widget = MDButtonText()
-            self.add_widget(self._icon_widget)
-            self.add_widget(self._text_widget)
-            self.bind(
-                text=self._sync_content,
-                icon=self._sync_content,
-                theme_text_color=self._sync_content,
-                text_color=self._sync_content,
-                theme_icon_color=self._sync_content,
-                icon_color=self._sync_content,
-            )
-            Clock.schedule_once(self._sync_content, 0)
-
-        def _sync_content(self, *_args):
-            self._text_widget.text = str(self.text or "")
-            self._text_widget.theme_text_color = self.theme_text_color
-            if self.theme_text_color == "Custom":
-                self._text_widget.text_color = list(self.text_color)
-
-            self._icon_widget.icon = str(self.icon or "")
-            self._icon_widget.theme_icon_color = self.theme_icon_color
-            if self.theme_icon_color == "Custom":
-                self._icon_widget.icon_color = list(self.icon_color)
-
-        def on_md_bg_color(self, _instance, value):
-            if value is not None:
-                self.theme_bg_color = "Custom"
-
-
-    def register_legacy_button_aliases() -> None:
-        if "MDRaisedButton" not in Factory.classes:
-            Factory.register("MDRaisedButton", cls=MDRaisedButton)
-        if "MDFlatButton" not in Factory.classes:
-            Factory.register("MDFlatButton", cls=MDFlatButton)
-        if "MDTextButton" not in Factory.classes:
-            Factory.register("MDTextButton", cls=MDTextButton)
-        if "MDFillRoundFlatIconButton" not in Factory.classes:
-            Factory.register("MDFillRoundFlatIconButton", cls=MDFillRoundFlatIconButton)
-
-        if not hasattr(kivymd_button_module, "MDRaisedButton"):
-            setattr(kivymd_button_module, "MDRaisedButton", MDRaisedButton)
-        if not hasattr(kivymd_button_module, "MDFlatButton"):
-            setattr(kivymd_button_module, "MDFlatButton", MDFlatButton)
-        if not hasattr(kivymd_button_module, "MDTextButton"):
-            setattr(kivymd_button_module, "MDTextButton", MDTextButton)
-        if not hasattr(kivymd_button_module, "MDFillRoundFlatIconButton"):
-            setattr(kivymd_button_module, "MDFillRoundFlatIconButton", MDFillRoundFlatIconButton)
-else:
-    MDRaisedButton = _LegacyRaisedButton
-    MDFlatButton = _LegacyFlatButton
-    MDTextButton = _LegacyTextButtonBuiltin
-    MDFillRoundFlatIconButton = _LegacyFillRoundFlatIconButton
-
-    def register_legacy_button_aliases() -> None:
+    try:
+        import kivymd.uix.button  # noqa: F401
+    except Exception:
         return
 
 
-register_legacy_button_aliases()
+def register_font_style_aliases(theme_font_styles: Mapping | dict) -> None:
+    """Mirror Material 3 font-style names into a ThemeManager font map."""
+
+    if not isinstance(theme_font_styles, dict):
+        return
+
+    for alias, legacy_name in _LEGACY_FONT_STYLE_ALIASES.items():
+        if alias in theme_font_styles or legacy_name not in theme_font_styles:
+            continue
+
+        legacy_style = theme_font_styles[legacy_name]
+        if isinstance(legacy_style, list):
+            theme_font_styles[alias] = list(legacy_style)
+        elif isinstance(legacy_style, dict):
+            theme_font_styles[alias] = dict(legacy_style)
+        else:
+            theme_font_styles[alias] = legacy_style

@@ -1,0 +1,17 @@
+[INFO   ] Logger: Record log in .kivy_runtime\logs\kivy_26-05-13_0.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.10.7 (tags/v3.10.7:6cc6b13, Sep  5 2022, 14:08:36) [MSC v.1933 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\Scripts\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 195 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] KivyMD: 2.0.1.dev0, git-Unknown, 2026-03-05 (installed at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\lib\site-packages\kivymd\__init__.py")
+[INFO   ] Text: Provider: sdl2
+[CRITICAL] Window: Unable to find any valuable Window provider. Please enable debug logging (e.g. add -d if running from the command line, or change the log level in the config) and re-run your app to identify potential causes
+
+[CRITICAL] App: Unable to get a Window, abort.

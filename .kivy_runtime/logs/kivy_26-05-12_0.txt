@@ -1,0 +1,32 @@
+[INFO   ] Logger: Record log in C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.kivy_runtime\logs\kivy_26-05-12_0.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.1
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.0
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.10.7 (tags/v3.10.7:6cc6b13, Sep  5 2022, 14:08:36) [MSC v.1933 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\Scripts\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 195 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] KivyMD: 2.0.1.dev0, git-Unknown, 2026-03-05 (installed at "C:\Users\CYBER360\Desktop\CYBER_CASH_TECHNOLOGIES_LTD_Full_Package\.venv\lib\site-packages\kivymd\__init__.py")
+[INFO   ] Text: Provider: sdl2
+[INFO   ] Window: Provider: sdl2
+[INFO   ] GL: Using the "OpenGL" graphics system
+[INFO   ] GL: GLEW initialization succeeded
+[INFO   ] GL: Backend used <glew>
+[INFO   ] GL: OpenGL version <b'4.0.0 - Build 10.18.10.4252'>
+[INFO   ] GL: OpenGL vendor <b'Intel'>
+[INFO   ] GL: OpenGL renderer <b'Intel(R) HD Graphics'>
+[INFO   ] GL: OpenGL parsed version: 4, 0
+[INFO   ] GL: Shading version <b'4.00 - Build 10.18.10.4252'>
+[INFO   ] GL: Texture max size <16384>
+[INFO   ] GL: Texture max units <16>
+[INFO   ] Window: auto add sdl2 input provider
+[INFO   ] Window: virtual keyboard not allowed, single mode, not docked
+[INFO   ] Clipboard: Provider: winctypes
+[INFO   ] Audio: Providers: audio_sdl2 (audio_ffpyplayer ignored)
+[INFO   ] GL: NPOT texture support is available
+[INFO   ] Loader: using a thread pool of 2 workers
+[INFO   ] Base: Start application main loop
