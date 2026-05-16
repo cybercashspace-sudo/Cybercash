@@ -365,7 +365,7 @@ KV = """
                                 hint_text: "BTC address"
                                 helper_text: "Address only."
                                 helper_text_mode: "on_focus"
-                                mode: "filled"
+                                mode: "fill"
                                 theme_bg_color: "Custom"
                                 fill_color_normal: 0.11, 0.14, 0.17, 1
                                 fill_color_focus: 0.13, 0.16, 0.20, 1
@@ -382,7 +382,7 @@ KV = """
                                 hint_text: "Amount (BTC)"
                                 helper_text: "Fee shown below."
                                 helper_text_mode: "on_focus"
-                                mode: "filled"
+                                mode: "fill"
                                 theme_bg_color: "Custom"
                                 fill_color_normal: 0.11, 0.14, 0.17, 1
                                 fill_color_focus: 0.13, 0.16, 0.20, 1
@@ -439,7 +439,7 @@ KV = """
                                 hint_text: "Amount (BTC)"
                                 helper_text: "Live price."
                                 helper_text_mode: "on_focus"
-                                mode: "filled"
+                                mode: "fill"
                                 theme_bg_color: "Custom"
                                 fill_color_normal: 0.11, 0.14, 0.17, 1
                                 fill_color_focus: 0.13, 0.16, 0.20, 1
