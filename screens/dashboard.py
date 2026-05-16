@@ -12,7 +12,7 @@ from kivy.properties import BooleanProperty, NumericProperty, StringProperty
 from kivy.uix.gridlayout import GridLayout
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
+from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 from kivymd.uix.screen import MDScreen
