@@ -330,7 +330,7 @@ KV = """
                         MDTextField:
                             id: currency_input
                             hint_text: "Currency code, e.g. USD"
-                            mode: "outlined"
+                            mode: "rectangle"
 
                         MDLabel:
                             text: "Use a 3-letter currency code such as USD or EUR."
@@ -349,7 +349,7 @@ KV = """
                         MDTextField:
                             id: type_input
                             hint_text: "Card type: rechargeable or one-time"
-                            mode: "outlined"
+                            mode: "rectangle"
 
                         MDLabel:
                             text: "Rechargeable for ongoing use, one-time for single purchases."
@@ -368,7 +368,7 @@ KV = """
                         MDTextField:
                             id: spending_limit_input
                             hint_text: "Optional limit, e.g. 100"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
 
                         MDLabel:
@@ -421,7 +421,7 @@ KV = """
                         MDTextField:
                             id: status_card_id
                             hint_text: "Card ID"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "int"
 
                         MDLabel:
@@ -441,7 +441,7 @@ KV = """
                         MDTextField:
                             id: status_input
                             hint_text: "Status: active or blocked"
-                            mode: "outlined"
+                            mode: "rectangle"
 
                         MDLabel:
                             text: "Accepted values: active to unfreeze, blocked to freeze."

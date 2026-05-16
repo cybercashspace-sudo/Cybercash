@@ -115,7 +115,7 @@ KV = """
                         MDTextField:
                             id: momo_input
                             hint_text: "MoMo number"
-                            mode: "outlined"
+                            mode: "rectangle"
                             icon_right: "phone"
                             line_color_focus: GOLD
                             on_text: root.on_momo_input(self.text)
@@ -130,7 +130,7 @@ KV = """
                         MDTextField:
                             id: first_name_input
                             hint_text: "First name"
-                            mode: "outlined"
+                            mode: "rectangle"
                             icon_right: "account-outline"
                             line_color_focus: GOLD
 
@@ -144,7 +144,7 @@ KV = """
                         MDTextField:
                             id: pin_input
                             hint_text: "4-digit PIN"
-                            mode: "outlined"
+                            mode: "rectangle"
                             icon_right: "shield-lock-outline"
                             line_color_focus: GOLD
                             password: True

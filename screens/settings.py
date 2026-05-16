@@ -207,7 +207,7 @@ KV = """
                             hint_text: "Withdrawal limit (GHS)"
                             helper_text: "Applies to your account withdrawal cap."
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 
@@ -265,13 +265,13 @@ KV = """
                             hint_text: "Default payout method"
                             helper_text: "momo, bank, or crypto"
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             multiline: False
 
                         MDTextField:
                             id: preferred_currency_input
                             hint_text: "Preferred currency"
-                            mode: "outlined"
+                            mode: "rectangle"
                             multiline: False
 
                 MDCard:
@@ -431,7 +431,7 @@ KV = """
                             hint_text: "API / agent activation fee (GHS)"
                             helper_text: "Used when agents activate."
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 
@@ -440,7 +440,7 @@ KV = """
                             hint_text: "Platform fee rate"
                             helper_text: "Decimal rate, e.g. 0.01 = 1%"
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 
@@ -449,7 +449,7 @@ KV = """
                             hint_text: "Platform withdrawal limit (GHS)"
                             helper_text: "Maximum platform withdrawal."
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 
@@ -458,7 +458,7 @@ KV = """
                             hint_text: "Fraud threshold (GHS)"
                             helper_text: "Amounts above this are flagged."
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 
@@ -467,7 +467,7 @@ KV = """
                             hint_text: "Default commission rate"
                             helper_text: "Decimal rate, e.g. 0.02 = 2%"
                             helper_text_mode: "on_focus"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             multiline: False
 

@@ -111,7 +111,7 @@ KV = """
                         MDTextField:
                             id: momo_input
                             hint_text: "MoMo number"
-                            mode: "outlined"
+                            mode: "rectangle"
                             icon_right: "phone"
                             line_color_focus: GOLD
 
@@ -125,7 +125,7 @@ KV = """
                         MDTextField:
                             id: otp_input
                             hint_text: "6-digit OTP"
-                            mode: "outlined"
+                            mode: "rectangle"
                             icon_right: "shield-key-outline"
                             line_color_focus: GOLD
                             max_text_length: 6
