@@ -2,6 +2,9 @@ import logging
 import os
 import threading
 
+# Android 14+ can emit noisy SDL HID receiver errors while probing gamepads.
+os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
+
 from kivy.properties import ColorProperty, StringProperty
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, SlideTransition

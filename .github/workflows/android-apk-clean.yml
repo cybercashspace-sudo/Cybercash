@@ -53,8 +53,8 @@ jobs:
 
       - name: Build debug APK
         env:
-          KIVY_API_URL: https://www.cybercash.space
-          CYBERCASH_API_URL: https://www.cybercash.space
+          KIVY_API_URL: https://cybercash.space
+          CYBERCASH_API_URL: https://cybercash.space
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: bash ./build_apk_ci.sh
 

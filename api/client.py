@@ -35,11 +35,16 @@ try:
 except Exception:
     kivy_platform = ""
 
-MOBILE_BACKEND_URL = "https://www.cybercash.space"
+MOBILE_BACKEND_URL = "https://cybercash.space"
+MOBILE_BACKEND_FALLBACK_URLS = (
+    "https://www.cybercash.space",
+    "https://cyber-cash.onrender.com",
+)
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 8
 DEFAULT_READ_TIMEOUT_SECONDS = 45
 DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+FAILOVER_STATUS_CODES = (502, 503, 504)
 
 
 def _normalize_api_url(raw_value: str) -> str:
@@ -103,6 +108,15 @@ def resolve_api_url() -> str:
     return DEFAULT_API_URL
 
 
+def resolve_api_urls() -> list[str]:
+    urls = []
+    for value in (resolve_api_url(), *MOBILE_BACKEND_FALLBACK_URLS):
+        normalized = _normalize_api_url(value)
+        if normalized and normalized not in urls:
+            urls.append(normalized)
+    return urls
+
+
 def _coerce_timeout(timeout):
     if timeout is None:
         return DEFAULT_TIMEOUT
@@ -117,6 +131,10 @@ API_URL = resolve_api_url()
 class APIClient:
     def __init__(self, base_url: str | None = None):
         self.base_url = str(base_url or API_URL).rstrip("/")
+        self.base_urls = [self.base_url]
+        if base_url is None:
+            self.base_urls = resolve_api_urls()
+            self.base_url = self.base_urls[0]
         self.session = requests.Session()
         self._install_retries()
 
@@ -162,27 +180,41 @@ class APIClient:
         headers: dict | None = None,
         timeout=DEFAULT_TIMEOUT,
     ) -> dict:
-        try:
-            response = self.session.request(
-                method=method.upper(),
-                url=f"{self.base_url}{path}",
-                json=payload,
-                params=params,
-                headers=headers or {},
-                timeout=_coerce_timeout(timeout),
-            )
-            data = self._safe_json(response)
-            return {
-                "ok": response.status_code < 400,
-                "status_code": response.status_code,
-                "data": data,
-            }
-        except Exception as exc:
-            return {
-                "ok": False,
-                "status_code": 0,
-                "data": {"detail": self._timeout_message(exc)},
-            }
+        last_result = None
+        for base_url in self.base_urls:
+            try:
+                response = self.session.request(
+                    method=method.upper(),
+                    url=f"{base_url}{path}",
+                    json=payload,
+                    params=params,
+                    headers=headers or {},
+                    timeout=_coerce_timeout(timeout),
+                )
+                data = self._safe_json(response)
+                result = {
+                    "ok": response.status_code < 400,
+                    "status_code": response.status_code,
+                    "data": data,
+                }
+                if response.status_code < 400:
+                    self.base_url = base_url
+                    return result
+                last_result = result
+                if response.status_code not in FAILOVER_STATUS_CODES:
+                    return result
+            except Exception as exc:
+                last_result = {
+                    "ok": False,
+                    "status_code": 0,
+                    "data": {"detail": self._timeout_message(exc)},
+                }
+
+        return last_result or {
+            "ok": False,
+            "status_code": 0,
+            "data": {"detail": "Backend connection failed. Please check your internet connection and try again."},
+        }
 
     def warmup(self) -> None:
         self.request("GET", "/health", timeout=(5, 20))
