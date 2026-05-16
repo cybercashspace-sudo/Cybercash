@@ -172,13 +172,21 @@ KV = """
                             adaptive_height: True
                             spacing: dp(10 * root.layout_scale)
 
-                            MDCircularProgressIndicator:
+                            Widget:
                                 size_hint: None, None
                                 size: dp(64 * root.layout_scale), dp(64 * root.layout_scale)
                                 pos_hint: {"center_x": 0.5}
-                                active: True
-                                color: GOLD
-                                line_width: dp(max(3.0, 4.5 * root.layout_scale))
+                                canvas.before:
+                                    Color:
+                                        rgba: GOLD_SOFT
+                                    Line:
+                                        circle: (self.center_x, self.center_y, min(self.width, self.height) / 2 - dp(4))
+                                        width: dp(max(2.0, 3.0 * root.layout_scale))
+                                    Color:
+                                        rgba: GOLD
+                                    Line:
+                                        circle: (self.center_x, self.center_y, min(self.width, self.height) / 2 - dp(10), 20, 320)
+                                        width: dp(max(3.0, 4.5 * root.layout_scale))
 
                             MDLabel:
                                 text: root.status_text
