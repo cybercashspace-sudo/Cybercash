@@ -19,8 +19,16 @@ except ImportError:
 
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-load_dotenv(os.path.join(project_root, ".env"))
-load_dotenv()
+
+
+def _safe_load_dotenv(path: str) -> None:
+    try:
+        load_dotenv(path)
+    except Exception:
+        pass
+
+
+_safe_load_dotenv(os.path.join(project_root, ".env"))
 
 try:
     from kivy.utils import platform as kivy_platform
