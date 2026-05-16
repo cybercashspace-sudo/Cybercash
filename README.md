@@ -7,9 +7,9 @@ Full stack starter pack:
 - React admin panel
 
 Android / backend status:
-- The Android APK build now targets `https://cybercash.space`.
+- The Android APK build now targets `https://www.cybercash.space`.
 - The repository includes GitHub Actions APK workflows plus Render-style backend manifests (`Procfile`, `render.yaml`).
-- Before the mobile app can work on a real Android device, `cybercash.space` must serve the FastAPI backend successfully over HTTPS.
+- Before the mobile app can work on a real Android device, `www.cybercash.space` must serve the FastAPI backend successfully over HTTPS.
 - Health check endpoint: `GET /health`
 
 SMS note:

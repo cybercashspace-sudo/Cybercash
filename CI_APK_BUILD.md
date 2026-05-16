@@ -4,7 +4,7 @@ This repository uses GitHub Actions on Ubuntu 22.04 as the supported Android bui
 
 ## Why this path
 
-- The app is packaged against `https://cybercash.space`.
+- The app is packaged against `https://www.cybercash.space`.
 - The workflow pins Python `3.11` and `Cython<3` to avoid the `pyjnius` compile failure seen in WSL.
 - The workflow stages a clean Android source tree before building, so the tracked Windows Python runtime does not contaminate the APK job.
 - The workflow runs on Linux directly, so it avoids the Windows WSL and local Python runtime issues.
