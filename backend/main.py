@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from dotenv import load_dotenv
 
 _backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,10 +53,24 @@ app = FastAPI(title="CyberCash ULTRA PRO Backend")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_database_startup_ready = False
+_database_startup_error = None
+_database_startup_task = None
+
 
 @app.get("/health")
 async def healthcheck():
-    return {"status": "ok", "service": "cybercash-backend"}
+    database_status = "ready" if _database_startup_ready else "initializing"
+    if _database_startup_error:
+        database_status = "error"
+    payload = {
+        "status": "ok",
+        "service": "cybercash-backend",
+        "database_status": database_status,
+    }
+    if _database_startup_error:
+        payload["database_error"] = _database_startup_error
+    return payload
 
 def _mask_secret(value: str, prefix: int = 3, suffix: int = 2) -> str:
     raw = str(value or "")
@@ -237,8 +252,43 @@ async def _ensure_default_access_user() -> None:
 # STARTUP EVENT
 # ==========================================
 
+async def _run_database_startup() -> None:
+    global _database_startup_ready, _database_startup_error
+    if os.environ.get("RUNNING_TESTS") != "true":
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_apply_schema_patches)
+
+        await _ensure_default_access_user()
+
+    from backend.services.ledger_service import LedgerService
+
+    async with async_session() as seed_db:
+        ledger_service = LedgerService(seed_db)
+        await ledger_service._initialize_standard_accounts()
+        await seed_db.commit()
+
+    _database_startup_ready = True
+    _database_startup_error = None
+    logger.info("Database initialized successfully")
+
+
+def _log_database_startup_result(task: asyncio.Task) -> None:
+    global _database_startup_error
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        _database_startup_error = "database initialization was cancelled"
+        logger.warning("Database initialization task was cancelled")
+    except Exception as exc:
+        _database_startup_error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Database initialization failed")
+
+
 @app.on_event("startup")
 async def startup_db_events():
+    global _database_startup_task, _database_startup_error
+
     from backend.services.otp_service import get_otp_service
     from backend.services.sms_service import get_sms_service
 
@@ -262,21 +312,25 @@ async def startup_db_events():
         str(os.getenv("MNOTIFY_SENDER", "") or "").strip() or "<default>",
     )
 
-    if os.environ.get("RUNNING_TESTS") != "true":
-        async with async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            await conn.run_sync(_apply_schema_patches)
+    startup_timeout_seconds = float(os.getenv("STARTUP_DB_INIT_TIMEOUT_SECONDS", "25"))
+    _database_startup_task = asyncio.create_task(_run_database_startup())
+    _database_startup_task.add_done_callback(_log_database_startup_result)
 
-        await _ensure_default_access_user()
+    if startup_timeout_seconds <= 0:
+        logger.info("Database initialization is running in the background")
+        return
 
-    from backend.services.ledger_service import LedgerService
-
-    async with async_session() as seed_db:
-        ledger_service = LedgerService(seed_db)
-        await ledger_service._initialize_standard_accounts()
-        await seed_db.commit()
-
-    logger.info("✅ Database initialized successfully")
+    try:
+        await asyncio.wait_for(asyncio.shield(_database_startup_task), timeout=startup_timeout_seconds)
+    except asyncio.TimeoutError:
+        _database_startup_error = "database initialization still running"
+        logger.warning(
+            "Database initialization exceeded %.1f seconds; continuing startup and serving health checks",
+            startup_timeout_seconds,
+        )
+    except Exception as exc:
+        _database_startup_error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Database initialization failed during startup; continuing so health checks can respond")
 
 # ==========================================
 # CORS CONFIG
