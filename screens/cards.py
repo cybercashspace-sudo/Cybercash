@@ -604,7 +604,7 @@ class CardScreen(ActionScreen):
             MDLabel(
                 text=status_label,
                 halign="center",
-                valign="middle",
+                valign="center",
                 text_size=indicator.size,
                 theme_text_color="Custom",
                 text_color=status_color,

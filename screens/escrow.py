@@ -434,7 +434,7 @@ class EscrowScreen(ActionScreen):
         latest_description = str(latest.get("description") or "").strip() or "Protected payment"
         latest_date = self._format_date_label(latest.get("created_at"))
 
-        self.latest_deal_title = f"Latest deal #{latest_id if latest_id > 0 else '-'} â€¢ {latest_status}"
+        self.latest_deal_title = f"Latest deal #{latest_id if latest_id > 0 else '-'} • {latest_status}"
         self.latest_deal_subtitle = (
             f"{latest_description}. Recipient: {latest_recipient}. "
             f"Deal value: {self._format_money(latest_amount)}. "

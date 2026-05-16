@@ -459,7 +459,7 @@ KV = """
                             MDLabel:
                                 text: root.notification_count_text
                                 halign: "center"
-                                valign: "middle"
+                                valign: "center"
                                 font_name: FONT_BOLD
                                 font_size: sp(10 * root.text_scale)
                                 theme_text_color: "Custom"
@@ -1375,7 +1375,7 @@ class HomeScreen(ResponsiveScreen):
             size_hint_x=None,
             width=dp(128 * layout_scale),
             halign="right",
-            valign="middle",
+            valign="center",
             font_name=FONT_SEMIBOLD,
             font_size=sp(15 * text_scale),
             bold=True,

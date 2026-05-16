@@ -160,7 +160,7 @@ KV = """
                             MDLabel:
                                 text: "1"
                                 halign: "center"
-                                valign: "middle"
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: 1, 1, 1, 1
                                 font_size: sp(10 * root.text_scale)
@@ -240,7 +240,7 @@ KV = """
                             MDLabel:
                                 text: root.agent_status_display
                                 halign: "center"
-                                valign: "middle"
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: root.agent_status_text_color
                                 font_size: sp(11.5 * root.text_scale)
@@ -312,7 +312,7 @@ KV = """
                                 font_size: sp(15 * root.text_scale)
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
-                                valign: "middle"
+                                valign: "center"
 
                             MDCard:
                                 size_hint: None, None
@@ -430,7 +430,7 @@ KV = """
                             MDLabel:
                                 text: "Fund"
                                 bold: True
-                                valign: "middle"
+                                valign: "center"
                                 font_style: "Title"
                                 font_name: FONT_BOLD
                                 font_size: sp(16 * root.text_scale)
@@ -478,7 +478,7 @@ KV = """
                             MDLabel:
                                 text: "Withdraw"
                                 bold: True
-                                valign: "middle"
+                                valign: "center"
                                 font_style: "Title"
                                 font_name: FONT_BOLD
                                 font_size: sp(16 * root.text_scale)
@@ -1370,7 +1370,7 @@ class AgentScreen(ResponsiveScreen):
             size_hint_x=None,
             width=dp(124 * layout_scale),
             halign="right",
-            valign="middle",
+            valign="center",
             font_name=FONT_SEMIBOLD,
             font_size=sp(15 * text_scale),
             bold=True,

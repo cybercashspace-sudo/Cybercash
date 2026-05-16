@@ -168,7 +168,7 @@ KV = """
 
                             MDLabel:
                                 text: "Turn this on only when opening an agent account for the first time."
-                                valign: "middle"
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
 

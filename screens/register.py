@@ -182,7 +182,7 @@ KV = """
 
                             MDLabel:
                                 text: "Turn this on if you are opening an agent account."
-                                valign: "middle"
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
 

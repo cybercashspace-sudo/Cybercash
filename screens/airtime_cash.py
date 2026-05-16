@@ -171,7 +171,7 @@ KV = """
                                 MDLabel:
                                     text: "MTN"
                                     halign: "center"
-                                    valign: "middle"
+                                    valign: "center"
                                     theme_text_color: "Custom"
                                     text_color: BG if root.is_network_selected("MTN") else TEXT_MAIN
                                     font_size: sp(13 * root.text_scale)
@@ -188,7 +188,7 @@ KV = """
                                 MDLabel:
                                     text: "Telecel"
                                     halign: "center"
-                                    valign: "middle"
+                                    valign: "center"
                                     theme_text_color: "Custom"
                                     text_color: BG if root.is_network_selected("TELECEL") else TEXT_MAIN
                                     font_size: sp(13 * root.text_scale)
@@ -205,7 +205,7 @@ KV = """
                                 MDLabel:
                                     text: "AirtelTigo"
                                     halign: "center"
-                                    valign: "middle"
+                                    valign: "center"
                                     theme_text_color: "Custom"
                                     text_color: BG if root.is_network_selected("AIRTELTIGO") else TEXT_MAIN
                                     font_size: sp(13 * root.text_scale)

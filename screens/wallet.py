@@ -275,7 +275,7 @@ KV = """
                                         theme_text_color: "Custom"
                                         text_color: GOLD
                                         bold: True
-                                        valign: "middle"
+                                        valign: "center"
                                         shorten: True
                                         shorten_from: "right"
 
@@ -286,7 +286,7 @@ KV = """
                                         theme_text_color: "Custom"
                                         text_color: TEXT_SUB
                                         font_size: sp(11.5 * root.text_scale)
-                                        valign: "middle"
+                                        valign: "center"
                                         halign: "right"
 
                                 MDLabel:
@@ -483,7 +483,7 @@ KV = """
                                         theme_text_color: "Custom"
                                         text_color: GOLD
                                         bold: True
-                                        valign: "middle"
+                                        valign: "center"
                                         shorten: True
                                         shorten_from: "right"
 
@@ -494,7 +494,7 @@ KV = """
                                         theme_text_color: "Custom"
                                         text_color: TEXT_SUB
                                         font_size: sp(11.5 * root.text_scale)
-                                        valign: "middle"
+                                        valign: "center"
                                         halign: "right"
 
                                 MDLabel:

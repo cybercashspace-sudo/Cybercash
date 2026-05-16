@@ -79,7 +79,7 @@ KV = """
                                 theme_text_color: "Custom"
                                 text_color: app.ui_text_primary
                                 bold: True
-                                valign: "middle"
+                                valign: "center"
 
                     MDCard:
                         radius: [dp(18 * root.layout_scale)]
@@ -103,7 +103,7 @@ KV = """
                                 theme_text_color: "Custom"
                                 text_color: app.ui_text_primary
                                 bold: True
-                                valign: "middle"
+                                valign: "center"
 
                 MDCard:
                     radius: [dp(20 * root.layout_scale)]

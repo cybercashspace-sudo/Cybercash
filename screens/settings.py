@@ -93,7 +93,7 @@ KV = """
                                 size_hint_x: None
                                 width: dp(110)
                                 halign: "right"
-                                valign: "middle"
+                                valign: "center"
                                 text_size: self.size
                                 bold: True
                                 theme_text_color: "Custom"

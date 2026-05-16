@@ -160,7 +160,7 @@ KV = """
                             MDLabel:
                                 text: "1"
                                 halign: "center"
-                                valign: "middle"
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: 1, 1, 1, 1
                                 font_size: sp(10 * root.text_scale)
@@ -281,7 +281,7 @@ KV = """
                                     theme_text_color: "Custom"
                                     text_color: 0.91, 0.98, 0.83, 1
                                     halign: "center"
-                                    valign: "middle"
+                                    valign: "center"
                                     text_size: self.size
                                     disabled: True
 
@@ -293,7 +293,7 @@ KV = """
                                 font_size: sp(15 * root.text_scale)
                                 theme_text_color: "Custom"
                                 text_color: app.ui_text_primary
-                                valign: "middle"
+                                valign: "center"
 
                             MDCard:
                                 size_hint: None, None
@@ -311,7 +311,7 @@ KV = """
                                     size_hint: None, None
                                     size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                                     halign: "center"
-                                    valign: "middle"
+                                    valign: "center"
                                     text_size: self.size
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                     theme_text_color: "Custom"
@@ -370,7 +370,7 @@ KV = """
                             MDLabel:
                                 text: "Deposit"
                                 bold: True
-                                valign: "middle"
+                                valign: "center"
                                 font_style: "Title"
                                 font_name: FONT_BOLD
                                 font_size: sp(16 * root.text_scale)
@@ -966,7 +966,7 @@ class DashboardScreen(MDScreen):
             size_hint_x=None,
             width=dp(124 * layout_scale),
             halign="right",
-            valign="middle",
+            valign="center",
             font_name=FONT_SEMIBOLD,
             font_size=sp(15 * text_scale),
             bold=True,

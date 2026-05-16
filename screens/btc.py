@@ -133,7 +133,7 @@ KV = """
                                     MDLabel:
                                         text: root.market_status_text
                                         halign: "center"
-                                        valign: "middle"
+                                        valign: "center"
                                         text_size: self.size
                                         bold: True
                                         theme_text_color: "Custom"
@@ -728,7 +728,7 @@ class BTCScreen(ActionScreen):
                 MDLabel(
                     text=arrow_text,
                     halign="center",
-                    valign="middle",
+                    valign="center",
                     text_size=indicator.size,
                     theme_text_color="Custom",
                     text_color=[1, 1, 1, 1],
