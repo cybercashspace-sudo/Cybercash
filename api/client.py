@@ -35,9 +35,9 @@ try:
 except Exception:
     kivy_platform = ""
 
-MOBILE_BACKEND_URL = "https://www.cybercash.space"
+MOBILE_BACKEND_URL = "www.cybercash.space"
 MOBILE_BACKEND_FALLBACK_URLS = (
-    "https://cybercash.space",
+    "cybercash.space",
     "https://cyber-cash.onrender.com",
 )
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 8
@@ -105,7 +105,7 @@ def resolve_api_url() -> str:
     if value:
         return value
 
-    return DEFAULT_API_URL
+    return _normalize_api_url(DEFAULT_API_URL)
 
 
 def resolve_api_urls() -> list[str]:
