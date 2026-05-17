@@ -935,7 +935,7 @@ class HomeScreen(ResponsiveScreen):
 
     def on_pre_enter(self):
         self._sync_theme_toggle_icon()
-        self._build_portfolio_carousel(force=True)
+        self._build_portfolio_carousel(force=False)
         self.load_home_data()
 
     def on_leave(self, *_args):

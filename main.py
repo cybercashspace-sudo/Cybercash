@@ -1,4 +1,4 @@
-from app import CyberCashApp
+from kivy_app import CyberCashApp
 
 
 if __name__ == "__main__":

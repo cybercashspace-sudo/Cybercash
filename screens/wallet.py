@@ -608,7 +608,7 @@ KV = """
                                     size_hint_y: None
                                     height: dp(52 * root.layout_scale)
                                     on_release: root.transfer_funds()
-                                    disabled: True if not transfer_recipient.text or not transfer_amount.text else False
+                                    disabled: root.transfer_busy or not transfer_recipient.text or not transfer_amount.text
 
                 MDBoxLayout:
                     orientation: "vertical"
@@ -761,7 +761,7 @@ KV = """
                     MDRaisedButton:
                         text: "Refresh Balance" if root.screen_mode != "all" else "Refresh"
                         size_hint_x: 1
-                        on_release: root.load_wallet()
+                        on_release: root.refresh_wallet()
 
                     MDRaisedButton:
                         text: "History"
@@ -802,6 +802,7 @@ class WalletScreen(ActionScreen):
     last_paystack_reference = StringProperty("")
     deposit_ready = BooleanProperty(False)
     deposit_busy = BooleanProperty(False)
+    transfer_busy = BooleanProperty(False)
     deposit_button_text = StringProperty("Pay with Paystack")
     deposit_preview = StringProperty("Enter an amount (minimum GHS 1.00).")
     deposit_summary_text = StringProperty(
@@ -821,7 +822,7 @@ class WalletScreen(ActionScreen):
         self._dashboard_sequence = 0
 
     def on_pre_enter(self):
-        self.load_wallet()
+        self._refresh_wallet_balance_async()
         amount_field = self.ids.get("transfer_amount")
         self.update_withdraw_preview(amount_field.text if amount_field is not None else "")
         deposit_field = self.ids.get("deposit_amount")
@@ -1099,6 +1100,10 @@ class WalletScreen(ActionScreen):
 
         Clock.schedule_once(lambda _dt, bal=balance, st=status: self._set_wallet_balance(bal, st))
 
+    def refresh_wallet(self) -> None:
+        self._set_feedback("Refreshing wallet...", "info")
+        self._refresh_wallet_balance_async("Wallet updated.")
+
     def load_wallet(self, notify: bool = True):
         ok, payload = self._request("GET", "/wallet/me")
         if ok and isinstance(payload, dict):
@@ -1298,8 +1303,13 @@ class WalletScreen(ActionScreen):
             return
 
         self._set_feedback("Checking Paystack payment status...", "info")
-        ok, payload = self._request("GET", f"/paystack/verify/{reference}")
+        threading.Thread(target=self._check_last_deposit_status_worker, args=(reference,), daemon=True).start()
 
+    def _check_last_deposit_status_worker(self, reference: str) -> None:
+        ok, payload = self._request("GET", f"/paystack/verify/{reference}")
+        Clock.schedule_once(lambda _dt: self._handle_last_deposit_status(ok, payload))
+
+    def _handle_last_deposit_status(self, ok: bool, payload: object) -> None:
         if ok and isinstance(payload, dict):
             status_value = str(payload.get("status", "")).strip().lower()
             message = self._extract_detail(payload) or "Payment status retrieved."
@@ -1349,6 +1359,9 @@ class WalletScreen(ActionScreen):
         return message or "Withdrawal failed. Please try again."
 
     def transfer_funds(self):
+        if self.transfer_busy:
+            return
+
         recipient = normalize_ghana_number(self.ids.transfer_recipient.text.strip())
         amount = self._parse_amount(self.ids.transfer_amount.text)
 
@@ -1370,6 +1383,20 @@ class WalletScreen(ActionScreen):
             f"Processing withdrawal... Amount: GHS {amount:,.2f}, Fee: GHS {estimated_fee:,.2f}, Total debit: GHS {estimated_total:,.2f}.",
             "info",
         )
+        self.transfer_busy = True
+        threading.Thread(
+            target=self._transfer_funds_worker,
+            args=(recipient, amount, estimated_fee, estimated_total),
+            daemon=True,
+        ).start()
+
+    def _transfer_funds_worker(
+        self,
+        recipient: str,
+        amount: float,
+        estimated_fee: float,
+        estimated_total: float,
+    ) -> None:
         ok, payload = self._request(
             "POST",
             "/wallet/transfer",
@@ -1381,6 +1408,27 @@ class WalletScreen(ActionScreen):
                 "recipient_must_be_agent": True,
             },
         )
+        Clock.schedule_once(
+            lambda _dt: self._handle_transfer_result(
+                ok,
+                payload,
+                recipient,
+                amount,
+                estimated_fee,
+                estimated_total,
+            )
+        )
+
+    def _handle_transfer_result(
+        self,
+        ok: bool,
+        payload: object,
+        recipient: str,
+        amount: float,
+        estimated_fee: float,
+        estimated_total: float,
+    ) -> None:
+        self.transfer_busy = False
         if ok and isinstance(payload, dict):
             ref = str(payload.get("transfer_reference", "")).strip()
             charged_fee = float(payload.get("transfer_fee", estimated_fee) or 0.0)
@@ -1397,7 +1445,7 @@ class WalletScreen(ActionScreen):
             self._show_popup("Withdrawal Successful", message)
             self.ids.transfer_recipient.text = ""
             self.ids.transfer_amount.text = ""
-            self.load_wallet()
+            self._refresh_wallet_balance_async("Wallet updated.")
             return
 
         detail = self._extract_detail(payload)

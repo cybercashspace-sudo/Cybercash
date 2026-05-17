@@ -214,6 +214,7 @@ class LoginScreen(ResponsiveScreen):
     feedback_text = StringProperty(DEFAULT_FEEDBACK_TEXT)
     feedback_color = ColorProperty([0.72, 0.74, 0.79, 1])
     detected_first_name = StringProperty("")
+    _signing_in = False
 
     def _go_home(self):
         app = MDApp.get_running_app()
@@ -288,6 +289,9 @@ class LoginScreen(ResponsiveScreen):
 
     def submit(self):
         app = MDApp.get_running_app()
+        if self._signing_in:
+            return
+
         raw_momo = self.ids.momo_input.text.strip()
         momo = normalize_ghana_number(raw_momo)
         first_name = self.ids.first_name_input.text.strip() or self.detected_first_name.strip() or "Customer"
@@ -306,8 +310,23 @@ class LoginScreen(ResponsiveScreen):
 
         self.ids.momo_input.text = momo
         self._set_feedback("Signing in...", "info")
+        self._signing_in = True
 
+        threading.Thread(
+            target=self._submit_worker,
+            args=(momo, pin, is_agent, first_name),
+            daemon=True,
+        ).start()
+
+    def _submit_worker(self, momo: str, pin: str, is_agent: bool, first_name: str):
         response = access_account(momo, pin, is_agent, first_name=first_name)
+        Clock.schedule_once(
+            lambda _dt: self._apply_submit_response(momo, first_name, response)
+        )
+
+    def _apply_submit_response(self, momo: str, first_name: str, response: dict):
+        self._signing_in = False
+        app = MDApp.get_running_app()
         status = str(response.get("status", "")).strip().lower() if isinstance(response, dict) else ""
         debug_otp = str(response.get("debug_otp", "") or "").strip() if isinstance(response, dict) else ""
         otp_hint = f"\n\nTest OTP: {debug_otp}" if debug_otp else ""

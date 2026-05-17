@@ -1,4 +1,3 @@
-import logging
 import os
 import threading
 import logging
@@ -9,7 +8,6 @@ os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
 from kivy.properties import ColorProperty, StringProperty
-from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivymd.app import MDApp
 
@@ -62,35 +60,6 @@ SCREEN_SPECS = {
     "admin_fraud_alerts": ("screens.admin_fraud_alerts", "AdminFraudAlertsScreen"),
 }
 
-FEATURE_SCREEN_ORDER = (
-    "home",
-    "dashboard",
-    "wallet",
-    "deposit",
-    "withdraw",
-    "p2p_transfer",
-    "transactions",
-    "settings",
-    "cards",
-    "escrow",
-    "btc",
-    "agent",
-    "airtime",
-    "data_bundle",
-    "airtime_2_cash",
-    "pay_bills",
-    "loans",
-    "investments",
-    "admin_dashboard",
-    "admin_withdrawals",
-    "admin_agents",
-    "admin_users",
-    "admin_transactions",
-    "admin_revenue",
-    "admin_fraud_alerts",
-)
-
-
 class AppScreenManager(ScreenManager):
     previous_screen = StringProperty("")
     _last_screen = ""
@@ -127,7 +96,6 @@ class CyberCashApp(MDApp):
     ui_overlay = ColorProperty([0.03, 0.03, 0.05, 0.90])
     ui_text_primary = ColorProperty([0.96, 0.96, 0.98, 1])
     ui_text_secondary = ColorProperty([0.74, 0.76, 0.80, 1])
-    _deferred_screens_started = False
     _warmup_started = False
     _loading_screen_name = ""
 
@@ -218,27 +186,14 @@ class CyberCashApp(MDApp):
         target = "home" if self.access_token else "login"
         self.go_to_screen(target, fallback="login")
 
-        if not self._deferred_screens_started:
-            self._deferred_screens_started = True
-            Clock.schedule_once(self._load_next_deferred_screen, 0.4)
         if not self._warmup_started:
             self._warmup_started = True
-            threading.Thread(target=self._warm_backend, daemon=True).start()
-
-    def _load_next_deferred_screen(self, *_args) -> None:
-        for screen_name in FEATURE_SCREEN_ORDER:
-            sm = getattr(self, "root", None)
-            if not sm:
-                return
-            if not self._screen_exists(sm, screen_name):
-                self.ensure_screen(screen_name)
-                Clock.schedule_once(self._load_next_deferred_screen, 0.08)
-                return
+            Clock.schedule_once(
+                lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
+                2.0,
+            )
 
     def build(self):
-        theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kivy_frontend", "ui_theme.kv")
-        if os.path.exists(theme_path):
-            Builder.load_file(theme_path)
         self.theme_cls.theme_style = "Dark"
         register_font_style_aliases(self.theme_cls.font_styles)
         # This KivyMD build errors on "Amber"; the app's gold styling comes from CyberTheme.
