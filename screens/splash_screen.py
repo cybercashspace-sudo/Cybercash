@@ -4,10 +4,11 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import StringProperty
+from kivymd.app import MDApp
 
 from core.responsive_screen import ResponsiveScreen
 
-STARTUP_ROUTE_DELAY_SECONDS = 0.25
+STARTUP_ROUTE_DELAY_SECONDS = 0.05
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -70,10 +71,12 @@ KV = """
                         orientation: "vertical"
                         spacing: dp(10 * root.layout_scale)
 
-                        Image:
-                            source: root.logo_source
-                            allow_stretch: True
-                            keep_ratio: True
+                        MDIcon:
+                            icon: "shield-lock-outline"
+                            theme_text_color: "Custom"
+                            text_color: GOLD
+                            halign: "center"
+                            font_size: sp(72 * root.icon_scale)
                             size_hint_y: None
                             height: dp(104 * root.layout_scale)
 
@@ -205,7 +208,6 @@ KV = """
 
 
 class SplashScreen(ResponsiveScreen):
-    logo_source = StringProperty("assets/cybercash_logo.png")
     status_text = StringProperty("Securing wallet channels...")
 
     def __init__(self, **kwargs):
@@ -248,6 +250,11 @@ class SplashScreen(ResponsiveScreen):
 
     def _complete_startup(self, *_args) -> None:
         self._cancel_events()
+        app = MDApp.get_running_app()
+        complete_startup = getattr(app, "complete_startup", None)
+        if complete_startup:
+            complete_startup()
+            return
         if self.manager and self.manager.has_screen("login"):
             self.manager.current = "login"
 

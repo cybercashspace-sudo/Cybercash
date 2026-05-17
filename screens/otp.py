@@ -165,8 +165,7 @@ KV = """
                             theme_text_color: "Custom"
                             text_color: GOLD
                             pos_hint: {"center_x": 0.5}
-                            on_release:
-                                if root.manager: root.manager.current = "login"
+                            on_release: app.go_to_screen("login")
 """
 
 
@@ -192,6 +191,14 @@ class OTPScreen(ResponsiveScreen):
 
     def _show_popup(self, title: str, message: str, on_close=None):
         show_message_dialog(self, title=title, message=message, close_label="Close", on_close=on_close)
+
+    def _go_home(self):
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if go_to_screen:
+            go_to_screen("home")
+        elif self.manager:
+            self.manager.current = "home"
 
     @staticmethod
     def _extract_detail(response: dict) -> str:
@@ -262,7 +269,7 @@ class OTPScreen(ResponsiveScreen):
             self._show_popup(
                 "Verification Successful",
                 "Your account is verified and ready to use.",
-                on_close=lambda: setattr(self.manager, "current", "home") if self.manager else None,
+                on_close=self._go_home,
             )
             return
 

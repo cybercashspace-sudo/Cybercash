@@ -1,16 +1,17 @@
 import logging
 import os
 import threading
+from importlib import import_module
 
 # Android 14+ can emit noisy SDL HID receiver errors while probing gamepads.
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
+from kivy.clock import Clock
 from kivy.properties import ColorProperty, StringProperty
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivymd.app import MDApp
 
-from api.client import api_client
 from core.kivymd_compat import (
     install_kivymd_font_style_compat,
     register_font_style_aliases,
@@ -20,32 +21,6 @@ from core.theme_manager import ThemeManager
 install_kivymd_font_style_compat()
 
 from screens.splash import SplashScreen
-from screens.login import LoginScreen
-from screens.register import RegisterScreen
-from screens.otp import OTPScreen
-from screens.home import HomeScreen
-from screens.dashboard import DashboardScreen
-from screens.wallet import DepositScreen, WalletScreen, WithdrawScreen
-from screens.p2p_transfer import P2PTransferScreen
-from screens.agent import AgentScreen
-from screens.airtime import AirtimeScreen
-from screens.data_bundle import DataBundleScreen
-from screens.airtime_cash import AirtimeCashScreen
-from screens.loans import LoanScreen
-from screens.investments import InvestmentScreen
-from screens.escrow import EscrowScreen
-from screens.cards import CardScreen
-from screens.btc import BTCScreen
-from screens.pay_bills import PayBillsScreen
-from screens.transactions import TransactionScreen
-from screens.settings import SettingsScreen
-from screens.admin_dashboard import AdminDashboardScreen
-from screens.admin_withdrawals import AdminWithdrawalsScreen
-from screens.admin_agents import AdminAgentsScreen
-from screens.admin_users import AdminUsersScreen
-from screens.admin_transactions import AdminTransactionsScreen
-from screens.admin_revenue import AdminRevenueScreen
-from screens.admin_fraud_alerts import AdminFraudAlertsScreen
 from storage import get_token
 from theme import CyberTheme
 
@@ -55,9 +30,76 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
 
 
+SCREEN_SPECS = {
+    "login": ("screens.login", "LoginScreen"),
+    "register": ("screens.register", "RegisterScreen"),
+    "otp": ("screens.otp", "OTPScreen"),
+    "home": ("screens.home", "HomeScreen"),
+    "dashboard": ("screens.dashboard", "DashboardScreen"),
+    "wallet": ("screens.wallet", "WalletScreen"),
+    "deposit": ("screens.wallet", "DepositScreen"),
+    "withdraw": ("screens.wallet", "WithdrawScreen"),
+    "p2p_transfer": ("screens.p2p_transfer", "P2PTransferScreen"),
+    "agent": ("screens.agent", "AgentScreen"),
+    "airtime": ("screens.airtime", "AirtimeScreen"),
+    "data_bundle": ("screens.data_bundle", "DataBundleScreen"),
+    "airtime_2_cash": ("screens.airtime_cash", "AirtimeCashScreen"),
+    "loans": ("screens.loans", "LoanScreen"),
+    "investments": ("screens.investments", "InvestmentScreen"),
+    "escrow": ("screens.escrow", "EscrowScreen"),
+    "cards": ("screens.cards", "CardScreen"),
+    "btc": ("screens.btc", "BTCScreen"),
+    "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
+    "transactions": ("screens.transactions", "TransactionScreen"),
+    "settings": ("screens.settings", "SettingsScreen"),
+    "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
+    "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
+    "admin_agents": ("screens.admin_agents", "AdminAgentsScreen"),
+    "admin_users": ("screens.admin_users", "AdminUsersScreen"),
+    "admin_transactions": ("screens.admin_transactions", "AdminTransactionsScreen"),
+    "admin_revenue": ("screens.admin_revenue", "AdminRevenueScreen"),
+    "admin_fraud_alerts": ("screens.admin_fraud_alerts", "AdminFraudAlertsScreen"),
+}
+
+FEATURE_SCREEN_ORDER = (
+    "home",
+    "dashboard",
+    "wallet",
+    "deposit",
+    "withdraw",
+    "p2p_transfer",
+    "transactions",
+    "settings",
+    "cards",
+    "escrow",
+    "btc",
+    "agent",
+    "airtime",
+    "data_bundle",
+    "airtime_2_cash",
+    "pay_bills",
+    "loans",
+    "investments",
+    "admin_dashboard",
+    "admin_withdrawals",
+    "admin_agents",
+    "admin_users",
+    "admin_transactions",
+    "admin_revenue",
+    "admin_fraud_alerts",
+)
+
+
 class AppScreenManager(ScreenManager):
     previous_screen = StringProperty("")
     _last_screen = ""
+
+    def has_screen(self, name):
+        if super().has_screen(name):
+            return True
+        app = MDApp.get_running_app()
+        ensure_screen = getattr(app, "ensure_screen", None)
+        return bool(ensure_screen and ensure_screen(str(name or "")))
 
     def on_current(self, _instance, value):
         super().on_current(_instance, value)
@@ -84,6 +126,9 @@ class CyberCashApp(MDApp):
     ui_overlay = ColorProperty([0.03, 0.03, 0.05, 0.90])
     ui_text_primary = ColorProperty([0.96, 0.96, 0.98, 1])
     ui_text_secondary = ColorProperty([0.74, 0.76, 0.80, 1])
+    _deferred_screens_started = False
+    _warmup_started = False
+    _loading_screen_name = ""
 
     def apply_theme_palette(self, palette: dict) -> None:
         self.theme_mode = str(palette.get("mode", "Dark"))
@@ -109,9 +154,85 @@ class CyberCashApp(MDApp):
 
     def _warm_backend(self) -> None:
         try:
+            from api.client import api_client
+
             api_client.warmup()
         except Exception:
             pass
+
+    @staticmethod
+    def _screen_exists(sm: ScreenManager, screen_name: str) -> bool:
+        return any(
+            str(getattr(screen, "name", "") or "") == str(screen_name or "")
+            for screen in getattr(sm, "screens", [])
+        )
+
+    def ensure_screen(self, screen_name: str) -> bool:
+        screen_name = str(screen_name or "").strip()
+        sm = getattr(self, "root", None)
+        if not screen_name or not sm:
+            return False
+        if self._screen_exists(sm, screen_name):
+            return True
+        if self._loading_screen_name == screen_name:
+            return False
+
+        spec = SCREEN_SPECS.get(screen_name)
+        if not spec:
+            return False
+
+        module_name, class_name = spec
+        self._loading_screen_name = screen_name
+        try:
+            module = import_module(module_name)
+            screen_cls = getattr(module, class_name)
+            sm.add_widget(screen_cls(name=screen_name))
+            return True
+        except Exception:
+            logging.exception("Failed to load screen %s", screen_name)
+            return False
+        finally:
+            self._loading_screen_name = ""
+
+    def ensure_screens(self, screen_names) -> None:
+        for screen_name in screen_names:
+            self.ensure_screen(screen_name)
+
+    def go_to_screen(self, screen_name: str, fallback: str = "login") -> bool:
+        target = str(screen_name or "").strip()
+        sm = getattr(self, "root", None)
+        if sm and self.ensure_screen(target):
+            sm.current = target
+            return True
+        if sm and fallback and self.ensure_screen(fallback):
+            sm.current = fallback
+            return True
+        return False
+
+    def complete_startup(self, *_args) -> None:
+        sm = getattr(self, "root", None)
+        if not sm:
+            return
+
+        target = "home" if self.access_token else "login"
+        self.go_to_screen(target, fallback="login")
+
+        if not self._deferred_screens_started:
+            self._deferred_screens_started = True
+            Clock.schedule_once(self._load_next_deferred_screen, 0.4)
+        if not self._warmup_started:
+            self._warmup_started = True
+            threading.Thread(target=self._warm_backend, daemon=True).start()
+
+    def _load_next_deferred_screen(self, *_args) -> None:
+        for screen_name in FEATURE_SCREEN_ORDER:
+            sm = getattr(self, "root", None)
+            if not sm:
+                return
+            if not self._screen_exists(sm, screen_name):
+                self.ensure_screen(screen_name)
+                Clock.schedule_once(self._load_next_deferred_screen, 0.08)
+                return
 
     def build(self):
         theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kivy_frontend", "ui_theme.kv")
@@ -137,44 +258,6 @@ class CyberCashApp(MDApp):
 
         sm = AppScreenManager(transition=SlideTransition(duration=0.3))
         sm.add_widget(SplashScreen(name="splash"))
-        sm.add_widget(LoginScreen(name="login"))
-        sm.add_widget(RegisterScreen(name="register"))
-        sm.add_widget(OTPScreen(name="otp"))
-        sm.add_widget(HomeScreen(name="home"))
-        sm.add_widget(DashboardScreen(name="dashboard"))
-        sm.add_widget(WalletScreen(name="wallet"))
-        sm.add_widget(DepositScreen(name="deposit"))
-        sm.add_widget(WithdrawScreen(name="withdraw"))
-        sm.add_widget(P2PTransferScreen(name="p2p_transfer"))
-        sm.add_widget(AgentScreen(name="agent"))
-        sm.add_widget(AirtimeScreen(name="airtime"))
-        sm.add_widget(DataBundleScreen(name="data_bundle"))
-        sm.add_widget(AirtimeCashScreen(name="airtime_2_cash"))
-        sm.add_widget(LoanScreen(name="loans"))
-        sm.add_widget(InvestmentScreen(name="investments"))
-        sm.add_widget(EscrowScreen(name="escrow"))
-        sm.add_widget(CardScreen(name="cards"))
-        sm.add_widget(BTCScreen(name="btc"))
-        sm.add_widget(PayBillsScreen(name="pay_bills"))
-        sm.add_widget(TransactionScreen(name="transactions"))
-        sm.add_widget(SettingsScreen(name="settings"))
-        sm.add_widget(AdminDashboardScreen(name="admin_dashboard"))
-        sm.add_widget(AdminWithdrawalsScreen(name="admin_withdrawals"))
-        sm.add_widget(AdminAgentsScreen(name="admin_agents"))
-        sm.add_widget(AdminUsersScreen(name="admin_users"))
-        sm.add_widget(AdminTransactionsScreen(name="admin_transactions"))
-        sm.add_widget(AdminRevenueScreen(name="admin_revenue"))
-        sm.add_widget(AdminFraudAlertsScreen(name="admin_fraud_alerts"))
-
-        # Skip the splash for returning users who already have a token. Keep the splash
-        # only as the pre-auth screen before showing Login.
-        if self.access_token and sm.has_screen("home"):
-            sm.current = "home"
-        elif sm.has_screen("splash"):
-            sm.current = "splash"
-        elif sm.has_screen("login"):
-            sm.current = "login"
-
-        threading.Thread(target=self._warm_backend, daemon=True).start()
+        sm.current = "splash"
 
         return sm

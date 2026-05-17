@@ -204,8 +204,7 @@ KV = """
                             theme_text_color: "Custom"
                             text_color: GOLD
                             pos_hint: {"center_x": 0.5}
-                            on_release:
-                                if root.manager: root.manager.current = "register"
+                            on_release: app.go_to_screen("register")
 """
 
 
@@ -215,6 +214,14 @@ class LoginScreen(ResponsiveScreen):
     feedback_text = StringProperty(DEFAULT_FEEDBACK_TEXT)
     feedback_color = ColorProperty([0.72, 0.74, 0.79, 1])
     detected_first_name = StringProperty("")
+
+    def _go_home(self):
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if go_to_screen:
+            go_to_screen("home")
+        elif self.manager:
+            self.manager.current = "home"
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -318,7 +325,7 @@ class LoginScreen(ResponsiveScreen):
             self._show_popup(
                 "Login Successful",
                 f"Welcome back, {welcome_name}.",
-                on_close=lambda: setattr(self.manager, "current", "home") if self.manager else None,
+                on_close=self._go_home,
             )
             return
 

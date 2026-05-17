@@ -218,8 +218,7 @@ KV = """
                             theme_text_color: "Custom"
                             text_color: GOLD
                             pos_hint: {"center_x": 0.5}
-                            on_release:
-                                if root.manager: root.manager.current = "login"
+                            on_release: app.go_to_screen("login")
 """
 
 
