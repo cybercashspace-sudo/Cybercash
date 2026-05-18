@@ -35,9 +35,9 @@ try:
 except Exception:
     kivy_platform = ""
 
-MOBILE_BACKEND_URL = "www.cybercash.space"
+MOBILE_BACKEND_URL = "cybercash.space"
 MOBILE_BACKEND_FALLBACK_URLS = (
-    "cybercash.space",
+    "www.cybercash.space",
     "https://cyber-cash.onrender.com",
 )
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 4
