@@ -9,6 +9,7 @@ os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 from kivy.clock import Clock
 from kivy.properties import ColorProperty, StringProperty
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
+from kivy.utils import platform as kivy_platform
 from kivymd.app import MDApp
 
 from core.kivymd_compat import (
@@ -178,19 +179,30 @@ class CyberCashApp(MDApp):
             return True
         return False
 
+    def _is_mobile_runtime(self) -> bool:
+        return str(kivy_platform or "").strip().lower() in {"android", "ios"}
+
+    def _open_authenticated_start_screen(self, *_args) -> None:
+        if self.access_token:
+            self.go_to_screen("home", fallback="login")
+
     def complete_startup(self, *_args) -> None:
         sm = getattr(self, "root", None)
         if not sm:
             return
 
         target = "home" if self.access_token else "login"
+        if self.access_token and self._is_mobile_runtime():
+            target = "login"
         self.go_to_screen(target, fallback="login")
+        if self.access_token and self._is_mobile_runtime():
+            Clock.schedule_once(self._open_authenticated_start_screen, 0.15)
 
         if not self._warmup_started:
             self._warmup_started = True
             Clock.schedule_once(
                 lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
-                2.0,
+                0.35,
             )
 
     def build(self):

@@ -40,8 +40,8 @@ MOBILE_BACKEND_FALLBACK_URLS = (
     "cybercash.space",
     "https://cyber-cash.onrender.com",
 )
-DEFAULT_CONNECT_TIMEOUT_SECONDS = 8
-DEFAULT_READ_TIMEOUT_SECONDS = 45
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 4
+DEFAULT_READ_TIMEOUT_SECONDS = 18
 DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
@@ -217,7 +217,7 @@ class APIClient:
         }
 
     def warmup(self) -> None:
-        self.request("GET", "/health", timeout=(5, 20))
+        self.request("GET", "/health", timeout=(3, 8))
 
     def post(self, path: str, payload: dict, headers: dict | None = None):
         return self.request("POST", path, payload=payload, headers=headers)["data"]

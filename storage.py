@@ -27,11 +27,17 @@ def _get_store() -> JsonStore:
 
 
 def save_token(token: str):
-    _get_store().put("auth", access_token=str(token or ""))
+    try:
+        _get_store().put("auth", access_token=str(token or ""))
+    except Exception:
+        return
 
 
 def get_token() -> str:
-    store = _get_store()
-    if store.exists("auth"):
-        return str(store.get("auth").get("access_token", "") or "")
+    try:
+        store = _get_store()
+        if store.exists("auth"):
+            return str(store.get("auth").get("access_token", "") or "")
+    except Exception:
+        return ""
     return ""

@@ -24,6 +24,7 @@ mkdir -p "$stage_dir" "$artifact_dir"
 copy_paths=(
   buildozer.spec
   app.py
+  kivy_app.py
   main.py
   app_config.json
   api
@@ -51,6 +52,12 @@ fi
 
 if [ ! -f "$app_src_dir/app.py" ]; then
   echo "Staged Android source is missing app.py" >&2
+  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
+  exit 1
+fi
+
+if [ ! -f "$app_src_dir/kivy_app.py" ]; then
+  echo "Staged Android source is missing kivy_app.py" >&2
   find "$app_src_dir" -maxdepth 2 -type f | sort >&2
   exit 1
 fi
@@ -129,7 +136,7 @@ seed_private_app_dir() {
     exit 1
   fi
   echo "Seeded Android private app entrypoint:"
-  ls -l "$private_app_dir/main.py" "$private_app_dir/app.py"
+  ls -l "$private_app_dir/main.py" "$private_app_dir/app.py" "$private_app_dir/kivy_app.py"
 }
 
 seed_private_app_dir
