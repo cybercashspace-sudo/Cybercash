@@ -83,7 +83,7 @@ PY
 echo "Staged Android app source:"
 find "$app_src_dir" -maxdepth 2 -type f | sort | head -n 60
 echo "Staged Android entrypoint files:"
-ls -l "$app_src_dir/main.py" "$app_src_dir/app.py"
+ls -l "$app_src_dir/main.py" "$app_src_dir/app.py" "$app_src_dir/kivy_app.py"
 
 python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
@@ -155,6 +155,43 @@ if [ "${#artifacts[@]}" -eq 0 ]; then
   echo "Build completed, but no APK or AAB was found in $stage_dir/bin" >&2
   exit 1
 fi
+
+python3 - "${artifacts[@]}" <<'PY'
+import io
+import sys
+import tarfile
+import zipfile
+
+
+def has_module(names, module_name):
+    suffixes = (f"{module_name}.py", f"{module_name}.pyc")
+    return any(name.endswith(suffixes) for name in names)
+
+
+failures = []
+for artifact in sys.argv[1:]:
+    try:
+        with zipfile.ZipFile(artifact) as apk:
+            private_tar = apk.read("assets/private.tar")
+        with tarfile.open(fileobj=io.BytesIO(private_tar)) as archive:
+            names = set(archive.getnames())
+    except Exception as exc:
+        failures.append(f"{artifact}: unable to inspect assets/private.tar: {exc}")
+        continue
+
+    missing = [module for module in ("main", "kivy_app") if not has_module(names, module)]
+    if missing:
+        failures.append(f"{artifact}: missing Android app module(s): {', '.join(missing)}")
+        continue
+
+    print(f"Verified Android private app modules in {artifact}: main, kivy_app")
+
+if failures:
+    print("Android artifact validation failed:", file=sys.stderr)
+    for failure in failures:
+        print(f" - {failure}", file=sys.stderr)
+    sys.exit(1)
+PY
 
 cp -f "${artifacts[@]}" "$artifact_dir/"
 echo "Android artifacts copied to $artifact_dir:"
