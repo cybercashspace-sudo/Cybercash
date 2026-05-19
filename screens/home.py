@@ -16,7 +16,7 @@ from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 
-from api.client import API_URL
+from api.client import API_URL, api_client
 from core.feedback_engine import tap_feedback
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
@@ -1416,6 +1416,34 @@ class HomeScreen(ResponsiveScreen):
             return full_name.split()[0]
         return ""
 
+    @staticmethod
+    def _should_clear_session(status_code: int, payload: object, *, auth_gate: bool = False) -> bool:
+        """Clear saved login only when the backend says the session itself is invalid."""
+        try:
+            code = int(status_code or 0)
+        except Exception:
+            code = 0
+        if code == 401:
+            return True
+        if code != 403 or not auth_gate:
+            return False
+        detail = extract_backend_message(payload).lower()
+        return any(
+            marker in detail
+            for marker in (
+                "could not validate credentials",
+                "invalid token",
+                "inactive",
+                "revoked",
+                "expired",
+            )
+        )
+
+    @staticmethod
+    def _api_get(path: str, headers: dict, params: dict | None = None) -> tuple[int, object]:
+        result = api_client.get(path, params=params, headers=headers)
+        return int(result.get("status_code", 0) or 0), result.get("data", {})
+
     def _load_home_worker(self, token: str) -> None:
         headers = {"Authorization": f"Bearer {token}"}
         greeting_name = ""
@@ -1426,22 +1454,20 @@ class HomeScreen(ResponsiveScreen):
         reset_token = False
 
         try:
-            me_resp = requests.get(f"{API_URL}/auth/me", headers=headers, timeout=10)
-            me_payload = me_resp.json() if me_resp.content else {}
-            if me_resp.status_code in {401, 403}:
+            me_status, me_payload = self._api_get("/auth/me", headers=headers)
+            if self._should_clear_session(me_status, me_payload, auth_gate=True):
                 reset_token = True
-            if me_resp.status_code < 400 and isinstance(me_payload, dict):
+            if me_status < 400 and isinstance(me_payload, dict):
                 greeting_name = self._extract_first_name(me_payload)
         except Exception:
             greeting_name = ""
 
         if not reset_token:
             try:
-                wallet_resp = requests.get(f"{API_URL}/wallet/me", headers=headers, timeout=10)
-                wallet_payload = wallet_resp.json() if wallet_resp.content else {}
-                if wallet_resp.status_code in {401, 403}:
+                wallet_status, wallet_payload = self._api_get("/wallet/me", headers=headers)
+                if self._should_clear_session(wallet_status, wallet_payload):
                     reset_token = True
-                elif wallet_resp.status_code < 400 and isinstance(wallet_payload, dict):
+                elif wallet_status < 400 and isinstance(wallet_payload, dict):
                     balance = float(wallet_payload.get("balance", 0.0) or 0.0)
                 else:
                     error_text = "Balance unavailable."
@@ -1450,11 +1476,10 @@ class HomeScreen(ResponsiveScreen):
 
         if not reset_token:
             try:
-                tx_resp = requests.get(f"{API_URL}/wallet/transactions/me?limit=2", headers=headers, timeout=10)
-                tx_payload = tx_resp.json() if tx_resp.content else []
-                if tx_resp.status_code in {401, 403}:
+                tx_status, tx_payload = self._api_get("/wallet/transactions/me", headers=headers, params={"limit": 2})
+                if self._should_clear_session(tx_status, tx_payload):
                     reset_token = True
-                elif tx_resp.status_code < 400 and isinstance(tx_payload, list):
+                elif tx_status < 400 and isinstance(tx_payload, list):
                     recent_rows = list(tx_payload[:2])
             except Exception:
                 if not error_text:
@@ -1462,11 +1487,10 @@ class HomeScreen(ResponsiveScreen):
 
         if not reset_token:
             try:
-                agent_resp = requests.get(f"{API_URL}/agents/me", headers=headers, timeout=10)
-                agent_payload = agent_resp.json() if agent_resp.content else {}
-                if agent_resp.status_code in {401, 403}:
+                agent_status_code, agent_payload = self._api_get("/agents/me", headers=headers)
+                if self._should_clear_session(agent_status_code, agent_payload):
                     reset_token = True
-                elif agent_resp.status_code < 400 and isinstance(agent_payload, dict):
+                elif agent_status_code < 400 and isinstance(agent_payload, dict):
                     status_value = str(agent_payload.get("status", "") or "").strip().lower()
                     is_agent_active = status_value == "active"
             except Exception:
