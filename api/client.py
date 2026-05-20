@@ -45,6 +45,7 @@ DEFAULT_READ_TIMEOUT_SECONDS = 18
 DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
+AUTH_FAILOVER_STATUS_CODES = (401, 403)
 
 
 def _normalize_api_url(raw_value: str) -> str:
@@ -171,6 +172,23 @@ class APIClient:
             return "Backend connection timed out. Please check your internet connection and try again."
         return message
 
+    def _ordered_base_urls(self) -> list[str]:
+        urls = []
+        active = str(self.base_url or "").rstrip("/")
+        if active:
+            urls.append(active)
+        for base_url in self.base_urls:
+            normalized = str(base_url or "").rstrip("/")
+            if normalized and normalized not in urls:
+                urls.append(normalized)
+        return urls
+
+    @staticmethod
+    def _has_auth_header(headers: dict | None) -> bool:
+        if not headers:
+            return False
+        return bool(str(headers.get("Authorization", "") or "").strip())
+
     def request(
         self,
         method: str,
@@ -181,14 +199,16 @@ class APIClient:
         timeout=DEFAULT_TIMEOUT,
     ) -> dict:
         last_result = None
-        for base_url in self.base_urls:
+        request_headers = headers or {}
+        has_auth_header = self._has_auth_header(request_headers)
+        for base_url in self._ordered_base_urls():
             try:
                 response = self.session.request(
                     method=method.upper(),
                     url=f"{base_url}{path}",
                     json=payload,
                     params=params,
-                    headers=headers or {},
+                    headers=request_headers,
                     timeout=_coerce_timeout(timeout),
                 )
                 data = self._safe_json(response)
@@ -201,7 +221,10 @@ class APIClient:
                     self.base_url = base_url
                     return result
                 last_result = result
-                if response.status_code not in FAILOVER_STATUS_CODES:
+                should_failover = response.status_code in FAILOVER_STATUS_CODES or (
+                    has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES
+                )
+                if not should_failover:
                     return result
             except Exception as exc:
                 last_result = {
