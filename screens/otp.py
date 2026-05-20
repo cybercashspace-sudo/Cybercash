@@ -1,3 +1,5 @@
+import threading
+
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
@@ -173,6 +175,8 @@ class OTPScreen(ResponsiveScreen):
     momo_number = None
     countdown = 120
     timer_event = None
+    _verifying = False
+    _resending = False
 
     timer_text = StringProperty("You can request a new OTP in 120s")
     can_resend = BooleanProperty(False)
@@ -196,7 +200,7 @@ class OTPScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         go_to_screen = getattr(app, "go_to_screen", None)
         if go_to_screen:
-            go_to_screen("home")
+            go_to_screen("home", fallback="dashboard")
         elif self.manager:
             self.manager.current = "home"
 
@@ -242,7 +246,9 @@ class OTPScreen(ResponsiveScreen):
         return True
 
     def verify(self):
-        app = MDApp.get_running_app()
+        if self._verifying:
+            return
+
         momo = normalize_ghana_number((self.ids.momo_input.text or self.momo_number or "").strip())
         otp = self.ids.otp_input.text.strip()
 
@@ -257,9 +263,22 @@ class OTPScreen(ResponsiveScreen):
             return
 
         self._set_feedback("Verifying OTP...", "info")
-        response = verify_account(momo, otp)
+        self._verifying = True
 
-        if str(response.get("status", "")).strip().lower() == "verified":
+        threading.Thread(target=self._verify_worker, args=(momo, otp), daemon=True).start()
+
+    def _verify_worker(self, momo: str, otp: str):
+        try:
+            response = verify_account(momo, otp)
+        except Exception as exc:
+            response = {"detail": str(exc) or "Verification failed."}
+        Clock.schedule_once(lambda _dt: self._apply_verify_response(response))
+
+    def _apply_verify_response(self, response: dict):
+        self._verifying = False
+        app = MDApp.get_running_app()
+
+        if isinstance(response, dict) and str(response.get("status", "")).strip().lower() == "verified":
             token = str(response.get("access_token", "") or "")
             first_name = str(response.get("first_name", "") or "").strip()
             save_token(token)
@@ -278,6 +297,9 @@ class OTPScreen(ResponsiveScreen):
         self._show_popup("Verification Failed", error_message)
 
     def resend(self):
+        if self._resending:
+            return
+
         momo = normalize_ghana_number((self.ids.momo_input.text or self.momo_number or "").strip())
         if not self.can_resend:
             self._show_popup("Please Wait", "Please wait for the timer to finish before requesting another OTP.")
@@ -287,7 +309,19 @@ class OTPScreen(ResponsiveScreen):
             self._show_popup("Invalid Number", "Please enter a valid MoMo number to resend OTP.")
             return
 
-        response = resend_otp(momo)
+        self._set_feedback("Resending OTP...", "info")
+        self._resending = True
+        threading.Thread(target=self._resend_worker, args=(momo,), daemon=True).start()
+
+    def _resend_worker(self, momo: str):
+        try:
+            response = resend_otp(momo)
+        except Exception as exc:
+            response = {"detail": str(exc) or "Unable to resend OTP right now."}
+        Clock.schedule_once(lambda _dt: self._apply_resend_response(response))
+
+    def _apply_resend_response(self, response: dict):
+        self._resending = False
         if not isinstance(response, dict) or response.get("detail"):
             error_message = self._extract_detail(response) or "Unable to resend OTP right now."
             self._set_feedback(error_message, "error")

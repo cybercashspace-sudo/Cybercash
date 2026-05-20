@@ -220,7 +220,7 @@ class LoginScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         go_to_screen = getattr(app, "go_to_screen", None)
         if go_to_screen:
-            go_to_screen("home")
+            go_to_screen("home", fallback="dashboard")
         elif self.manager:
             self.manager.current = "home"
 

@@ -177,11 +177,13 @@ KV = """
 
                             MDCheckbox:
                                 id: agent_checkbox
+                                active: False
+                                disabled: True
                                 size_hint: None, None
                                 size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
 
                             MDLabel:
-                                text: "Turn this on if you are opening an agent account."
+                                text: "Create your wallet first; agent onboarding opens after verification."
                                 valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
@@ -228,6 +230,7 @@ class RegisterScreen(ResponsiveScreen):
     feedback_text = StringProperty(DEFAULT_FEEDBACK_TEXT)
     feedback_color = ColorProperty([0.72, 0.74, 0.79, 1])
     detected_first_name = StringProperty("")
+    _registering = False
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -293,13 +296,15 @@ class RegisterScreen(ResponsiveScreen):
         )
 
     def register_account(self):
-        app = MDApp.get_running_app()
+        if self._registering:
+            return
+
         raw_momo = self.ids.momo_input.text.strip()
         momo = normalize_ghana_number(raw_momo)
         email = self.ids.email_input.text.strip().lower()
         first_name = self.ids.first_name_input.text.strip() or self.detected_first_name.strip() or "Customer"
         pin = self.ids.pin_input.text.strip()
-        agent_mode = bool(self.ids.agent_checkbox.active)
+        agent_mode = False
 
         if not momo or len(momo) != 10 or not momo.startswith("0"):
             self._set_feedback("Enter a valid 10-digit Ghana MoMo number.", "error")
@@ -318,9 +323,31 @@ class RegisterScreen(ResponsiveScreen):
 
         self.ids.momo_input.text = momo
         self.ids.email_input.text = email
-        self._set_feedback("Creating your account...", "info")
+        if self.ids.agent_checkbox.active:
+            self.ids.agent_checkbox.active = False
+            self._set_feedback("Creating wallet first. Agent setup opens from your dashboard after verification.", "info")
+        else:
+            self._set_feedback("Creating your account...", "info")
 
-        response = register(momo, email, pin, agent_mode, first_name=first_name)
+        self._registering = True
+
+        threading.Thread(
+            target=self._register_account_worker,
+            args=(momo, email, pin, agent_mode, first_name),
+            daemon=True,
+        ).start()
+
+    def _register_account_worker(self, momo: str, email: str, pin: str, agent_mode: bool, first_name: str):
+        try:
+            response = register(momo, email, pin, agent_mode, first_name=first_name)
+        except Exception as exc:
+            response = {"detail": str(exc) or "Registration failed."}
+        Clock.schedule_once(lambda _dt: self._apply_register_response(momo, response))
+
+    def _apply_register_response(self, momo: str, response: dict):
+        self._registering = False
+        app = MDApp.get_running_app()
+
         status = str(response.get("status", "")).strip().lower() if isinstance(response, dict) else ""
         debug_otp = str(response.get("debug_otp", "") or "").strip() if isinstance(response, dict) else ""
         otp_hint = f"\n\nTest OTP: {debug_otp}" if debug_otp else ""
