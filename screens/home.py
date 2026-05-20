@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import requests
 from kivy.animation import Animation
 from kivy.clock import Clock
+from kivy.logger import Logger
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, NumericProperty, ObjectProperty, StringProperty
@@ -1424,7 +1425,7 @@ class HomeScreen(ResponsiveScreen):
         except Exception:
             code = 0
         if code == 401:
-            return True
+            return bool(auth_gate)
         if code != 403 or not auth_gate:
             return False
         detail = extract_backend_message(payload).lower()
@@ -1456,6 +1457,7 @@ class HomeScreen(ResponsiveScreen):
         try:
             me_status, me_payload = self._api_get("/auth/me", headers=headers)
             if self._should_clear_session(me_status, me_payload, auth_gate=True):
+                Logger.info("CyberCashAuth: auth gate rejected saved session; returning to login")
                 reset_token = True
             if me_status < 400 and isinstance(me_payload, dict):
                 greeting_name = self._extract_first_name(me_payload)
@@ -1470,6 +1472,7 @@ class HomeScreen(ResponsiveScreen):
                 elif wallet_status < 400 and isinstance(wallet_payload, dict):
                     balance = float(wallet_payload.get("balance", 0.0) or 0.0)
                 else:
+                    Logger.info("CyberCashAuth: wallet refresh unavailable with HTTP %s; keeping session", wallet_status)
                     error_text = "Balance unavailable."
             except Exception:
                 error_text = "Check connection and try again."
@@ -1481,6 +1484,9 @@ class HomeScreen(ResponsiveScreen):
                     reset_token = True
                 elif tx_status < 400 and isinstance(tx_payload, list):
                     recent_rows = list(tx_payload[:2])
+                elif not error_text:
+                    Logger.info("CyberCashAuth: activity refresh unavailable with HTTP %s; keeping session", tx_status)
+                    error_text = "Activity unavailable."
             except Exception:
                 if not error_text:
                     error_text = "Activity unavailable."
@@ -1493,6 +1499,8 @@ class HomeScreen(ResponsiveScreen):
                 elif agent_status_code < 400 and isinstance(agent_payload, dict):
                     status_value = str(agent_payload.get("status", "") or "").strip().lower()
                     is_agent_active = status_value == "active"
+                else:
+                    Logger.info("CyberCashAuth: agent refresh unavailable with HTTP %s; keeping session", agent_status_code)
             except Exception:
                 is_agent_active = False
 

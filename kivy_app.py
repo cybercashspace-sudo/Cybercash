@@ -192,11 +192,7 @@ class CyberCashApp(MDApp):
             return
 
         target = "home" if self.access_token else "login"
-        if self.access_token and self._is_mobile_runtime():
-            target = "login"
         self.go_to_screen(target, fallback="login")
-        if self.access_token and self._is_mobile_runtime():
-            Clock.schedule_once(self._open_authenticated_start_screen, 0.15)
 
         if not self._warmup_started:
             self._warmup_started = True
