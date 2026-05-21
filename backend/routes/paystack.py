@@ -16,6 +16,12 @@ from backend.services.paystack_service import (
     get_paystack_service,
     is_valid_paystack_signature,
 )
+from backend.services.paystack_fulfillment import (
+    AGENT_REGISTRATION_TX_TYPE,
+    PAYSTACK_PENDING_STATUSES,
+    complete_paid_agent_registration,
+    paystack_currency_matches,
+)
 from backend.services.transaction_engine import TransactionEngine, get_transaction_engine
 from backend.core.transaction_types import TransactionType
 import json # Import json
@@ -432,15 +438,17 @@ async def paystack_webhook(
         data = event.get("data")
 
         if event_type == "charge.success":
+            if not isinstance(data, dict):
+                return {"message": "Webhook processed: Missing charge data."}
+
             reference = data.get("reference")
             amount_kobo = data.get("amount")
             amount_ghs = _kobo_to_ghs(amount_kobo)
-            status_paystack = data.get("status")
+            status_paystack = str(data.get("status") or "").strip().lower()
 
             result = await db.execute(select(Transaction).filter(
                 Transaction.provider == "paystack",
                 Transaction.provider_reference == reference,
-                Transaction.type == TransactionType.FUNDING,
             ))
             transaction = result.scalars().first()
             expected_amount = Decimal(str(transaction.amount)).quantize(GHS_QUANTIZER, rounding=ROUND_HALF_UP) if transaction else None
@@ -449,9 +457,20 @@ async def paystack_webhook(
                 return {"message": "Webhook processed: Transaction not found."}
 
             if transaction.status == "completed":
+                if transaction.type == AGENT_REGISTRATION_TX_TYPE:
+                    await complete_paid_agent_registration(db, transaction)
+                    return {"message": "Webhook processed: Agent registration already completed."}
                 return {"message": "Webhook processed: Payment already completed."}
 
-            if status_paystack == "success" and amount_ghs == expected_amount:
+            currency_ok = paystack_currency_matches(data.get("currency"), transaction.currency or "GHS")
+            if status_paystack == "success" and amount_ghs == expected_amount and currency_ok:
+                if transaction.type == AGENT_REGISTRATION_TX_TYPE:
+                    await complete_paid_agent_registration(db, transaction)
+                    return {"message": "Webhook processed: Agent registration completed."}
+
+                if transaction.type != TransactionType.FUNDING:
+                    return {"message": f"Webhook processed: Unsupported Paystack transaction type {transaction.type}."}
+
                 try:
                     if transaction.status != "pending":
                         transaction.status = "pending"
@@ -463,6 +482,9 @@ async def paystack_webhook(
                     if transaction.status != "completed":
                         raise
                 return {"message": "Webhook processed: Payment completed and wallet updated."}
+
+            if status_paystack in PAYSTACK_PENDING_STATUSES:
+                return {"message": "Webhook processed: Payment still pending."}
 
             transaction.status = "failed"
             db.add(transaction)

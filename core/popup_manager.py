@@ -12,6 +12,11 @@ from kivy.uix.scrollview import ScrollView
 
 from core.message_sanitizer import extract_backend_message
 
+try:
+    from kivymd.uix.label import MDIcon
+except Exception:  # pragma: no cover - fallback for non-KivyMD tooling
+    MDIcon = None
+
 
 _DIALOG_BG_COLOR = (0.08, 0.10, 0.14, 0.98)
 _ACCENT_GOLD = (0.94, 0.79, 0.46, 1)
@@ -58,6 +63,35 @@ def _make_text_label(text: str) -> Label:
         font_size="15sp",
         text_size=(dp(300), None),
         size_hint_y=None,
+    )
+
+
+def _make_dialog_icon(icon: str = "information-outline"):
+    if MDIcon is not None:
+        return MDIcon(
+            icon=str(icon or "information-outline"),
+            theme_text_color="Custom",
+            text_color=_ACCENT_GOLD,
+            font_size="30sp",
+            size_hint=(None, None),
+            size=(dp(54), dp(42)),
+            text_size=(dp(54), dp(42)),
+            halign="center",
+            valign="center",
+            pos_hint={"center_x": 0.5},
+        )
+
+    return Label(
+        text="i",
+        color=_ACCENT_GOLD,
+        bold=True,
+        font_size="26sp",
+        size_hint=(None, None),
+        size=(dp(54), dp(42)),
+        text_size=(dp(54), dp(42)),
+        halign="center",
+        valign="center",
+        pos_hint={"center_x": 0.5},
     )
 
 
@@ -123,6 +157,8 @@ def show_message_dialog(
     message_label = _make_text_label(_friendly_message(message))
     _resize_label_text(message_label)
 
+    container.add_widget(_make_dialog_icon("information-outline"))
+
     scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
     message_box = BoxLayout(orientation="vertical", size_hint_y=None, padding=[0, 0, dp(4), 0])
     message_box.bind(minimum_height=message_box.setter("height"))
@@ -171,6 +207,8 @@ def show_confirm_dialog(
     )
     message_label = _make_text_label(_friendly_message(message))
     _resize_label_text(message_label)
+
+    container.add_widget(_make_dialog_icon("help-circle-outline"))
 
     scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
     message_box = BoxLayout(orientation="vertical", size_hint_y=None, padding=[0, 0, dp(4), 0])

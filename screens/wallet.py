@@ -1288,7 +1288,7 @@ class WalletScreen(ActionScreen):
         self._show_popup(
             "Confirmation Pending",
             "Payment confirmation is taking longer than expected. "
-            "If you completed payment, please wait briefly and tap Refresh. "
+            "If you completed payment, please wait briefly and tap Check Status. "
             f"You can also retry verification with reference: {reference}.",
         )
 

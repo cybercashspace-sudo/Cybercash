@@ -498,12 +498,18 @@ KV = """
                         radius: [dp(10 * root.layout_scale)]
                         md_bg_color: [0.64, 0.49, 0.20, 0.36]
                         elevation: 0
+                        padding: 0
 
                         MDIcon:
                             icon: "card-account-details-outline"
                             theme_text_color: "Custom"
                             text_color: GOLD
                             font_size: sp(19 * root.icon_scale)
+                            size_hint: None, None
+                            size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                            text_size: self.size
+                            halign: "center"
+                            valign: "center"
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                     MDLabel:
@@ -633,12 +639,18 @@ KV = """
                                 radius: [dp(11 * root.layout_scale)]
                                 md_bg_color: [0.58, 0.40, 0.15, 0.58]
                                 elevation: 0
+                                padding: 0
 
                                 MDIcon:
                                     icon: "plus"
                                     theme_text_color: "Custom"
                                     text_color: [0.16, 0.12, 0.07, 1]
                                     font_size: sp(20 * root.icon_scale)
+                                    size_hint: None, None
+                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
+                                    text_size: self.size
+                                    halign: "center"
+                                    valign: "center"
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
@@ -674,12 +686,18 @@ KV = """
                                 radius: [dp(11 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.24, 0.19, 0.84]
                                 elevation: 0
+                                padding: 0
 
                                 MDIcon:
                                     icon: "arrow-top-right"
                                     theme_text_color: "Custom"
                                     text_color: [0.78, 0.93, 0.76, 1]
                                     font_size: sp(20 * root.icon_scale)
+                                    size_hint: None, None
+                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
+                                    text_size: self.size
+                                    halign: "center"
+                                    valign: "center"
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:

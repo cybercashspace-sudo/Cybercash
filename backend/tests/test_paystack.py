@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from backend.database import engine, async_engine
 from backend.main import app
 from backend.dependencies.auth import get_current_user
-from backend.models import User, Wallet, Transaction, JournalEntry, LedgerEntry
+from backend.models import User, Wallet, Transaction, JournalEntry, LedgerEntry, Agent
 from backend.core.config import settings
 from backend.core.transaction_types import TransactionType
 from backend.services.paystack_service import PaystackService
@@ -51,7 +51,11 @@ def client():
 
 @pytest.fixture(autouse=True)
 def setup_paystack_test_user_and_wallet(test_db: Session):
+    original_paystack_secret = settings.PAYSTACK_SECRET_KEY
+    settings.PAYSTACK_SECRET_KEY = "sk_test_webhook"
+
     test_db.query(Transaction).delete()
+    test_db.query(Agent).delete()
     test_db.query(Wallet).delete()
     test_db.query(User).delete()
     test_db.commit()
@@ -73,6 +77,7 @@ def setup_paystack_test_user_and_wallet(test_db: Session):
     test_db.commit()
     test_db.refresh(wallet)
     yield
+    settings.PAYSTACK_SECRET_KEY = original_paystack_secret
 
 
 def test_initiate_paystack_payment_success(test_db: Session, client: TestClient):
@@ -135,7 +140,7 @@ def test_initiate_paystack_payment_auth_failure_maps_to_gateway_error(client: Te
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        async def post(self, *args, **kwargs):
+        async def request(self, *args, **kwargs):
             return FakeResponse()
 
     monkeypatch.setattr(paystack_module.httpx, "AsyncClient", FakeAsyncClient, raising=True)
@@ -443,6 +448,70 @@ def test_paystack_deposit_idempotent_after_verify_then_webhook(test_db: Session,
     test_db.expire_all()
     updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
     assert updated_wallet.balance == 30.0
+
+
+def test_paystack_webhook_completes_agent_registration(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    settings.AGENT_STARTUP_LOAN_AMOUNT = 50.0
+
+    pending_agent = Agent(user_id=user.id, status="pending", float_balance=0.0)
+    test_db.add(pending_agent)
+    pending_transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type="agent_registration_fee",
+        amount=100.0,
+        currency="GHS",
+        status="pending",
+        provider="paystack",
+        provider_reference="agent_webhook_ref",
+    )
+    test_db.add(pending_transaction)
+    test_db.commit()
+
+    webhook_payload = {
+        "event": "charge.success",
+        "data": {
+            "reference": "agent_webhook_ref",
+            "amount": 10000,
+            "currency": "GHS",
+            "status": "success",
+            "customer": {"email": "paystack_test@example.com"},
+        },
+    }
+    body = json.dumps(webhook_payload).encode("utf-8")
+    secret = (settings.PAYSTACK_SECRET_KEY or "").encode("utf-8")
+    signature = hmac.new(secret, msg=body, digestmod=hashlib.sha512).hexdigest()
+
+    response = client.post(
+        "/paystack/webhook",
+        headers={"x-paystack-signature": signature},
+        content=body,
+    )
+
+    assert response.status_code == 200
+    assert "Agent registration completed" in response.json()["message"]
+
+    test_db.expire_all()
+    updated_user = test_db.query(User).filter(User.id == user.id).first()
+    assert updated_user.is_agent is True
+    activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
+    assert activated_agent.status == "active"
+    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+
+    completed_transaction = test_db.query(Transaction).filter(
+        Transaction.provider_reference == "agent_webhook_ref"
+    ).first()
+    assert completed_transaction.status == "completed"
+
+    startup_tx = test_db.query(Transaction).filter(
+        Transaction.agent_id == activated_agent.id,
+        Transaction.type == "agent_startup_loan_credit",
+        Transaction.status == "completed",
+    ).first()
+    assert startup_tx is not None
+    assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
 
 
 def test_paystack_webhook_invalid_signature(test_db: Session, client: TestClient):

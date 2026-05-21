@@ -193,6 +193,49 @@ def test_verify_agent_registration_success(test_db: Session, client: TestClient)
     assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
 
 
+def test_verify_agent_registration_repairs_completed_payment_with_pending_agent(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.id == 200).first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    agent = Agent(user_id=user.id, status="pending", float_balance=0.0)
+    test_db.add(agent)
+    transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type="agent_registration_fee",
+        amount=settings.AGENT_REGISTRATION_FEE,
+        currency="GHS",
+        status="completed",
+        provider="paystack",
+        provider_reference="already_completed_agent_ref",
+    )
+    test_db.add(transaction)
+    test_db.commit()
+
+    with patch.object(PaystackService, "verify_payment", new=AsyncMock()) as mocked_verify:
+        response = client.get("/agents/register/verify/already_completed_agent_ref")
+
+    assert response.status_code == 200
+    mocked_verify.assert_not_awaited()
+    payload = response.json()
+    assert payload["status"] == "active"
+    assert payload["user_id"] == user.id
+
+    test_db.expire_all()
+    updated_user = test_db.query(User).filter(User.id == 200).first()
+    assert updated_user.is_agent is True
+    activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
+    assert activated_agent.status == "active"
+    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+
+    startup_tx = test_db.query(Transaction).filter(
+        Transaction.agent_id == activated_agent.id,
+        Transaction.type == "agent_startup_loan_credit",
+        Transaction.status == "completed",
+    ).first()
+    assert startup_tx is not None
+    assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
+
+
 def test_verify_agent_registration_failed_payment(test_db: Session, client: TestClient):
     user = test_db.query(User).filter(User.id == 200).first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()

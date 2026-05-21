@@ -18,6 +18,15 @@ from backend.services.agent_service import AgentService, get_agent_service # Imp
 from backend.services.kyc_service import process_agent_kyc
 from backend.services.commission_service import record_commission
 from backend.services.agent_startup_loan import grant_startup_loan_credit
+from backend.services.paystack_fulfillment import (
+    AGENT_REGISTRATION_TX_TYPE,
+    PAYSTACK_PENDING_STATUSES,
+    complete_paid_agent_registration,
+    ghs_to_paystack_subunit,
+    paystack_amount_matches,
+    paystack_currency_matches,
+    to_ghs_decimal,
+)
 from backend.services.settings_service import get_or_create_platform_settings
 import json # Import json
 import uuid # Import uuid
@@ -56,9 +65,9 @@ def _resolve_paystack_email(current_user: User) -> str:
             detail="A valid email or phone number is required for agent registration.",
         )
 
-    domain = str(os.getenv("PAYSTACK_FALLBACK_EMAIL_DOMAIN", "cybercash.local") or "cybercash.local").strip().lower()
+    domain = str(os.getenv("PAYSTACK_FALLBACK_EMAIL_DOMAIN", "cybercash.app") or "cybercash.app").strip().lower()
     if not domain:
-        domain = "cybercash.local"
+        domain = "cybercash.app"
     return f"user{digits}@{domain}"
 
 
@@ -207,8 +216,9 @@ async def register_agent(
 
 
         registration_fee = await _get_agent_registration_fee(db)
+        registration_fee_ghs = to_ghs_decimal(registration_fee)
 
-        if registration_fee <= 0:
+        if registration_fee_ghs <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent registration fee must be positive.")
 
         result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
@@ -223,7 +233,7 @@ async def register_agent(
             checkout_cancel_url = _checkout_status_url(request, "cancelled")
             payment_data = await paystack_service.initiate_payment(
                 email=_resolve_paystack_email(current_user),
-                amount=registration_fee * 100, # Paystack expects amount in kobo (cents)
+                amount=ghs_to_paystack_subunit(registration_fee_ghs), # Paystack expects amount in kobo (cents)
                 currency="GHS",
                 metadata={
                     "user_id": str(current_user.id),
@@ -240,8 +250,8 @@ async def register_agent(
             transaction = Transaction(
                 user_id=current_user.id,
                 wallet_id=wallet.id,
-                type="agent_registration_fee",
-                amount=registration_fee,
+                type=AGENT_REGISTRATION_TX_TYPE,
+                amount=float(registration_fee_ghs),
                 currency="GHS", # Assuming GHS
                 status="pending",
                 provider="paystack",
@@ -262,7 +272,7 @@ async def register_agent(
                 authorization_url=payment_data["authorization_url"],
                 reference=payment_data["reference"],
                 message=(
-                    f"Agent registration payment initiated (GHS {registration_fee:.2f}). "
+                    f"Agent registration payment initiated (GHS {registration_fee_ghs:.2f}). "
                     f"After successful payment, you receive a GHS {settings.AGENT_STARTUP_LOAN_AMOUNT:.2f} "
                     "startup float loan for airtime/data resale."
                 ),
@@ -292,7 +302,7 @@ async def verify_agent_registration(
             Transaction.user_id == current_user.id,
             Transaction.provider == "paystack",
             Transaction.provider_reference == reference,
-            Transaction.type == "agent_registration_fee"
+            Transaction.type == AGENT_REGISTRATION_TX_TYPE
         ))
         transaction = result.scalars().first()
 
@@ -300,21 +310,13 @@ async def verify_agent_registration(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent registration transaction not found or does not belong to user.")
         
         if transaction.status == "completed":
-            result = await db.execute(select(Agent).options(selectinload(Agent.user)).filter(Agent.user_id == current_user.id))
-            agent = result.scalars().first()
-            if agent and agent.status == "active":
-                return agent
-            else:
-                # This should ideally not happen if transaction is completed but agent is not active
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Transaction completed but agent not active. Contact support.")
+            return await complete_paid_agent_registration(db, transaction)
 
         try:
             verification_data = await paystack_service.verify_payment(reference)
             paystack_status = str(verification_data.get("status", "")).strip().lower()
-            paystack_amount = float(verification_data.get("amount", 0.0) or 0.0) / 100.0
-            expected_amount = float(transaction.amount or 0.0)
 
-            if paystack_status in {"pending", "ongoing", "processing", "queued", "abandoned"}:
+            if paystack_status in PAYSTACK_PENDING_STATUSES:
                 result = await db.execute(
                     select(Agent).options(selectinload(Agent.user)).filter(Agent.user_id == current_user.id)
                 )
@@ -327,57 +329,24 @@ async def verify_agent_registration(
                     pending_agent = result.scalars().first()
                 return pending_agent
 
-            if paystack_status == "success" and abs(paystack_amount - expected_amount) <= 0.01:
-                # Mark transaction as completed
-                transaction.status = "completed"
-                db.add(transaction)
-
-                # Activate the agent
-                result = await db.execute(select(Agent).filter(Agent.user_id == current_user.id))
-                agent = result.scalars().first()
-                if not agent:
-                    agent = await agent_service.create_agent(current_user.id, initial_status="pending") # Should ideally exist from initiate step
-                agent = await agent_service.activate_agent(agent)
-
-                wallet_id = transaction.wallet_id
-                if not wallet_id:
-                    result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
-                    wallet = result.scalars().first()
-                    if not wallet:
-                        wallet = Wallet(user_id=current_user.id, currency="GHS", balance=0.0)
-                        db.add(wallet)
-                        await db.flush()
-                    wallet_id = wallet.id
-
-                await grant_startup_loan_credit(
-                    db,
-                    user_id=current_user.id,
-                    wallet_id=wallet_id,
-                    agent=agent,
-                    amount=settings.AGENT_STARTUP_LOAN_AMOUNT,
-                    currency=transaction.currency or "GHS",
+            currency_ok = paystack_currency_matches(
+                verification_data.get("currency"),
+                transaction.currency or "GHS",
+            )
+            try:
+                amount_ok = paystack_amount_matches(
+                    verification_data.get("amount"),
+                    transaction.amount,
                 )
+            except ValueError:
+                amount_ok = False
+            if paystack_status == "success" and amount_ok and currency_ok:
+                return await complete_paid_agent_registration(db, transaction)
 
-                # Update user's is_agent status on the persistent DB row
-                result = await db.execute(select(User).filter(User.id == current_user.id))
-                persistent_user = result.scalars().first()
-                if persistent_user:
-                    persistent_user.is_agent = True
-                    db.add(persistent_user)
-
-                await db.commit()
-                if persistent_user:
-                    await db.refresh(persistent_user)
-                result = await db.execute(
-                    select(Agent).options(selectinload(Agent.user)).filter(Agent.id == agent.id)
-                )
-                refreshed_agent = result.scalars().first()
-                return refreshed_agent
-            else:
-                transaction.status = "failed"
-                db.add(transaction)
-                await db.commit()
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Agent registration payment verification failed: {paystack_status}")
+            transaction.status = "failed"
+            db.add(transaction)
+            await db.commit()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Agent registration payment verification failed: {paystack_status}")
         except HTTPException as e:
             await db.rollback()
             raise e
