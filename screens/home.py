@@ -15,6 +15,7 @@ from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
+from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDLabel
 
 from api.client import API_URL, api_client
@@ -410,10 +411,13 @@ KV = """
                         md_bg_color: [0.10, 0.11, 0.14, 0.86]
                         line_color: [0.48, 0.40, 0.26, 0.28]
                         elevation: 0
+                        pos_hint: {"center_y": 0.5}
                         on_release: root.go_to("settings")
 
                         FitImage:
                             source: root.avatar_source
+                            size_hint: None, None
+                            size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
                             radius: [dp(22 * root.layout_scale)]
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
@@ -636,6 +640,7 @@ KV = """
                             MDCard:
                                 size_hint: None, None
                                 size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                                pos_hint: {"center_y": 0.5}
                                 radius: [dp(11 * root.layout_scale)]
                                 md_bg_color: [0.58, 0.40, 0.15, 0.58]
                                 elevation: 0
@@ -683,6 +688,7 @@ KV = """
                             MDCard:
                                 size_hint: None, None
                                 size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                                pos_hint: {"center_y": 0.5}
                                 radius: [dp(11 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.24, 0.19, 0.84]
                                 elevation: 0
@@ -964,6 +970,8 @@ class HomeScreen(ResponsiveScreen):
     @staticmethod
     def _resolve_avatar_source() -> str:
         return HomeScreen._resolve_asset_source(
+            "assets/cybercash_logo.png",
+            "assets/cybercash_icon.png",
             "assets/avatar.png",
             "kivy_frontend/assets/avatar.png",
             "kivy_frontend/assets/avatars/0249945389.png",

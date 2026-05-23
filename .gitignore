@@ -15,6 +15,12 @@ dist/
 node_modules/
 venv/
 
+# Local environment secrets
+.env
+backend/.env
+.env.local
+.env.*.local
+
 android_build.log
 build_apk_wsl_run.log
 buildozer.log

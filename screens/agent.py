@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from datetime import datetime, timezone
 
@@ -13,6 +14,7 @@ from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFillRoundFlatIconButton, MDIconButton
 from kivymd.uix.card import MDCard
+from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 
@@ -112,18 +114,10 @@ KV = """
                         elevation: 0
                         on_release: root.go_to_settings()
 
-                        AnchorLayout:
-                            anchor_x: "center"
-                            anchor_y: "center"
-
-                            MDIconButton:
-                                icon: "account-circle"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                on_release: root.go_to_settings()
+                        FitImage:
+                            source: root.avatar_source
+                            radius: [dp(22 * root.layout_scale)]
+                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                     MDLabel:
                         text: "AGENT DASHBOARD"
@@ -715,6 +709,7 @@ KV = """
 class AgentScreen(ResponsiveScreen):
     greeting_text = StringProperty("Hello, Agent")
     status_text = StringProperty("Last sync: --")
+    avatar_source = StringProperty("")
     funding_note = StringProperty("")
     float_display = StringProperty("GHS 0.00")
     commission_display = StringProperty("GHS 0.00")
@@ -733,6 +728,27 @@ class AgentScreen(ResponsiveScreen):
     _action_popup = None
     _more_actions_dialog = None
     _recovery_payload = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.avatar_source = self._resolve_avatar_source()
+
+    @staticmethod
+    def _resolve_avatar_source() -> str:
+        return AgentScreen._resolve_asset_source(
+            "assets/cybercash_logo.png",
+            "assets/cybercash_icon.png",
+            "assets/avatar.png",
+            "kivy_frontend/assets/avatar.png",
+            "kivy_frontend/assets/avatars/0249945389.png",
+        )
+
+    @staticmethod
+    def _resolve_asset_source(*candidates: str) -> str:
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
+        return ""
 
     def on_pre_enter(self):
         self.load_transactions()

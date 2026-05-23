@@ -256,19 +256,22 @@ KV = """
                                     MDCard:
                                         size_hint: None, None
                                         size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                        pos_hint: {"center_y": 0.5}
                                         radius: [dp(11 * root.layout_scale)]
                                         md_bg_color: GOLD_SOFT
                                         elevation: 0
 
-                                        MDIconButton:
+                                        MDIcon:
                                             icon: "credit-card-check-outline"
-                                            user_font_size: str(18 * root.icon_scale) + "sp"
+                                            font_size: sp(18 * root.icon_scale)
                                             size_hint: None, None
                                             size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                            text_size: self.size
+                                            halign: "center"
+                                            valign: "center"
                                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                             theme_text_color: "Custom"
                                             text_color: BG
-                                            disabled: True
 
                                     MDLabel:
                                         text: "Paystack Deposit"
@@ -382,6 +385,7 @@ KV = """
                                     text_color: BG
                                     size_hint_y: None
                                     height: dp(52 * root.layout_scale)
+                                    pos_hint: {"center_x": 0.5}
                                     on_release: root.initiate_deposit()
                                     disabled: root.deposit_busy or not root.deposit_ready
 
@@ -392,6 +396,7 @@ KV = """
                                     text_color: TEXT_MAIN
                                     size_hint_y: None
                                     height: dp(48 * root.layout_scale)
+                                    pos_hint: {"center_x": 0.5}
                                     on_release: root.check_last_deposit_status()
 
                                 MDLabel:
@@ -464,6 +469,7 @@ KV = """
                                     MDCard:
                                         size_hint: None, None
                                         size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                        pos_hint: {"center_y": 0.5}
                                         radius: [dp(11 * root.layout_scale)]
                                         md_bg_color: 0.22, 0.40, 0.32, 1
                                         elevation: 0
