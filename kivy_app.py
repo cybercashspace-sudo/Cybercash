@@ -12,6 +12,10 @@ from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivy.utils import platform as kivy_platform
 from kivymd.app import MDApp
 
+from core.silent_touch import install_silent_touch
+
+install_silent_touch()
+
 from core.kivymd_compat import (
     install_kivymd_font_style_compat,
     register_font_style_aliases,
