@@ -1,4 +1,4 @@
-from api.client import api_client
+from api.client import FAST_TIMEOUT, api_client
 
 
 def register(momo: str, email: str, pin: str, agent_mode: bool, first_name: str = ""):
@@ -27,11 +27,11 @@ def access_account(
         "device_id": device_id or None,
         "device_fingerprint": device_fingerprint or None,
     }
-    return api_client.post("/auth/access", payload)
+    return api_client.post("/auth/access", payload, timeout=(4, 12))
 
 
 def lookup_registered_name(momo: str):
-    return api_client.post("/auth/lookup-name", {"momo_number": momo})
+    return api_client.post("/auth/lookup-name", {"momo_number": momo}, timeout=FAST_TIMEOUT)
 
 
 def logout(access_token: str):

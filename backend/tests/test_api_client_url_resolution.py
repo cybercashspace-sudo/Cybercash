@@ -18,7 +18,10 @@ class _FakeSession:
 
     def request(self, **kwargs):
         self.urls.append(kwargs["url"])
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def test_normalize_api_url_adds_https_to_bare_domain():
@@ -67,3 +70,35 @@ def test_request_starts_with_last_successful_backend():
 
     assert result["ok"] is True
     assert api.session.urls == ["https://fallback.test/health"]
+
+
+def test_authenticated_fallback_rejection_after_timeout_does_not_clear_session():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.session = _FakeSession([
+        client.requests.exceptions.ReadTimeout("primary timed out"),
+        _FakeResponse(401, {"detail": "Could not validate credentials"}),
+    ])
+
+    result = api.get("/auth/me", headers={"Authorization": "Bearer saved-token"})
+
+    assert result["ok"] is False
+    assert result["status_code"] == 0
+    assert "connection" in result["data"]["detail"].lower()
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == [
+        "https://primary.test/auth/me",
+        "https://fallback.test/auth/me",
+    ]
+
+
+def test_warmup_only_checks_active_backend():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.session = _FakeSession([
+        client.requests.exceptions.ReadTimeout("primary timed out"),
+    ])
+
+    api.warmup()
+
+    assert api.session.urls == ["https://primary.test/health"]

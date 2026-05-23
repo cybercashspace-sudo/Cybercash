@@ -41,8 +41,9 @@ MOBILE_BACKEND_FALLBACK_URLS = (
     "https://cyber-cash.onrender.com",
 )
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 4
-DEFAULT_READ_TIMEOUT_SECONDS = 18
+DEFAULT_READ_TIMEOUT_SECONDS = 12
 DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
+FAST_TIMEOUT = (2, 6)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
 AUTH_FAILOVER_STATUS_CODES = (401, 403)
@@ -144,11 +145,11 @@ class APIClient:
             return
 
         retry = Retry(
-            total=2,
-            connect=2,
-            read=1,
-            status=2,
-            backoff_factor=0.6,
+            total=1,
+            connect=1,
+            read=0,
+            status=1,
+            backoff_factor=0.25,
             status_forcelist=RETRY_STATUS_CODES,
             allowed_methods=frozenset({"GET", "POST", "PUT", "PATCH"}),
             raise_on_status=False,
@@ -197,11 +198,17 @@ class APIClient:
         params: dict | None = None,
         headers: dict | None = None,
         timeout=DEFAULT_TIMEOUT,
+        failover: bool = True,
     ) -> dict:
         last_result = None
         request_headers = headers or {}
         has_auth_header = self._has_auth_header(request_headers)
-        for base_url in self._ordered_base_urls():
+        transport_error_seen = False
+        ordered_base_urls = self._ordered_base_urls()
+        if not failover:
+            ordered_base_urls = ordered_base_urls[:1]
+
+        for index, base_url in enumerate(ordered_base_urls):
             try:
                 response = self.session.request(
                     method=method.upper(),
@@ -221,12 +228,28 @@ class APIClient:
                     self.base_url = base_url
                     return result
                 last_result = result
+
+                if has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES:
+                    if transport_error_seen or index > 0:
+                        last_result = {
+                            "ok": False,
+                            "status_code": 0,
+                            "data": {
+                                "detail": (
+                                    "Backend connection failed. Please check your internet connection "
+                                    "and try again."
+                                )
+                            },
+                        }
+                        continue
+
                 should_failover = response.status_code in FAILOVER_STATUS_CODES or (
                     has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES
                 )
-                if not should_failover:
+                if not failover or not should_failover:
                     return result
             except Exception as exc:
+                transport_error_seen = True
                 last_result = {
                     "ok": False,
                     "status_code": 0,
@@ -240,10 +263,10 @@ class APIClient:
         }
 
     def warmup(self) -> None:
-        self.request("GET", "/health", timeout=(3, 8))
+        self.request("GET", "/health", timeout=FAST_TIMEOUT, failover=False)
 
-    def post(self, path: str, payload: dict, headers: dict | None = None):
-        return self.request("POST", path, payload=payload, headers=headers)["data"]
+    def post(self, path: str, payload: dict, headers: dict | None = None, timeout=DEFAULT_TIMEOUT):
+        return self.request("POST", path, payload=payload, headers=headers, timeout=timeout)["data"]
 
     def get(self, path: str, params: dict | None = None, headers: dict | None = None):
         return self.request("GET", path, params=params, headers=headers)
