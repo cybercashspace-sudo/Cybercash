@@ -836,6 +836,8 @@ class WalletScreen(ActionScreen):
         if self.screen_mode == "deposit":
             self._refresh_deposit_dashboard()
         if self.screen_mode in {"all", "deposit"}:
+            self._recover_paystack_deposits_async(show_idle=False)
+        if self.screen_mode in {"all", "deposit"}:
             Clock.schedule_once(lambda _dt: warmup_paystack_checkout(delay_seconds=0.0), 0.25)
         Clock.schedule_once(self._focus_requested_action, 0.1)
 
@@ -1109,6 +1111,7 @@ class WalletScreen(ActionScreen):
     def refresh_wallet(self) -> None:
         self._set_feedback("Refreshing wallet...", "info")
         self._refresh_wallet_balance_async("Wallet updated.")
+        self._recover_paystack_deposits_async(show_idle=True)
 
     def load_wallet(self, notify: bool = True):
         ok, payload = self._request("GET", "/wallet/me")
@@ -1217,8 +1220,44 @@ class WalletScreen(ActionScreen):
             return
 
         detail = self._extract_detail(payload) or "Unable to start Paystack deposit."
+        if "payment service is temporarily unavailable" in detail.lower():
+            detail = (
+                "Paystack is temporarily unavailable from the current backend. "
+                "No wallet balance was changed. If you already completed a Paystack payment, "
+                "tap Refresh Wallet so we can recover it once Paystack responds."
+            )
         self._set_feedback(detail, "error")
         self._show_popup("Deposit Failed", detail)
+
+    def _recover_paystack_deposits_async(self, show_idle: bool = False) -> None:
+        threading.Thread(
+            target=self._recover_paystack_deposits_worker,
+            args=(show_idle,),
+            daemon=True,
+        ).start()
+
+    def _recover_paystack_deposits_worker(self, show_idle: bool) -> None:
+        ok, payload = self._request("POST", "/paystack/recover")
+        Clock.schedule_once(lambda _dt: self._handle_recover_paystack_result(ok, payload, show_idle))
+
+    def _handle_recover_paystack_result(self, ok: bool, payload: object, show_idle: bool) -> None:
+        if not ok or not isinstance(payload, dict):
+            if show_idle:
+                detail = self._extract_detail(payload) or "Unable to check pending Paystack deposits right now."
+                self._set_feedback(detail, "warning")
+            return
+
+        status_value = str(payload.get("status", "")).strip().lower()
+        message = self._extract_detail(payload) or "Paystack deposit recovery checked."
+        wallet_balance = self._coerce_wallet_balance(payload)
+        if wallet_balance is not None:
+            self._set_wallet_balance(wallet_balance, "Wallet checked for Paystack deposits")
+
+        if status_value == "success":
+            self._set_feedback(message, "success")
+            self._show_popup("Deposit Recovered", message)
+        elif show_idle and status_value in {"pending", "idle"}:
+            self._set_feedback(message, "info" if status_value == "idle" else "warning")
 
     def _start_paystack_verification(self, reference: str) -> None:
         self._verify_sequence += 1

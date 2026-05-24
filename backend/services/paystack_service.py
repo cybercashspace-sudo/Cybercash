@@ -131,7 +131,7 @@ class PaystackService:
     ) -> dict[str, Any]:
         if not self.secret_key_candidates:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Paystack secret key is not configured in the backend.",
             )
 
@@ -194,7 +194,7 @@ class PaystackService:
         """
         if not self.secret_key_candidates:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Paystack secret key is not configured.",
             )
 
@@ -228,7 +228,7 @@ class PaystackService:
         """
         if not self.secret_key_candidates:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Paystack API secret key is not configured.",
             )
 

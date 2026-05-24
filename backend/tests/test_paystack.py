@@ -450,6 +450,53 @@ def test_paystack_deposit_idempotent_after_verify_then_webhook(test_db: Session,
     assert updated_wallet.balance == 30.0
 
 
+def test_recover_paystack_deposits_credits_verified_pending_payment(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+
+    pending_transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type=TransactionType.FUNDING,
+        amount=75.0,
+        currency="GHS",
+        status="pending",
+        provider="paystack",
+        provider_reference="recover_ref",
+    )
+    test_db.add(pending_transaction)
+    test_db.commit()
+
+    with patch.object(
+        PaystackService,
+        "verify_payment",
+        new=AsyncMock(
+            return_value={
+                "amount": 7500,
+                "currency": "GHS",
+                "status": "success",
+                "reference": "recover_ref",
+                "customer": {"email": "paystack_test@example.com"},
+            }
+        ),
+    ):
+        response = client.post("/paystack/recover")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["recovered_count"] == 1
+    assert data["credited_amount"] == 75.0
+    assert data["wallet_balance"] == 75.0
+    assert data["references"] == ["recover_ref"]
+
+    test_db.expire_all()
+    updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    assert updated_wallet.balance == 75.0
+    completed_transaction = test_db.query(Transaction).filter(Transaction.provider_reference == "recover_ref").first()
+    assert completed_transaction.status == "completed"
+
+
 def test_paystack_webhook_completes_agent_registration(test_db: Session, client: TestClient):
     user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()

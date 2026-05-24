@@ -102,3 +102,27 @@ def test_warmup_only_checks_active_backend():
     api.warmup()
 
     assert api.session.urls == ["https://primary.test/health"]
+
+
+def test_paystack_request_fails_over_after_primary_server_error():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.session = _FakeSession([
+        _FakeResponse(500, {"detail": "Paystack secret key is not configured."}),
+        _FakeResponse(200, {"reference": "ok_ref"}),
+    ])
+
+    result = api.request(
+        "POST",
+        "/paystack/initiate",
+        payload={"amount": 1.0},
+        headers={"Authorization": "Bearer saved-token"},
+    )
+
+    assert result["ok"] is True
+    assert result["data"] == {"reference": "ok_ref"}
+    assert api.base_url == "https://fallback.test"
+    assert api.session.urls == [
+        "https://primary.test/paystack/initiate",
+        "https://fallback.test/paystack/initiate",
+    ]

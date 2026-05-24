@@ -20,6 +20,11 @@ except ImportError:
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+try:
+    from kivy.utils import platform as kivy_platform
+except Exception:
+    kivy_platform = ""
+
 
 def _safe_load_dotenv(path: str) -> None:
     try:
@@ -28,12 +33,14 @@ def _safe_load_dotenv(path: str) -> None:
         pass
 
 
-_safe_load_dotenv(os.path.join(project_root, ".env"))
+def _is_runtime_mobile_platform() -> bool:
+    return str(kivy_platform or "").strip().lower() in {"android", "ios"}
 
-try:
-    from kivy.utils import platform as kivy_platform
-except Exception:
-    kivy_platform = ""
+
+# Keep secrets out of packaged mobile apps. Android/iOS should use app_config.json
+# or built-in defaults for the backend URL; Paystack keys belong on the backend.
+if not _is_runtime_mobile_platform():
+    _safe_load_dotenv(os.path.join(project_root, ".env"))
 
 MOBILE_BACKEND_URL = "cybercash.space"
 MOBILE_BACKEND_FALLBACK_URLS = (
@@ -46,6 +53,7 @@ DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS
 FAST_TIMEOUT = (2, 6)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
+PAYSTACK_FAILOVER_STATUS_CODES = (500, 502, 503, 504)
 AUTH_FAILOVER_STATUS_CODES = (401, 403)
 
 
@@ -59,7 +67,7 @@ def _normalize_api_url(raw_value: str) -> str:
 
 
 def _is_mobile_platform() -> bool:
-    return str(kivy_platform or "").strip().lower() in {"android", "ios"}
+    return _is_runtime_mobile_platform()
 
 
 def _default_api_url() -> str:
@@ -207,6 +215,12 @@ class APIClient:
         ordered_base_urls = self._ordered_base_urls()
         if not failover:
             ordered_base_urls = ordered_base_urls[:1]
+        path_value = str(path or "")
+        failover_status_codes = (
+            PAYSTACK_FAILOVER_STATUS_CODES
+            if path_value.startswith("/paystack/")
+            else FAILOVER_STATUS_CODES
+        )
 
         for index, base_url in enumerate(ordered_base_urls):
             try:
@@ -243,7 +257,7 @@ class APIClient:
                         }
                         continue
 
-                should_failover = response.status_code in FAILOVER_STATUS_CODES or (
+                should_failover = response.status_code in failover_status_codes or (
                     has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES
                 )
                 if not failover or not should_failover:

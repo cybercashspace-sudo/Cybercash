@@ -74,8 +74,18 @@ class Settings:
     }
 
     # Paystack API Credentials
-    PAYSTACK_PUBLIC_KEY: str = os.getenv("PAYSTACK_PUBLIC_KEY", "")
-    PAYSTACK_SECRET_KEY: str = os.getenv("PAYSTACK_SECRET_KEY", "")
+    PAYSTACK_PUBLIC_KEY: str = (
+        os.getenv("PAYSTACK_PUBLIC_KEY", "")
+        or os.getenv("PAYSTACK_LIVE_PUBLIC_KEY", "")
+        or os.getenv("PAYSTACK_TEST_PUBLIC_KEY", "")
+    )
+    PAYSTACK_SECRET_KEY: str = (
+        os.getenv("PAYSTACK_SECRET_KEY", "")
+        or os.getenv("PAYSTACK_SECRET", "")
+        or os.getenv("PAYSTACK_API_SECRET_KEY", "")
+        or os.getenv("PAYSTACK_LIVE_SECRET_KEY", "")
+        or os.getenv("PAYSTACK_TEST_SECRET_KEY", "")
+    )
 
     # Flutterwave API Credentials
     FLUTTERWAVE_BASE_URL: str = os.getenv("FLUTTERWAVE_BASE_URL", "https://api.flutterwave.com/v3")

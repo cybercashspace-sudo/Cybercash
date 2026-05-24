@@ -195,6 +195,15 @@ async def _get_wallet_balance(db: AsyncSession, wallet_id: int) -> float:
         return 0.0
 
 
+async def _get_user_wallet_balance(db: AsyncSession, user_id: int) -> float:
+    result = await db.execute(select(Wallet.balance).filter(Wallet.user_id == user_id))
+    balance = result.scalar_one_or_none()
+    try:
+        return float(balance or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _resolve_paystack_email(current_user: User) -> str:
     email = str(current_user.email or "").strip().lower()
     if email and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -212,6 +221,45 @@ def _resolve_paystack_email(current_user: User) -> str:
     if not domain:
         domain = "cybercash.app"
     return f"user{digits}@{domain}"
+
+
+def _expected_transaction_amount(transaction: Transaction) -> Decimal:
+    return Decimal(str(transaction.amount)).quantize(GHS_QUANTIZER, rounding=ROUND_HALF_UP)
+
+
+def _validate_successful_paystack_payload(transaction: Transaction, verification_data: dict) -> Decimal:
+    expected_amount = _expected_transaction_amount(transaction)
+    paystack_amount = _kobo_to_ghs(verification_data.get("amount"))
+    if paystack_amount != expected_amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payment verification failed due to amount mismatch.",
+        )
+
+    if not paystack_currency_matches(verification_data.get("currency"), transaction.currency or "GHS"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payment verification failed due to currency mismatch.",
+        )
+
+    return expected_amount
+
+
+async def _complete_paystack_wallet_funding(
+    db: AsyncSession,
+    transaction: Transaction,
+    transaction_engine: TransactionEngine,
+) -> None:
+    if transaction.status != "pending":
+        transaction.status = "pending"
+        db.add(transaction)
+        await db.flush()
+    try:
+        await transaction_engine.confirm_transaction(transaction.id)
+    except ValueError:
+        await db.refresh(transaction)
+        if transaction.status != "completed":
+            raise
 
 @router.post(
     "/initiate",
@@ -335,7 +383,7 @@ async def verify_paystack_payment(
         if not transaction:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found or does not belong to user.")
 
-        expected_amount = Decimal(str(transaction.amount)).quantize(GHS_QUANTIZER, rounding=ROUND_HALF_UP)
+        expected_amount = _expected_transaction_amount(transaction)
         
         if transaction.status == "completed":
             wallet_balance = await _get_wallet_balance(db, transaction.wallet_id)
@@ -349,29 +397,18 @@ async def verify_paystack_payment(
         try:
             verification_data = await paystack_service.verify_payment(reference)
             paystack_status = str(verification_data.get("status", "")).strip().lower()
-            paystack_amount = _kobo_to_ghs(verification_data.get("amount"))
 
             if paystack_status == "success":
-                if paystack_amount != expected_amount:
+                try:
+                    expected_amount = _validate_successful_paystack_payload(transaction, verification_data)
+                except HTTPException:
                     transaction.status = "failed"
                     db.add(transaction)
                     await db.commit()
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Payment verification failed due to amount mismatch.",
-                    )
+                    raise
 
                 # Use TransactionEngine to finalize
-                try:
-                    if transaction.status != "pending":
-                        transaction.status = "pending"
-                        db.add(transaction)
-                        await db.flush()
-                    await transaction_engine.confirm_transaction(transaction.id)
-                except ValueError:
-                    await db.refresh(transaction)
-                    if transaction.status != "completed":
-                        raise
+                await _complete_paystack_wallet_funding(db, transaction, transaction_engine)
                 wallet_balance = await _get_wallet_balance(db, transaction.wallet_id)
                 return VerifyPaymentResponse(
                     status="success",
@@ -411,6 +448,115 @@ async def verify_paystack_payment(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Unable to verify Paystack payment right now. Please try again.",
             )
+    finally:
+        await db.close()
+
+
+@router.post(
+    "/recover",
+    responses={
+        401: {"description": "Not authenticated. Provide Bearer access token."},
+        502: {"description": "Paystack service/network unavailable."},
+    },
+)
+async def recover_paystack_deposits(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    paystack_service: PaystackService = Depends(get_paystack_service),
+    transaction_engine: TransactionEngine = Depends(get_transaction_engine),
+):
+    """
+    Reconcile pending Paystack wallet deposits for the signed-in user.
+    This credits only transactions Paystack verifies as successful.
+    """
+    try:
+        result = await db.execute(
+            select(Transaction)
+            .filter(
+                Transaction.user_id == current_user.id,
+                Transaction.provider == "paystack",
+                Transaction.type == TransactionType.FUNDING,
+                Transaction.status == "pending",
+            )
+            .order_by(Transaction.timestamp.desc())
+            .limit(20)
+        )
+        pending_transactions = result.scalars().all()
+
+        recovered_count = 0
+        credited_amount = Decimal("0.00")
+        pending_count = 0
+        failed_count = 0
+        recovered_references: list[str] = []
+
+        for transaction in pending_transactions:
+            reference = str(transaction.provider_reference or "").strip()
+            if not reference:
+                pending_count += 1
+                continue
+
+            try:
+                verification_data = await paystack_service.verify_payment(reference)
+            except HTTPException as exc:
+                if exc.status_code >= 500:
+                    raise
+                transaction.status = "failed"
+                db.add(transaction)
+                await db.commit()
+                failed_count += 1
+                continue
+            paystack_status = str(verification_data.get("status", "")).strip().lower()
+
+            if paystack_status == "success":
+                try:
+                    expected_amount = _validate_successful_paystack_payload(transaction, verification_data)
+                except HTTPException:
+                    transaction.status = "failed"
+                    db.add(transaction)
+                    await db.commit()
+                    failed_count += 1
+                    continue
+
+                await _complete_paystack_wallet_funding(db, transaction, transaction_engine)
+                recovered_count += 1
+                credited_amount += expected_amount
+                recovered_references.append(reference)
+                continue
+
+            if paystack_status in PAYSTACK_PENDING_STATUSES:
+                pending_count += 1
+                continue
+
+            transaction.status = "failed"
+            db.add(transaction)
+            await db.commit()
+            failed_count += 1
+
+        wallet_balance = await _get_user_wallet_balance(db, current_user.id)
+        credited_amount = credited_amount.quantize(GHS_QUANTIZER, rounding=ROUND_HALF_UP)
+        if recovered_count:
+            message = (
+                f"Recovered {recovered_count} Paystack deposit"
+                f"{'' if recovered_count == 1 else 's'} and credited GHS {credited_amount:.2f}."
+            )
+            status_value = "success"
+        elif pending_count:
+            message = "No completed Paystack deposits found yet. Pending payments will credit once Paystack confirms."
+            status_value = "pending"
+        else:
+            message = "No pending Paystack deposits found for this wallet."
+            status_value = "idle"
+
+        return {
+            "status": status_value,
+            "message": message,
+            "recovered_count": recovered_count,
+            "pending_count": pending_count,
+            "failed_count": failed_count,
+            "credited_amount": float(credited_amount),
+            "wallet_balance": wallet_balance,
+            "references": recovered_references,
+        }
     finally:
         await db.close()
 
