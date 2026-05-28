@@ -31,6 +31,7 @@ from backend.routes import (
     payments,
     crypto,
     paystack,
+    wallet_topup,
     ledger,
     ussd,
     loans,
@@ -358,6 +359,8 @@ app.include_router(agent_transactions.router)
 app.include_router(payments.router)
 app.include_router(crypto.router)
 app.include_router(paystack.router)
+app.include_router(wallet_topup.router)
+app.include_router(wallet_topup.alias_router)
 app.include_router(ledger.router)
 app.include_router(ussd.router)
 app.include_router(loans.router)

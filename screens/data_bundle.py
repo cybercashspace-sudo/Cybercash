@@ -353,12 +353,12 @@ class DataBundleScreen(ActionScreen):
     def configure_user_mode(self) -> None:
         self.show_agent_pricing = False
         self.purchase_path = "/api/bundles/purchase"
-        self.catalog_provider = ""
+        self.catalog_provider = "idata"
         self.screen_title = "Buy Data Bundle"
-        self.screen_subtitle = "Browse live prices, compare bundles, and complete a purchase in one flow."
+        self.screen_subtitle = "Browse live iData packages and pay securely from your CyberCash wallet."
         self.action_button_text = "Purchase Bundle"
-        self.catalog_hint = "Catalog auto-loads when a network is selected."
-        self.bundle_helper_text = "Choose a bundle from the catalog or type a code."
+        self.catalog_hint = "Tap Refresh Catalog to load live iData packages."
+        self.bundle_helper_text = "Choose a live iData package from the catalog."
         self.network_helper_text = "Select your network or type it below."
         self.selected_network = ""
         self.network_source_manual = False
@@ -366,10 +366,10 @@ class DataBundleScreen(ActionScreen):
         self._selected_bundle_id = None
         self._selected_bundle_price = 0.0
         self._clear_form_inputs()
-        self.network_helper_text = "Select your network or type it below."
+        self.network_helper_text = "Select your network to load live iData packages."
         self._render_catalog([])
         self._set_order_status("")
-        self._set_feedback("Enter phone number, select network, and choose a bundle to continue.", "info")
+        self._set_feedback("Enter phone number, select network, and choose a live package to continue.", "info")
 
     def configure_agent_mode(self) -> None:
         self.show_agent_pricing = True
@@ -786,7 +786,7 @@ class DataBundleScreen(ActionScreen):
             self._set_feedback("Live iData bundle catalog loaded." if self.show_agent_pricing else "Bundle catalog loaded.", "success")
             return
 
-        if self.show_agent_pricing:
+        if self.show_agent_pricing or self.catalog_provider == "idata":
             detail = self._extract_detail(payload) or "Unable to load live iData bundles."
             self._set_feedback(detail, "error")
             self._show_popup("Catalog Error", detail)

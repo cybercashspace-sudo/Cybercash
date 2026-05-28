@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -88,6 +88,214 @@ def _bundle_network_filters(network: str) -> list[str]:
     return [net]
 
 
+def _system_network_for_idata(idata_network: str) -> str:
+    value = str(idata_network or "").strip().lower()
+    if value == "mtn":
+        return "MTN"
+    if value == "telecel":
+        return "TELECEL"
+    if value == "airteltigo":
+        return "AIRTELTIGO"
+    return ""
+
+
+def _first_package_value(item: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in item and item.get(key) not in (None, ""):
+            return item.get(key)
+    return None
+
+
+def _parse_package_amount(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        cleaned = "".join(ch for ch in str(value) if ch.isdigit() or ch == ".")
+        try:
+            return float(cleaned) if cleaned else None
+        except Exception:
+            return None
+
+
+def _app_price_from_idata_cost(provider_cost: float) -> float:
+    markup_rate = max(float(getattr(settings, "IDATA_USER_MARKUP_PERCENTAGE", 0.10) or 0.0), 0.0)
+    markup_fixed = max(float(getattr(settings, "IDATA_USER_MARKUP_GHS", 0.0) or 0.0), 0.0)
+    return round(float(provider_cost) * (1.0 + markup_rate) + markup_fixed, 2)
+
+
+def _extract_provider_package_id(item: dict[str, Any]) -> int | None:
+    value = _first_package_value(
+        item,
+        (
+            "id",
+            "package_id",
+            "bundle_id",
+            "data_bundle_id",
+            "package",
+            "packageId",
+            "pa_data-bundle-packages",
+            "pa_data_bundle_packages",
+            "value",
+        ),
+    )
+    try:
+        return int(str(value).strip()) if value is not None else None
+    except Exception:
+        return None
+
+
+def _extract_package_label(item: dict[str, Any], provider_package_id: int | None) -> str:
+    value = _first_package_value(
+        item,
+        (
+            "bundle_code",
+            "code",
+            "name",
+            "bundle_name",
+            "package_name",
+            "packageName",
+            "title",
+            "data",
+            "data_bundle",
+            "dataBundle",
+            "size",
+            "volume",
+        ),
+    )
+    label = str(value or "").strip()
+    if not label and provider_package_id is not None:
+        label = str(provider_package_id)
+    return label[:64]
+
+
+def _extract_provider_order_id(*sources: Any) -> str:
+    for source in sources:
+        if isinstance(source, str):
+            value = source.strip()
+            if value:
+                return value
+            continue
+        if not isinstance(source, dict):
+            continue
+        for key in ("order_id", "transaction_id", "reference", "id"):
+            value = source.get(key)
+            if value not in (None, ""):
+                return str(value).strip()
+    return ""
+
+
+async def _sync_idata_catalog(db: AsyncSession, *, network: str) -> list[BundleCatalog]:
+    idata_network = _normalize_idata_network(network)
+    if idata_network not in SUPPORTED_NETWORKS_IDATA:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported network for iData bundles. Use MTN, Telecel, or AirtelTigo.",
+        )
+    if not idata_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="iData provider is not configured. Set IDATA_API_KEY and IDATA_BASE_URL.",
+        )
+
+    packages = await idata_service.fetch_packages(network=idata_network)
+    system_network = _system_network_for_idata(idata_network)
+    synced: list[BundleCatalog] = []
+    used_codes: set[str] = set()
+
+    for item in packages:
+        provider_package_id = _extract_provider_package_id(item)
+        provider_cost = _parse_package_amount(
+            _first_package_value(
+                item,
+                (
+                    "price",
+                    "amount",
+                    "cost",
+                    "package_price",
+                    "package_amount",
+                    "selling_price",
+                    "sellingPrice",
+                    "value_amount",
+                ),
+            )
+        )
+        if provider_package_id is None or provider_cost is None or provider_cost <= 0:
+            continue
+        app_price = _app_price_from_idata_cost(provider_cost)
+
+        base_code = _extract_package_label(item, provider_package_id).upper()
+        bundle_code = base_code or str(provider_package_id)
+        if bundle_code in used_codes:
+            bundle_code = f"{bundle_code}-{provider_package_id}"
+        used_codes.add(bundle_code)
+
+        result = await db.execute(
+            select(BundleCatalog).filter(
+                BundleCatalog.network == system_network,
+                BundleCatalog.bundle_code == bundle_code,
+            )
+        )
+        code_owner = result.scalars().first()
+        if code_owner and str(getattr(code_owner, "provider", "") or "").lower() != "idata":
+            bundle_code = f"{bundle_code}-{provider_package_id}"
+            used_codes.add(bundle_code)
+
+        metadata = {
+            "idata_package_id": provider_package_id,
+            "idata_network": idata_network,
+            "idata_provider_cost": round(float(provider_cost), 2),
+            "app_price": app_price,
+            "markup_percentage": float(getattr(settings, "IDATA_USER_MARKUP_PERCENTAGE", 0.10) or 0.0),
+            "markup_ghs": float(getattr(settings, "IDATA_USER_MARKUP_GHS", 0.0) or 0.0),
+            "idata_raw_package": item,
+        }
+
+        result = await db.execute(
+            select(BundleCatalog).filter(
+                BundleCatalog.network == system_network,
+                BundleCatalog.provider == "idata",
+                BundleCatalog.bundle_code == bundle_code,
+            )
+        )
+        bundle = result.scalars().first()
+        if not bundle:
+            result = await db.execute(
+                select(BundleCatalog).filter(
+                    BundleCatalog.network == system_network,
+                    BundleCatalog.provider == "idata",
+                )
+            )
+            for candidate in result.scalars().all():
+                if _extract_idata_package_id(candidate) == provider_package_id:
+                    bundle = candidate
+                    break
+
+        if bundle:
+            bundle.bundle_code = bundle_code
+            bundle.amount = app_price
+            bundle.currency = "GHS"
+            bundle.provider = "idata"
+            bundle.is_active = True
+            bundle.metadata_json = json.dumps(metadata)
+        else:
+            bundle = BundleCatalog(
+                network=system_network,
+                bundle_code=bundle_code,
+                amount=app_price,
+                currency="GHS",
+                provider="idata",
+                is_active=True,
+                metadata_json=json.dumps(metadata),
+            )
+        db.add(bundle)
+        synced.append(bundle)
+
+    await db.flush()
+    return synced
+
+
 @router.get("/catalog", response_model=List[BundleCatalogResponse])
 async def list_active_bundle_catalog(
     network: Optional[str] = Query(default=None, min_length=2, max_length=20),
@@ -96,19 +304,82 @@ async def list_active_bundle_catalog(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        provider_value = str(provider or "").strip().lower()
+        should_sync_idata = bool(network and (provider_value == "idata" or (not provider_value and idata_service.is_configured())))
+        if should_sync_idata:
+            try:
+                await _sync_idata_catalog(db, network=network)
+                await db.commit()
+            except IDataApiError as exc:
+                await db.rollback()
+                if provider_value == "idata":
+                    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
         query = select(BundleCatalog).filter(BundleCatalog.is_active.is_(True))
         if network:
             network_filters = _bundle_network_filters(network)
             if network_filters:
                 query = query.filter(BundleCatalog.network.in_(network_filters))
-        if provider:
-            provider_value = str(provider or "").strip().lower()
-            if provider_value:
-                query = query.filter(BundleCatalog.provider == provider_value)
+        if provider_value:
+            query = query.filter(BundleCatalog.provider == provider_value)
         query = query.order_by(BundleCatalog.network, BundleCatalog.amount, BundleCatalog.bundle_code)
 
         result = await db.execute(query)
         return result.scalars().all()
+    finally:
+        await db.close()
+
+
+@router.get("/order-status/{transaction_id}")
+async def get_data_bundle_order_status(
+    transaction_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        result = await db.execute(
+            select(Transaction).filter(
+                Transaction.id == transaction_id,
+                Transaction.user_id == current_user.id,
+                Transaction.provider == "idata",
+            )
+        )
+        transaction = result.scalars().first()
+        if not transaction:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="iData transaction not found.")
+
+        metadata = _safe_json_load(getattr(transaction, "metadata_json", None))
+        provider_response = metadata.get("provider_response") if isinstance(metadata.get("provider_response"), dict) else {}
+        order_id = _extract_provider_order_id(provider_response, getattr(transaction, "provider_reference", ""))
+        if not order_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="iData order reference not found.")
+        if not idata_service.is_configured():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="iData provider is not configured. Set IDATA_API_KEY and IDATA_BASE_URL.",
+            )
+
+        provider_status = await idata_service.order_status(order_id=order_id)
+        raw_status = str(provider_status.get("order_status") or provider_status.get("status") or "").strip().lower()
+        if raw_status in {"completed", "complete", "successful", "success", "ok", "done"}:
+            transaction.status = "completed"
+        elif raw_status in {"cancelled", "canceled", "failed", "rejected", "abandoned", "error"}:
+            transaction.status = "failed"
+        else:
+            transaction.status = "pending"
+        metadata["latest_order_status"] = provider_status
+        transaction.metadata_json = json.dumps(metadata)
+        db.add(transaction)
+        await db.commit()
+
+        return {
+            "transaction_id": transaction.id,
+            "status": transaction.status,
+            "provider_order_id": order_id,
+            "provider_response": provider_status,
+        }
+    except IDataApiError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     finally:
         await db.close()
 
@@ -128,14 +399,33 @@ async def purchase_data_bundle(
         network_filters = _bundle_network_filters(request.network)
         if not network_filters:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Select a valid network.")
-        result = await db.execute(
-            select(BundleCatalog).filter(
-                BundleCatalog.network.in_(network_filters),
-                BundleCatalog.bundle_code == request.bundle_code.upper(),
-                BundleCatalog.is_active.is_(True),
-            )
+        prefer_idata = idata_service.is_configured()
+        if prefer_idata:
+            try:
+                await _sync_idata_catalog(db, network=request.network)
+                await db.flush()
+            except IDataApiError as exc:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+        query = select(BundleCatalog).filter(
+            BundleCatalog.network.in_(network_filters),
+            BundleCatalog.bundle_code == request.bundle_code.upper(),
+            BundleCatalog.is_active.is_(True),
         )
+        if prefer_idata:
+            query = query.filter(BundleCatalog.provider == "idata")
+
+        result = await db.execute(query)
         bundle = result.scalars().first()
+        if not bundle and not prefer_idata:
+            result = await db.execute(
+                select(BundleCatalog).filter(
+                    BundleCatalog.network.in_(network_filters),
+                    BundleCatalog.bundle_code == request.bundle_code.upper(),
+                    BundleCatalog.is_active.is_(True),
+                )
+            )
+            bundle = result.scalars().first()
         if not bundle:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bundle not found or inactive.")
         amount = bundle.amount
@@ -199,9 +489,18 @@ async def purchase_data_bundle(
         provider_response: dict = {}
         provider_status = ""
         provider_ref = ""
+        idata_provider_cost = 0.0
+        cybercash_profit = 0.0
 
         if provider == "idata":
             try:
+                balance_response = await idata_service.wallet_balance()
+                provider_balance = float(balance_response.get("balance") or 0.0)
+                provider_cost = float(_safe_json_load(getattr(bundle, "metadata_json", None)).get("idata_provider_cost") or amount)
+                idata_provider_cost = round(provider_cost, 2)
+                cybercash_profit = round(max(float(amount) - idata_provider_cost, 0.0), 2)
+                if provider_balance < provider_cost:
+                    raise IDataApiError("iData wallet balance is too low to deliver this bundle.")
                 provider_response = await idata_service.place_order(
                     network=idata_network,
                     beneficiary=phone,
@@ -222,6 +521,8 @@ async def purchase_data_bundle(
                         "provider": provider,
                         "idata_network": idata_network,
                         "idata_package_id": int(idata_package_id),
+                        "idata_provider_cost": idata_provider_cost,
+                        "cybercash_profit": cybercash_profit,
                         "provider_error": str(exc),
                         "provider_response": getattr(exc, "response", None),
                     }
@@ -253,6 +554,8 @@ async def purchase_data_bundle(
                         "provider": provider,
                         "idata_network": idata_network,
                         "idata_package_id": int(idata_package_id),
+                        "idata_provider_cost": idata_provider_cost,
+                        "cybercash_profit": cybercash_profit,
                         "provider_response": provider_response,
                     }
                 )
@@ -286,6 +589,8 @@ async def purchase_data_bundle(
                 "provider": provider,
                 "idata_network": idata_network if provider == "idata" else None,
                 "idata_package_id": int(idata_package_id) if idata_package_id is not None else None,
+                "idata_provider_cost": idata_provider_cost if provider == "idata" else None,
+                "cybercash_profit": cybercash_profit if provider == "idata" else None,
                 "provider_response": provider_response,
             }
         )

@@ -223,6 +223,11 @@ async def purchase_data_as_agent(
 
         provider_response: dict
         try:
+            balance_response = await idata_service.wallet_balance()
+            provider_balance = float(balance_response.get("balance") or 0.0)
+            provider_cost = float(_safe_json_load(getattr(bundle, "metadata_json", None)).get("idata_provider_cost") or selling_price)
+            if provider_balance < provider_cost:
+                raise IDataApiError("iData wallet balance is too low to deliver this bundle.")
             provider_response = await idata_service.place_order(
                 network=idata_network,
                 beneficiary=phone,

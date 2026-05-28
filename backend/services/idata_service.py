@@ -71,3 +71,61 @@ class IDataService:
             raise IDataApiError("Unexpected iData response format.", status_code=response.status_code, response=data)
 
         return data
+
+    async def _get(self, endpoint: str, *, params: dict[str, Any] | None = None) -> Any:
+        if not self.api_key:
+            raise IDataApiError("IDATA_API_KEY is not configured.")
+        if not self.base_url:
+            raise IDataApiError("IDATA_BASE_URL is not configured.")
+
+        url = f"{self.base_url}/{endpoint.strip('/')}"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(self.timeout_seconds)) as client:
+                response = await client.get(url, params=params or {}, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise IDataApiError("iData request timed out.") from exc
+        except httpx.HTTPError as exc:
+            raise IDataApiError("Unable to reach iData provider.") from exc
+
+        try:
+            data = response.json()
+        except ValueError:
+            data = {"raw": response.text}
+
+        if response.status_code >= 400:
+            message = f"iData request failed with status {response.status_code}."
+            if isinstance(data, dict):
+                maybe = data.get("message") or data.get("detail") or data.get("error")
+                if isinstance(maybe, str) and maybe.strip():
+                    message = maybe.strip()
+            raise IDataApiError(message, status_code=response.status_code, response=data)
+
+        return data
+
+    async def fetch_packages(self, *, network: str) -> list[dict[str, Any]]:
+        data = await self._get("packages", params={"network": str(network or "").strip().lower()})
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        if isinstance(data, dict):
+            for key in ("packages", "data", "results", "items"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    return [item for item in value if isinstance(item, dict)]
+        raise IDataApiError("Unexpected iData packages response format.", response=data)
+
+    async def wallet_balance(self) -> dict[str, Any]:
+        data = await self._get("wallet-balance")
+        if not isinstance(data, dict):
+            raise IDataApiError("Unexpected iData wallet response format.", response=data)
+        return data
+
+    async def order_status(self, *, order_id: int | str) -> dict[str, Any]:
+        data = await self._get("order-status", params={"order_id": str(order_id).strip()})
+        if not isinstance(data, dict):
+            raise IDataApiError("Unexpected iData order status response format.", response=data)
+        return data

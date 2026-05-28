@@ -216,11 +216,9 @@ class APIClient:
         if not failover:
             ordered_base_urls = ordered_base_urls[:1]
         path_value = str(path or "")
-        failover_status_codes = (
-            PAYSTACK_FAILOVER_STATUS_CODES
-            if path_value.startswith("/paystack/")
-            else FAILOVER_STATUS_CODES
-        )
+        lower_path = path_value.lower()
+        is_paystack_path = lower_path.startswith("/paystack/") or "/paystack/" in lower_path
+        failover_status_codes = PAYSTACK_FAILOVER_STATUS_CODES if is_paystack_path else FAILOVER_STATUS_CODES
 
         for index, base_url in enumerate(ordered_base_urls):
             try:

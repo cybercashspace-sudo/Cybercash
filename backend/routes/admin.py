@@ -47,6 +47,7 @@ from backend.services.crypto import CryptoService
 from backend.services.bank import BankService, get_bank_service # New import
 from backend.services.payout_service import PayoutService, get_payout_service
 from backend.services.settings_service import get_or_create_platform_settings
+from backend.services.idata_service import IDataApiError, IDataService
 from backend.services import loan_service # New Import
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -54,6 +55,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 momo_service = MomoService()
 crypto_service = CryptoService()
 bank_service = BankService() # Initialize BankService
+idata_service = IDataService()
 
 def get_admin_user(current_user: User = Depends(get_current_user)):
     role = str(getattr(current_user, "role", "") or "").strip().lower()
@@ -143,6 +145,32 @@ async def update_bundle_catalog_item(
 @router.get("/health")
 def health(admin_user: User = Depends(get_admin_user)):
     return {"status": "ok"}
+
+
+@router.get("/idata/wallet-balance")
+async def get_idata_wallet_balance(admin_user: User = Depends(get_admin_user)):
+    if not idata_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="iData provider is not configured. Set IDATA_API_KEY and IDATA_BASE_URL.",
+        )
+    try:
+        return await idata_service.wallet_balance()
+    except IDataApiError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get("/idata/order-status/{order_id}")
+async def get_idata_order_status(order_id: int, admin_user: User = Depends(get_admin_user)):
+    if not idata_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="iData provider is not configured. Set IDATA_API_KEY and IDATA_BASE_URL.",
+        )
+    try:
+        return await idata_service.order_status(order_id=order_id)
+    except IDataApiError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 @router.get("/dashboard")

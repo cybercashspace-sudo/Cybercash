@@ -41,25 +41,42 @@ def _checkout_status_url(request: Request, result: str) -> str:
     return f"{base_url}{separator}result={str(result or '').strip().lower()}"
 
 
-def _checkout_status_page(result: str, reference: str | None = None) -> str:
+def _checkout_status_page(
+    result: str,
+    reference: str | None = None,
+    message_override: str | None = None,
+    wallet_balance: float | None = None,
+) -> str:
     result_key = str(result or "").strip().lower()
     is_cancelled = result_key == "cancelled"
     is_success = result_key == "success"
+    is_failed = result_key == "failed"
 
     if is_success:
-        headline = "Payment confirmed"
-        message = "Your payment was received. This window will close automatically."
+        headline = "Wallet top-up complete"
+        message = "Your payment was received and your wallet was updated. Return to CyberCash to continue."
         accent = "#44D19D"
+    elif is_failed:
+        headline = "Payment not completed"
+        message = "We could not confirm this payment. Return to CyberCash and try again."
+        accent = "#FF6B6B"
     elif is_cancelled:
         headline = "Payment cancelled"
-        message = "The checkout was cancelled. This window will close automatically."
+        message = "The checkout was cancelled. Return to CyberCash when you are ready to try again."
         accent = "#F6A84C"
     else:
-        headline = "Checkout complete"
-        message = "You can close this window."
+        headline = "Payment still processing"
+        message = "We are still waiting for Paystack confirmation. Return to CyberCash and tap Check Status."
         accent = "#D4AF37"
 
+    if message_override:
+        message = str(message_override)
     reference_line = f"<p class=\"reference\">Reference: {escape(reference)}</p>" if reference else ""
+    balance_line = (
+        f"<p class=\"balance\"><strong>Wallet balance:</strong> GHS {wallet_balance:,.2f}</p>"
+        if isinstance(wallet_balance, (int, float))
+        else ""
+    )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -135,6 +152,11 @@ def _checkout_status_page(result: str, reference: str | None = None) -> str:
             color: #93a0aa;
             word-break: break-word;
         }}
+        .balance {{
+            margin-top: 14px;
+            color: #eef2f4;
+            font-size: 15px;
+        }}
     </style>
 </head>
 <body>
@@ -142,6 +164,7 @@ def _checkout_status_page(result: str, reference: str | None = None) -> str:
         <div class="badge">CC</div>
         <h1>{escape(headline)}</h1>
         <p>{escape(message)}</p>
+        {balance_line}
         {reference_line}
     </div>
     <script>
@@ -345,11 +368,114 @@ async def initiate_paystack_payment(
 
 
 @router.get("/checkout/status", name="paystack_checkout_status", response_class=HTMLResponse)
-async def paystack_checkout_status(result: str = "success", reference: str | None = None):
+async def paystack_checkout_status(
+    result: str = "success",
+    reference: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    paystack_service: PaystackService = Depends(get_paystack_service),
+    transaction_engine: TransactionEngine = Depends(get_transaction_engine),
+):
     """
     Friendly landing page for Paystack success/cancel redirects.
+
+    Paystack opens this URL outside the app too, so it also verifies and credits
+    the matching wallet deposit when a reference is present.
     """
-    return HTMLResponse(content=_checkout_status_page(result=result, reference=reference))
+    try:
+        cleaned_reference = str(reference or "").strip()
+        if not cleaned_reference:
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result=result,
+                    message_override="Return to CyberCash. If your wallet does not update, tap Refresh Wallet.",
+                )
+            )
+
+        transaction_result = await db.execute(
+            select(Transaction).filter(
+                Transaction.provider == "paystack",
+                Transaction.provider_reference == cleaned_reference,
+                Transaction.type == TransactionType.FUNDING,
+            )
+        )
+        transaction = transaction_result.scalars().first()
+        if not transaction:
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result="pending",
+                    reference=cleaned_reference,
+                    message_override=(
+                        "We received the Paystack redirect, but this reference is not linked to a wallet top-up yet. "
+                        "Return to CyberCash and tap Refresh Wallet."
+                    ),
+                )
+            )
+
+        expected_amount = _expected_transaction_amount(transaction)
+        if transaction.status == "completed":
+            wallet_balance = await _get_wallet_balance(db, transaction.wallet_id)
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result="success",
+                    reference=cleaned_reference,
+                    wallet_balance=wallet_balance,
+                    message_override=f"GHS {expected_amount:.2f} was already credited to your wallet.",
+                )
+            )
+
+        verification_data = await paystack_service.verify_payment(cleaned_reference)
+        paystack_status = str(verification_data.get("status", "")).strip().lower()
+
+        if paystack_status == "success":
+            expected_amount = _validate_successful_paystack_payload(transaction, verification_data)
+            await _complete_paystack_wallet_funding(db, transaction, transaction_engine)
+            wallet_balance = await _get_wallet_balance(db, transaction.wallet_id)
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result="success",
+                    reference=cleaned_reference,
+                    wallet_balance=wallet_balance,
+                    message_override=f"GHS {expected_amount:.2f} was credited to your CyberCash wallet.",
+                )
+            )
+
+        if paystack_status in PAYSTACK_PENDING_STATUSES:
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result="pending",
+                    reference=cleaned_reference,
+                    message_override=(
+                        "Paystack has not confirmed this payment yet. Return to CyberCash and tap Check Status."
+                    ),
+                )
+            )
+
+        transaction.status = "failed"
+        db.add(transaction)
+        await db.commit()
+        return HTMLResponse(
+            content=_checkout_status_page(
+                result="failed",
+                reference=cleaned_reference,
+                message_override="Paystack did not complete this payment. Return to CyberCash and start a new deposit.",
+            )
+        )
+    except HTTPException as exc:
+        if getattr(exc, "status_code", 500) >= 500:
+            page_result = "pending"
+            message = "Paystack confirmation is temporarily unavailable. Return to CyberCash and tap Check Status."
+        else:
+            page_result = "failed"
+            message = str(exc.detail or "We could not confirm this Paystack payment.")
+        return HTMLResponse(
+            content=_checkout_status_page(
+                result=page_result,
+                reference=str(reference or "").strip() or None,
+                message_override=message,
+            )
+        )
+    finally:
+        await db.close()
 
 @router.get(
     "/verify/{reference}",

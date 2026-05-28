@@ -1180,6 +1180,7 @@ class WalletScreen(ActionScreen):
                 )
                 return
 
+            self.last_paystack_reference = reference
             opened_in_app = open_paystack_checkout(checkout_url, title="CYBER CASH Paystack", delay_seconds=0.0)
             opened_in_browser = False
             if not opened_in_app:
@@ -1202,7 +1203,7 @@ class WalletScreen(ActionScreen):
                 self._show_popup(
                     "Complete Payment",
                     "Paystack checkout opened in your browser. "
-                    "After payment, return to the app. We'll confirm automatically (or tap Check Status).",
+                    "After payment, return to the app. We'll confirm automatically, and the browser callback can also update your wallet.",
                 )
             else:
                 self._set_feedback("Unable to open Paystack checkout automatically.", "warning")
@@ -1214,9 +1215,7 @@ class WalletScreen(ActionScreen):
                     "Please open the link in your browser to complete payment, then come back and tap Check Status.",
                 )
 
-            self.last_paystack_reference = reference
-            if opened_in_app or opened_in_browser:
-                self._start_paystack_verification(reference)
+            self._start_paystack_verification(reference)
             return
 
         detail = self._extract_detail(payload) or "Unable to start Paystack deposit."

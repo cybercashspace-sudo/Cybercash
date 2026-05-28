@@ -86,6 +86,11 @@ class Settings:
         or os.getenv("PAYSTACK_LIVE_SECRET_KEY", "")
         or os.getenv("PAYSTACK_TEST_SECRET_KEY", "")
     )
+    PAYSTACK_BASE_URL: str = os.getenv("PAYSTACK_BASE_URL", "https://api.paystack.co")
+    PAYSTACK_WALLET_CALLBACK_URL: str = os.getenv("PAYSTACK_WALLET_CALLBACK_URL", "")
+    PAYSTACK_MIN_WALLET_TOPUP_GHS: float = float(os.getenv("PAYSTACK_MIN_WALLET_TOPUP_GHS", 1.0))
+    PAYSTACK_MAX_WALLET_TOPUP_GHS: float = float(os.getenv("PAYSTACK_MAX_WALLET_TOPUP_GHS", 10000.0))
+    PAYSTACK_FALLBACK_EMAIL_DOMAIN: str = os.getenv("PAYSTACK_FALLBACK_EMAIL_DOMAIN", "cybercash.app")
 
     # Flutterwave API Credentials
     FLUTTERWAVE_BASE_URL: str = os.getenv("FLUTTERWAVE_BASE_URL", "https://api.flutterwave.com/v3")
@@ -127,6 +132,8 @@ class Settings:
     IDATA_API_KEY: str = os.getenv("IDATA_API_KEY", "")
     IDATA_BASE_URL: str = os.getenv("IDATA_BASE_URL", "https://idatagh.com/wp-json/custom/v1")
     IDATA_TIMEOUT_SECONDS: float = float(os.getenv("IDATA_TIMEOUT_SECONDS", 12.0))
+    IDATA_USER_MARKUP_PERCENTAGE: float = float(os.getenv("IDATA_USER_MARKUP_PERCENTAGE", 0.10))
+    IDATA_USER_MARKUP_GHS: float = float(os.getenv("IDATA_USER_MARKUP_GHS", 0.0))
     IDATA_SEND_SMS: bool = str(os.getenv("IDATA_SEND_SMS", "false") or "false").strip().lower() in {
         "1",
         "true",

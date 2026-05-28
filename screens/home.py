@@ -411,14 +411,15 @@ KV = """
                         md_bg_color: [0.10, 0.11, 0.14, 0.86]
                         line_color: [0.48, 0.40, 0.26, 0.28]
                         elevation: 0
+                        padding: 0
                         pos_hint: {"center_y": 0.5}
                         on_release: root.go_to("settings")
 
                         FitImage:
                             source: root.avatar_source
                             size_hint: None, None
-                            size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                            radius: [dp(22 * root.layout_scale)]
+                            size: dp(40 * root.layout_scale), dp(40 * root.layout_scale)
+                            radius: [dp(20 * root.layout_scale)]
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                     MDLabel:
@@ -433,31 +434,61 @@ KV = """
 
                     FloatLayout:
                         size_hint: None, None
-                        size: dp(88 * root.layout_scale), dp(54 * root.layout_scale)
+                        size: dp(100 * root.layout_scale), dp(54 * root.layout_scale)
 
-                        MDIconButton:
-                            id: theme_toggle_button
-                            icon: root.theme_toggle_icon
-                            user_font_size: str(24 * root.icon_scale) + "sp"
-                            pos_hint: {"center_x": 0.24, "center_y": 0.58}
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_primary
+                        MDCard:
+                            size_hint: None, None
+                            size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
+                            radius: [dp(14 * root.layout_scale)]
+                            md_bg_color: [0.10, 0.11, 0.14, 0.74]
+                            line_color: [0.48, 0.40, 0.26, 0.24]
+                            elevation: 0
+                            padding: 0
+                            pos_hint: {"center_x": 0.25, "center_y": 0.5}
                             on_release: root.toggle_theme()
 
-                        MDIconButton:
-                            icon: "bell-ring-outline"
-                            user_font_size: str(26 * root.icon_scale) + "sp"
-                            pos_hint: {"center_x": 0.68, "center_y": 0.58}
-                            theme_text_color: "Custom"
-                            text_color: app.gold
+                            MDIcon:
+                                id: theme_toggle_button
+                                icon: root.theme_toggle_icon
+                                size_hint: None, None
+                                size: dp(28 * root.layout_scale), dp(28 * root.layout_scale)
+                                font_size: sp(23 * root.icon_scale)
+                                text_size: self.size
+                                halign: "center"
+                                valign: "center"
+                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                theme_text_color: "Custom"
+                                text_color: app.ui_text_primary
+
+                        MDCard:
+                            size_hint: None, None
+                            size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
+                            radius: [dp(14 * root.layout_scale)]
+                            md_bg_color: [0.10, 0.11, 0.14, 0.74]
+                            line_color: [0.48, 0.40, 0.26, 0.24]
+                            elevation: 0
+                            padding: 0
+                            pos_hint: {"center_x": 0.75, "center_y": 0.5}
                             on_release: root.go_to("transactions")
+
+                            MDIcon:
+                                icon: "bell-ring-outline"
+                                size_hint: None, None
+                                size: dp(28 * root.layout_scale), dp(28 * root.layout_scale)
+                                font_size: sp(24 * root.icon_scale)
+                                text_size: self.size
+                                halign: "center"
+                                valign: "center"
+                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                theme_text_color: "Custom"
+                                text_color: app.gold
 
                         MDCard:
                             size_hint: None, None
                             size: dp(18 * root.layout_scale), dp(18 * root.layout_scale)
                             radius: [dp(9 * root.layout_scale)]
                             md_bg_color: [0.85, 0.15, 0.12, 0.98]
-                            pos_hint: {"center_x": 0.90, "center_y": 0.80}
+                            pos_hint: {"center_x": 0.93, "center_y": 0.78}
                             elevation: 0
                             opacity: 1 if root.notification_badge_visible else 0
 

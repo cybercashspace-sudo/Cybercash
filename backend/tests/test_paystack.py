@@ -221,6 +221,49 @@ def test_verify_paystack_payment_success(test_db: Session, client: TestClient):
     assert len(ledger_rows) == 2
 
 
+def test_paystack_checkout_status_success_credits_wallet(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+
+    pending_transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type=TransactionType.FUNDING,
+        amount=60.0,
+        currency="GHS",
+        status="pending",
+        provider="paystack",
+        provider_reference="callback_ref",
+    )
+    test_db.add(pending_transaction)
+    test_db.commit()
+
+    with patch.object(
+        PaystackService,
+        "verify_payment",
+        new=AsyncMock(
+            return_value={
+                "amount": 6000,
+                "currency": "GHS",
+                "status": "success",
+                "reference": "callback_ref",
+                "customer": {"email": "paystack_test@example.com"},
+            }
+        ),
+    ):
+        response = client.get("/paystack/checkout/status?result=success&reference=callback_ref")
+
+    assert response.status_code == 200
+    assert "Wallet top-up complete" in response.text
+    assert "GHS 60.00 was credited" in response.text
+
+    test_db.expire_all()
+    updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    assert updated_wallet.balance == 60.0
+    completed_transaction = test_db.query(Transaction).filter(Transaction.provider_reference == "callback_ref").first()
+    assert completed_transaction.status == "completed"
+
+
 def test_verify_paystack_payment_failed(test_db: Session, client: TestClient):
     user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
