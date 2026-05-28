@@ -7,7 +7,10 @@ from api.client import api_client
 from core.popup_manager import show_message_dialog
 from core.message_sanitizer import extract_backend_message
 from core.responsive_screen import ResponsiveScreen
-from storage import get_token
+from storage import get_token, save_token
+
+
+AUTH_FAILURE_DETAIL = "Session expired. Please sign in again to continue."
 
 
 class ActionScreen(ResponsiveScreen):
@@ -37,6 +40,47 @@ class ActionScreen(ResponsiveScreen):
     def _extract_detail(payload: object) -> str:
         return extract_backend_message(payload)
 
+    @staticmethod
+    def _is_auth_failure(status_code: object, payload: object) -> bool:
+        try:
+            code = int(status_code or 0)
+        except Exception:
+            code = 0
+        if code == 401:
+            return True
+
+        detail = extract_backend_message(payload).lower()
+        return any(
+            marker in detail
+            for marker in (
+                "not authenticated",
+                "invalid token",
+                "token expired",
+                "session expired",
+                "could not validate credentials",
+            )
+        )
+
+    @staticmethod
+    def _clear_saved_session() -> None:
+        app = MDApp.get_running_app()
+        if app is not None:
+            app.access_token = ""
+        save_token("")
+
+    def _auth_required_payload(self) -> dict:
+        return {"detail": AUTH_FAILURE_DETAIL, "_auth_required": True, "_status_code": 401}
+
+    def _show_auth_required(self, message: str = AUTH_FAILURE_DETAIL) -> None:
+        self._clear_saved_session()
+        self._set_feedback(message, "warning")
+
+        def _go_login(*_args):
+            if self.manager and self.manager.has_screen("login"):
+                self.manager.current = "login"
+
+        self._show_popup("Sign In Required", message, on_close=_go_login)
+
     def _auth_headers(self) -> dict | None:
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
@@ -61,7 +105,7 @@ class ActionScreen(ResponsiveScreen):
         if requires_auth:
             auth_headers = self._auth_headers()
             if not auth_headers:
-                return False, {"detail": "Please sign in to continue."}
+                return False, {"detail": "Please sign in to continue.", "_auth_required": True}
             headers.update(auth_headers)
 
         result = api_client.request(
@@ -71,7 +115,14 @@ class ActionScreen(ResponsiveScreen):
             params=params,
             headers=headers,
         )
-        return bool(result.get("ok")), result.get("data", {})
+        payload = result.get("data", {})
+        status_code = result.get("status_code", 0)
+        if isinstance(payload, dict):
+            payload.setdefault("_status_code", status_code)
+        if requires_auth and self._is_auth_failure(status_code, payload):
+            self._clear_saved_session()
+            return False, self._auth_required_payload()
+        return bool(result.get("ok")), payload
 
     def go_back(self) -> None:
         manager = self.manager

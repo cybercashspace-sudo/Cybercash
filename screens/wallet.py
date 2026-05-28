@@ -1122,6 +1122,11 @@ class WalletScreen(ActionScreen):
                 self._set_feedback("Wallet updated.", "success")
             return
 
+        if isinstance(payload, dict) and payload.get("_auth_required"):
+            self.wallet_status = "Sign in required"
+            self._show_auth_required(self._extract_detail(payload) or "Please sign in to load your wallet.")
+            return
+
         detail = self._extract_detail(payload) or "Unable to load wallet."
         self.wallet_status = "Wallet sync unavailable"
         self._set_feedback(detail, "error")
@@ -1216,6 +1221,13 @@ class WalletScreen(ActionScreen):
                 )
 
             self._start_paystack_verification(reference)
+            return
+
+        if isinstance(payload, dict) and payload.get("_auth_required"):
+            self.last_paystack_reference = ""
+            self._show_auth_required(
+                "Your secure session expired. Please sign in again, then start the deposit."
+            )
             return
 
         detail = self._extract_detail(payload) or "Unable to start Paystack deposit."
@@ -1368,6 +1380,10 @@ class WalletScreen(ActionScreen):
                 return
 
         detail = self._extract_detail(payload) or "Unable to verify payment status right now."
+        if isinstance(payload, dict) and payload.get("_auth_required"):
+            self._show_auth_required("Please sign in again to check this Paystack deposit.")
+            return
+
         detail_lc = detail.lower()
         if "pending" in detail_lc or "processing" in detail_lc or "abandoned" in detail_lc:
             friendly_detail = detail
