@@ -212,12 +212,18 @@ class APIClient:
         request_headers = headers or {}
         has_auth_header = self._has_auth_header(request_headers)
         transport_error_seen = False
-        ordered_base_urls = self._ordered_base_urls()
-        if not failover:
-            ordered_base_urls = ordered_base_urls[:1]
         path_value = str(path or "")
         lower_path = path_value.lower()
         is_paystack_path = lower_path.startswith("/paystack/") or "/paystack/" in lower_path
+        ordered_base_urls = self._ordered_base_urls()
+        if is_paystack_path:
+            # Paystack references must be created, verified, and recovered on
+            # the same backend/database. Falling back can orphan a paid deposit.
+            primary_base_url = str((self.base_urls or [self.base_url])[0] or "").rstrip("/")
+            ordered_base_urls = [primary_base_url] if primary_base_url else ordered_base_urls[:1]
+            failover = False
+        elif not failover:
+            ordered_base_urls = ordered_base_urls[:1]
         failover_status_codes = PAYSTACK_FAILOVER_STATUS_CODES if is_paystack_path else FAILOVER_STATUS_CODES
 
         for index, base_url in enumerate(ordered_base_urls):

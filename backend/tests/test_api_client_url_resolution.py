@@ -104,12 +104,11 @@ def test_warmup_only_checks_active_backend():
     assert api.session.urls == ["https://primary.test/health"]
 
 
-def test_paystack_request_fails_over_after_primary_server_error():
+def test_paystack_request_stays_on_primary_after_server_error():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]
     api.session = _FakeSession([
         _FakeResponse(500, {"detail": "Paystack secret key is not configured."}),
-        _FakeResponse(200, {"reference": "ok_ref"}),
     ])
 
     result = api.request(
@@ -119,10 +118,28 @@ def test_paystack_request_fails_over_after_primary_server_error():
         headers={"Authorization": "Bearer saved-token"},
     )
 
+    assert result["ok"] is False
+    assert result["status_code"] == 500
+    assert result["data"] == {"detail": "Paystack secret key is not configured."}
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == ["https://primary.test/paystack/initiate"]
+
+
+def test_paystack_request_ignores_last_successful_fallback_backend():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.base_url = "https://fallback.test"
+    api.session = _FakeSession([
+        _FakeResponse(200, {"reference": "primary_ref"}),
+    ])
+
+    result = api.request(
+        "GET",
+        "/paystack/verify/primary_ref",
+        headers={"Authorization": "Bearer saved-token"},
+    )
+
     assert result["ok"] is True
-    assert result["data"] == {"reference": "ok_ref"}
-    assert api.base_url == "https://fallback.test"
-    assert api.session.urls == [
-        "https://primary.test/paystack/initiate",
-        "https://fallback.test/paystack/initiate",
-    ]
+    assert result["data"] == {"reference": "primary_ref"}
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == ["https://primary.test/paystack/verify/primary_ref"]

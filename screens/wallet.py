@@ -1186,22 +1186,23 @@ class WalletScreen(ActionScreen):
                 return
 
             self.last_paystack_reference = reference
-            opened_in_app = open_paystack_checkout(checkout_url, title="CYBER CASH Paystack", delay_seconds=0.0)
+            checkout_opened = open_paystack_checkout(checkout_url, title="CYBER CASH Paystack", delay_seconds=0.0)
             opened_in_browser = False
-            if not opened_in_app:
+            if not checkout_opened:
                 try:
                     opened_in_browser = bool(webbrowser.open(checkout_url, new=2))
                 except Exception:
                     opened_in_browser = False
 
-            if opened_in_app:
+            if checkout_opened:
                 self._set_feedback(
-                    "Opening Paystack checkout in-app. It may take a few seconds on slower devices.",
+                    "Paystack checkout opened. Complete payment, then return here for confirmation.",
                     "info",
                 )
                 self._show_popup(
                     "Complete Payment",
-                    "Paystack checkout opens inside the app. If it takes a few seconds to appear, please wait.",
+                    "Complete the Paystack payment, then return to CYBER CASH. "
+                    "We'll check automatically, and you can tap Check Status if confirmation delays.",
                 )
             elif opened_in_browser:
                 self._set_feedback("Paystack checkout opened in your browser. Complete payment then return.", "info")

@@ -540,6 +540,54 @@ def test_recover_paystack_deposits_credits_verified_pending_payment(test_db: Ses
     assert completed_transaction.status == "completed"
 
 
+def test_recover_paystack_deposits_credits_verified_failed_payment(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+
+    failed_transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type=TransactionType.FUNDING,
+        amount=80.0,
+        currency="GHS",
+        status="failed",
+        provider="paystack",
+        provider_reference="recover_failed_ref",
+    )
+    test_db.add(failed_transaction)
+    test_db.commit()
+
+    with patch.object(
+        PaystackService,
+        "verify_payment",
+        new=AsyncMock(
+            return_value={
+                "amount": 8000,
+                "currency": "GHS",
+                "status": "success",
+                "reference": "recover_failed_ref",
+                "customer": {"email": "paystack_test@example.com"},
+            }
+        ),
+    ):
+        response = client.post("/paystack/recover")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["recovered_count"] == 1
+    assert data["credited_amount"] == 80.0
+    assert data["wallet_balance"] == 80.0
+
+    test_db.expire_all()
+    updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    assert updated_wallet.balance == 80.0
+    completed_transaction = test_db.query(Transaction).filter(
+        Transaction.provider_reference == "recover_failed_ref"
+    ).first()
+    assert completed_transaction.status == "completed"
+
+
 def test_paystack_webhook_completes_agent_registration(test_db: Session, client: TestClient):
     user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()

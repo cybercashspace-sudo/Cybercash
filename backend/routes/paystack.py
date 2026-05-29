@@ -602,7 +602,7 @@ async def recover_paystack_deposits(
                 Transaction.user_id == current_user.id,
                 Transaction.provider == "paystack",
                 Transaction.type == TransactionType.FUNDING,
-                Transaction.status == "pending",
+                Transaction.status.in_(("pending", "failed")),
             )
             .order_by(Transaction.timestamp.desc())
             .limit(20)
@@ -650,6 +650,10 @@ async def recover_paystack_deposits(
                 continue
 
             if paystack_status in PAYSTACK_PENDING_STATUSES:
+                if transaction.status != "pending":
+                    transaction.status = "pending"
+                    db.add(transaction)
+                    await db.commit()
                 pending_count += 1
                 continue
 
