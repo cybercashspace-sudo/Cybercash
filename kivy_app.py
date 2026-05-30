@@ -4,6 +4,7 @@ import logging
 from importlib import import_module
 
 # Android 14+ can emit noisy SDL HID receiver errors while probing gamepads.
+os.environ.setdefault("SDL_JOYSTICK_HIDAPI", "0")
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
