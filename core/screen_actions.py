@@ -7,7 +7,7 @@ from api.client import api_client
 from core.popup_manager import show_message_dialog
 from core.message_sanitizer import extract_backend_message
 from core.responsive_screen import ResponsiveScreen
-from storage import get_token, save_token, token_is_expired
+from storage import get_token, save_token
 
 
 AUTH_FAILURE_DETAIL = "Session expired. Please sign in again to continue."
@@ -90,9 +90,9 @@ class ActionScreen(ResponsiveScreen):
                 app.access_token = token
         if not token:
             return None
-        if token_is_expired(token):
-            self._clear_saved_session()
-            return None
+        # Let the backend be the authority for token expiry. Android device
+        # clocks can drift, and a local expiry check must not block Paystack
+        # checkout before the server has a chance to validate the session.
         return {"Authorization": f"Bearer {token}"}
 
     def _request(

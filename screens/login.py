@@ -219,6 +219,11 @@ class LoginScreen(ResponsiveScreen):
     def _go_home(self):
         app = MDApp.get_running_app()
         go_to_screen = getattr(app, "go_to_screen", None)
+        pending_action = str(getattr(app, "pending_wallet_action", "") or "").strip().lower()
+        if pending_action == "deposit":
+            app.wallet_entry_action = "deposit"
+            if go_to_screen and go_to_screen("deposit", fallback="wallet"):
+                return
         if go_to_screen:
             go_to_screen("home", fallback="dashboard")
         elif self.manager:

@@ -827,6 +827,7 @@ class WalletScreen(ActionScreen):
         self._dashboard_sequence = 0
 
     def on_pre_enter(self):
+        resume_deposit = self._restore_pending_deposit_request()
         self._refresh_wallet_balance_async()
         amount_field = self.ids.get("transfer_amount")
         self.update_withdraw_preview(amount_field.text if amount_field is not None else "")
@@ -839,6 +840,8 @@ class WalletScreen(ActionScreen):
         if self.screen_mode in {"all", "deposit"}:
             Clock.schedule_once(lambda _dt: warmup_paystack_checkout(delay_seconds=0.0), 0.25)
         Clock.schedule_once(self._focus_requested_action, 0.1)
+        if resume_deposit:
+            Clock.schedule_once(lambda _dt: self.initiate_deposit(), 0.45)
 
     def on_leave(self):
         self._verify_sequence += 1
@@ -1057,6 +1060,55 @@ class WalletScreen(ActionScreen):
         self.update_deposit_preview(field.text)
 
     @staticmethod
+    def _deposit_amount_text(amount: float) -> str:
+        try:
+            value = float(amount)
+        except Exception:
+            return ""
+        if value < MIN_PAYSTACK_DEPOSIT_GHS:
+            return ""
+        if abs(value - int(value)) < 1e-9:
+            return str(int(value))
+        return f"{value:.2f}"
+
+    def _remember_pending_deposit_request(self, amount: float, *, autostart: bool = True) -> None:
+        app = MDApp.get_running_app()
+        if app is None:
+            return
+        amount_text = self._deposit_amount_text(amount)
+        if not amount_text:
+            return
+        app.wallet_entry_action = "deposit"
+        app.pending_wallet_action = "deposit"
+        app.pending_deposit_amount = amount_text
+        app.pending_deposit_autostart = bool(autostart)
+
+    def _restore_pending_deposit_request(self) -> bool:
+        app = MDApp.get_running_app()
+        if app is None:
+            return False
+        pending_action = str(getattr(app, "pending_wallet_action", "") or "").strip().lower()
+        if pending_action != "deposit":
+            return False
+
+        amount_text = str(getattr(app, "pending_deposit_amount", "") or "").strip()
+        autostart = bool(getattr(app, "pending_deposit_autostart", False))
+        app.pending_wallet_action = ""
+        app.pending_deposit_amount = ""
+        app.pending_deposit_autostart = False
+        app.wallet_entry_action = "deposit"
+
+        deposit_field = self.ids.get("deposit_amount")
+        if deposit_field is not None and amount_text:
+            deposit_field.text = amount_text
+            self.update_deposit_preview(amount_text)
+
+        if autostart and self.screen_mode in {"all", "deposit"} and amount_text:
+            self._set_feedback("Continuing your Paystack deposit...", "info")
+            return True
+        return False
+
+    @staticmethod
     def _coerce_wallet_balance(payload: object) -> float | None:
         return WalletScreen._coerce_payload_number(payload, "wallet_balance")
 
@@ -1146,8 +1198,9 @@ class WalletScreen(ActionScreen):
 
         auth_headers = self._auth_headers()
         if not auth_headers:
+            self._remember_pending_deposit_request(amount, autostart=True)
             self._show_auth_required(
-                "Your secure session expired. Please sign in again, then start the Paystack deposit."
+                "Please sign in again to continue this Paystack deposit. We will bring you back to checkout."
             )
             return
 
@@ -1160,9 +1213,9 @@ class WalletScreen(ActionScreen):
 
     def _initiate_deposit_worker(self, amount: float) -> None:
         ok, payload = self._request("POST", "/paystack/initiate", payload={"amount": amount})
-        Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload))
+        Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload, amount))
 
-    def _handle_initiate_deposit_result(self, ok: bool, payload: object) -> None:
+    def _handle_initiate_deposit_result(self, ok: bool, payload: object, amount: float | None = None) -> None:
         self.deposit_busy = False
         deposit_field = self.ids.get("deposit_amount")
         if deposit_field is not None:
@@ -1220,8 +1273,10 @@ class WalletScreen(ActionScreen):
 
         if isinstance(payload, dict) and payload.get("_auth_required"):
             self.last_paystack_reference = ""
+            if amount is not None:
+                self._remember_pending_deposit_request(amount, autostart=True)
             self._show_auth_required(
-                "Your secure session expired. Please sign in again, then start the deposit."
+                "Please sign in again to continue this Paystack deposit. We will bring you back to checkout."
             )
             return
 

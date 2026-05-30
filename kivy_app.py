@@ -213,6 +213,10 @@ class CyberCashApp(MDApp):
         self.theme_cls.primary_palette = "Green"
         self.pending_momo = ""
         self.access_token = get_token().strip()
+        self.wallet_entry_action = ""
+        self.pending_wallet_action = ""
+        self.pending_deposit_amount = ""
+        self.pending_deposit_autostart = False
         self.theme_mode = "Dark"
         self.gold = list(CyberTheme.GOLD)
         self.emerald = list(CyberTheme.EMERALD)
