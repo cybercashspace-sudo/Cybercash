@@ -1,10 +1,14 @@
 import os
+import base64
+import json
+import time
 
 from kivy.app import App
 from kivy.storage.jsonstore import JsonStore
 
 _store = None
 _store_path = ""
+TOKEN_EXPIRY_SKEW_SECONDS = 30
 
 
 def _session_store_path() -> str:
@@ -33,11 +37,37 @@ def save_token(token: str):
         return
 
 
+def _decode_jwt_payload(token: str) -> dict:
+    try:
+        payload_part = str(token or "").split(".")[1]
+        padded = payload_part + ("=" * (-len(payload_part) % 4))
+        decoded = base64.urlsafe_b64decode(padded.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def token_is_expired(token: str) -> bool:
+    payload = _decode_jwt_payload(token)
+    exp = payload.get("exp")
+    if exp in {None, ""}:
+        return False
+    try:
+        return float(exp) <= (time.time() + TOKEN_EXPIRY_SKEW_SECONDS)
+    except Exception:
+        return False
+
+
 def get_token() -> str:
     try:
         store = _get_store()
         if store.exists("auth"):
-            return str(store.get("auth").get("access_token", "") or "")
+            token = str(store.get("auth").get("access_token", "") or "").strip()
+            if token and token_is_expired(token):
+                save_token("")
+                return ""
+            return token
     except Exception:
         return ""
     return ""

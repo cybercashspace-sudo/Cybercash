@@ -9,7 +9,6 @@ from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
 
-from api.client import api_client
 from core.screen_actions import ActionScreen
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from utils.network import normalize_ghana_number
@@ -1147,8 +1146,9 @@ class WalletScreen(ActionScreen):
 
         auth_headers = self._auth_headers()
         if not auth_headers:
-            self._set_feedback("Please sign in to continue.", "warning")
-            self._show_popup("Sign In Required", "Please sign in to continue.")
+            self._show_auth_required(
+                "Your secure session expired. Please sign in again, then start the Paystack deposit."
+            )
             return
 
         warmup_paystack_checkout(delay_seconds=0.0)
@@ -1156,16 +1156,10 @@ class WalletScreen(ActionScreen):
         self.deposit_busy = True
         self.deposit_button_text = "Preparing checkout..."
         self._set_feedback("Preparing your Paystack checkout...", "info")
-        threading.Thread(target=self._initiate_deposit_worker, args=(amount, auth_headers), daemon=True).start()
+        threading.Thread(target=self._initiate_deposit_worker, args=(amount,), daemon=True).start()
 
-    def _initiate_deposit_worker(self, amount: float, headers: dict) -> None:
-        result = api_client.request(
-            method="POST",
-            path="/paystack/initiate",
-            payload={"amount": amount},
-            headers=headers,
-        )
-        ok, payload = bool(result.get("ok")), result.get("data", {})
+    def _initiate_deposit_worker(self, amount: float) -> None:
+        ok, payload = self._request("POST", "/paystack/initiate", payload={"amount": amount})
         Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload))
 
     def _handle_initiate_deposit_result(self, ok: bool, payload: object) -> None:
