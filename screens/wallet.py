@@ -17,6 +17,8 @@ MIN_PAYSTACK_DEPOSIT_GHS = 1.0
 MIN_WITHDRAW_TO_AGENT_GHS = 1.0
 PAYSTACK_VERIFY_POLL_INTERVAL_SECONDS = 3
 PAYSTACK_VERIFY_MAX_POLLS = 40
+PAYSTACK_INIT_TIMEOUT = (4, 20)
+PAYSTACK_VERIFY_TIMEOUT = (4, 14)
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -1212,7 +1214,12 @@ class WalletScreen(ActionScreen):
         threading.Thread(target=self._initiate_deposit_worker, args=(amount,), daemon=True).start()
 
     def _initiate_deposit_worker(self, amount: float) -> None:
-        ok, payload = self._request("POST", "/paystack/initiate", payload={"amount": amount})
+        ok, payload = self._request(
+            "POST",
+            "/paystack/initiate",
+            payload={"amount": amount},
+            timeout=PAYSTACK_INIT_TIMEOUT,
+        )
         Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload, amount))
 
     def _handle_initiate_deposit_result(self, ok: bool, payload: object, amount: float | None = None) -> None:
@@ -1298,7 +1305,7 @@ class WalletScreen(ActionScreen):
         ).start()
 
     def _recover_paystack_deposits_worker(self, show_idle: bool) -> None:
-        ok, payload = self._request("POST", "/paystack/recover")
+        ok, payload = self._request("POST", "/paystack/recover", timeout=PAYSTACK_VERIFY_TIMEOUT)
         Clock.schedule_once(lambda _dt: self._handle_recover_paystack_result(ok, payload, show_idle))
 
     def _handle_recover_paystack_result(self, ok: bool, payload: object, show_idle: bool) -> None:
@@ -1313,6 +1320,9 @@ class WalletScreen(ActionScreen):
         wallet_balance = self._coerce_wallet_balance(payload)
         if wallet_balance is not None:
             self._set_wallet_balance(wallet_balance, "Wallet checked for Paystack deposits")
+        references = payload.get("references") if isinstance(payload.get("references"), list) else []
+        if references:
+            self.last_paystack_reference = str(references[0] or self.last_paystack_reference).strip()
 
         if status_value == "success":
             self._set_feedback(message, "success")
@@ -1335,7 +1345,11 @@ class WalletScreen(ActionScreen):
                 return
 
             time.sleep(PAYSTACK_VERIFY_POLL_INTERVAL_SECONDS)
-            ok, payload = self._request("GET", f"/paystack/verify/{reference}")
+            ok, payload = self._request(
+                "GET",
+                f"/paystack/verify/{reference}",
+                timeout=PAYSTACK_VERIFY_TIMEOUT,
+            )
 
             if verify_sequence != self._verify_sequence:
                 return
@@ -1401,18 +1415,15 @@ class WalletScreen(ActionScreen):
     def check_last_deposit_status(self) -> None:
         reference = str(self.last_paystack_reference or "").strip()
         if not reference:
-            self._set_feedback("Start a Paystack deposit first to get a payment reference.", "warning")
-            self._show_popup(
-                "No Reference Yet",
-                "You have not started a Paystack deposit yet. Enter an amount and tap Pay With Paystack first.",
-            )
+            self._set_feedback("Checking recent Paystack deposits...", "info")
+            self._recover_paystack_deposits_async(show_idle=True)
             return
 
         self._set_feedback("Checking Paystack payment status...", "info")
         threading.Thread(target=self._check_last_deposit_status_worker, args=(reference,), daemon=True).start()
 
     def _check_last_deposit_status_worker(self, reference: str) -> None:
-        ok, payload = self._request("GET", f"/paystack/verify/{reference}")
+        ok, payload = self._request("GET", f"/paystack/verify/{reference}", timeout=PAYSTACK_VERIFY_TIMEOUT)
         Clock.schedule_once(lambda _dt: self._handle_last_deposit_status(ok, payload))
 
     def _handle_last_deposit_status(self, ok: bool, payload: object) -> None:

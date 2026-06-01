@@ -264,6 +264,65 @@ def test_paystack_checkout_status_success_credits_wallet(test_db: Session, clien
     assert completed_transaction.status == "completed"
 
 
+def test_paystack_checkout_status_success_completes_agent_registration(test_db: Session, client: TestClient):
+    user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
+    settings.AGENT_STARTUP_LOAN_AMOUNT = 50.0
+
+    pending_agent = Agent(user_id=user.id, status="pending", float_balance=0.0)
+    test_db.add(pending_agent)
+    pending_transaction = Transaction(
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type="agent_registration_fee",
+        amount=100.0,
+        currency="GHS",
+        status="pending",
+        provider="paystack",
+        provider_reference="agent_callback_ref",
+    )
+    test_db.add(pending_transaction)
+    test_db.commit()
+
+    with patch.object(
+        PaystackService,
+        "verify_payment",
+        new=AsyncMock(
+            return_value={
+                "amount": 10000,
+                "currency": "GHS",
+                "status": "success",
+                "reference": "agent_callback_ref",
+                "customer": {"email": "paystack_test@example.com"},
+            }
+        ),
+    ):
+        response = client.get("/paystack/checkout/status?result=success&reference=agent_callback_ref")
+
+    assert response.status_code == 200
+    assert "Agent registration active" in response.text
+    assert "GHS 100.00 agent registration fee was confirmed" in response.text
+
+    test_db.expire_all()
+    updated_user = test_db.query(User).filter(User.id == user.id).first()
+    assert updated_user.is_agent is True
+    activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
+    assert activated_agent.status == "active"
+    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+
+    completed_transaction = test_db.query(Transaction).filter(
+        Transaction.provider_reference == "agent_callback_ref"
+    ).first()
+    assert completed_transaction.status == "completed"
+
+    journal = test_db.query(JournalEntry).filter(JournalEntry.transaction_id == completed_transaction.id).first()
+    assert journal is not None
+    ledger_rows = test_db.query(LedgerEntry).filter(LedgerEntry.journal_entry_id == journal.id).all()
+    assert len(ledger_rows) == 2
+    assert any(row.account.name == "Cash (External Bank)" and row.debit == 100.0 for row in ledger_rows)
+    assert any(row.account.name == "Revenue - Agent Fees" and row.credit == 100.0 for row in ledger_rows)
+
+
 def test_verify_paystack_payment_failed(test_db: Session, client: TestClient):
     user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()

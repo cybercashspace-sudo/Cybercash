@@ -143,3 +143,63 @@ def test_paystack_request_ignores_last_successful_fallback_backend():
     assert result["data"] == {"reference": "primary_ref"}
     assert api.base_url == "https://primary.test"
     assert api.session.urls == ["https://primary.test/paystack/verify/primary_ref"]
+
+
+def test_paystack_alias_request_ignores_last_successful_fallback_backend():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.base_url = "https://fallback.test"
+    api.session = _FakeSession([
+        _FakeResponse(200, {"reference": "wallet_ref"}),
+    ])
+
+    result = api.request(
+        "POST",
+        "/api/paystack/wallet/initialize",
+        payload={"amount": 25.0},
+        headers={"Authorization": "Bearer saved-token"},
+    )
+
+    assert result["ok"] is True
+    assert result["data"] == {"reference": "wallet_ref"}
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == ["https://primary.test/api/paystack/wallet/initialize"]
+
+
+def test_agent_registration_payment_request_stays_on_primary_after_server_error():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.session = _FakeSession([
+        _FakeResponse(500, {"detail": "Paystack secret key is not configured."}),
+    ])
+
+    result = api.request(
+        "POST",
+        "/agents/register",
+        headers={"Authorization": "Bearer saved-token"},
+    )
+
+    assert result["ok"] is False
+    assert result["status_code"] == 500
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == ["https://primary.test/agents/register"]
+
+
+def test_agent_registration_verify_ignores_last_successful_fallback_backend():
+    api = client.APIClient(base_url="https://primary.test")
+    api.base_urls = ["https://primary.test", "https://fallback.test"]
+    api.base_url = "https://fallback.test"
+    api.session = _FakeSession([
+        _FakeResponse(200, {"status": "active"}),
+    ])
+
+    result = api.request(
+        "GET",
+        "/agents/register/verify/agent_ref",
+        headers={"Authorization": "Bearer saved-token"},
+    )
+
+    assert result["ok"] is True
+    assert result["data"] == {"status": "active"}
+    assert api.base_url == "https://primary.test"
+    assert api.session.urls == ["https://primary.test/agents/register/verify/agent_ref"]

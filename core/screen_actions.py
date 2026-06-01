@@ -103,6 +103,7 @@ class ActionScreen(ResponsiveScreen):
         params: dict | None = None,
         *,
         requires_auth: bool = True,
+        timeout=None,
     ) -> tuple[bool, object]:
         headers = {}
         if requires_auth:
@@ -117,6 +118,7 @@ class ActionScreen(ResponsiveScreen):
             payload=payload,
             params=params,
             headers=headers,
+            timeout=timeout,
         )
         payload = result.get("data", {})
         status_code = result.get("status_code", 0)

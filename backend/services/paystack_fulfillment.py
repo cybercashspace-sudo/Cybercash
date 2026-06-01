@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
-from backend.models import Agent, Transaction, User, Wallet
+from backend.models import Agent, JournalEntry, Transaction, User, Wallet
 from backend.services.agent_startup_loan import grant_startup_loan_credit
+from backend.services.ledger_service import LedgerService
 from backend.services.settings_service import get_or_create_platform_settings
 
 
@@ -82,6 +83,29 @@ async def _get_or_create_agent(db: AsyncSession, user_id: int) -> Agent:
     return agent
 
 
+async def _ensure_agent_registration_fee_journal(db: AsyncSession, transaction: Transaction) -> None:
+    if not transaction.id:
+        await db.flush()
+
+    existing_result = await db.execute(
+        select(JournalEntry).filter(JournalEntry.transaction_id == transaction.id)
+    )
+    if existing_result.scalars().first():
+        return
+
+    amount = float(to_ghs_decimal(transaction.amount))
+    ledger_service = LedgerService(db)
+    await ledger_service.create_journal_entry(
+        description=f"Paystack agent registration fee for user {transaction.user_id}",
+        ledger_entries_data=[
+            {"account_name": "Cash (External Bank)", "debit": amount, "credit": 0.0},
+            {"account_name": "Revenue - Agent Fees", "debit": 0.0, "credit": amount},
+        ],
+        transaction=transaction,
+        auto_commit=False,
+    )
+
+
 async def complete_paid_agent_registration(db: AsyncSession, transaction: Transaction) -> Agent:
     """
     Idempotently activate an agent after a confirmed Paystack registration fee.
@@ -115,6 +139,8 @@ async def complete_paid_agent_registration(db: AsyncSession, transaction: Transa
     transaction.status = "completed"
     db.add(transaction)
     await db.flush()
+
+    await _ensure_agent_registration_fee_journal(db, transaction)
 
     await grant_startup_loan_credit(
         db,

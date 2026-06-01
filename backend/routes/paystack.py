@@ -46,6 +46,7 @@ def _checkout_status_page(
     reference: str | None = None,
     message_override: str | None = None,
     wallet_balance: float | None = None,
+    headline_override: str | None = None,
 ) -> str:
     result_key = str(result or "").strip().lower()
     is_cancelled = result_key == "cancelled"
@@ -71,6 +72,8 @@ def _checkout_status_page(
 
     if message_override:
         message = str(message_override)
+    if headline_override:
+        headline = str(headline_override)
     reference_line = f"<p class=\"reference\">Reference: {escape(reference)}</p>" if reference else ""
     balance_line = (
         f"<p class=\"balance\"><strong>Wallet balance:</strong> GHS {wallet_balance:,.2f}</p>"
@@ -284,6 +287,81 @@ async def _complete_paystack_wallet_funding(
         if transaction.status != "completed":
             raise
 
+
+async def _render_agent_registration_checkout_status(
+    *,
+    db: AsyncSession,
+    transaction: Transaction,
+    reference: str,
+    paystack_service: PaystackService,
+) -> HTMLResponse:
+    expected_amount = _expected_transaction_amount(transaction)
+    if transaction.status == "completed":
+        await complete_paid_agent_registration(db, transaction)
+        return HTMLResponse(
+            content=_checkout_status_page(
+                result="success",
+                reference=reference,
+                headline_override="Agent registration active",
+                message_override=(
+                    f"Your GHS {expected_amount:.2f} agent registration fee was confirmed. "
+                    "Return to CyberCash to open your Agent Dashboard."
+                ),
+            )
+        )
+
+    verification_data = await paystack_service.verify_payment(reference)
+    paystack_status = str(verification_data.get("status", "")).strip().lower()
+
+    if paystack_status == "success":
+        try:
+            expected_amount = _validate_successful_paystack_payload(transaction, verification_data)
+        except HTTPException:
+            transaction.status = "failed"
+            db.add(transaction)
+            await db.commit()
+            raise
+        await complete_paid_agent_registration(db, transaction)
+        return HTMLResponse(
+            content=_checkout_status_page(
+                result="success",
+                reference=reference,
+                headline_override="Agent registration active",
+                message_override=(
+                    f"GHS {expected_amount:.2f} agent registration fee was confirmed. "
+                    "Your Agent Dashboard is now active."
+                ),
+            )
+        )
+
+    if paystack_status in PAYSTACK_PENDING_STATUSES:
+        return HTMLResponse(
+            content=_checkout_status_page(
+                result="pending",
+                reference=reference,
+                headline_override="Agent payment processing",
+                message_override=(
+                    "Paystack has not confirmed your agent registration fee yet. "
+                    "Return to CyberCash and tap Check Status."
+                ),
+            )
+        )
+
+    transaction.status = "failed"
+    db.add(transaction)
+    await db.commit()
+    return HTMLResponse(
+        content=_checkout_status_page(
+            result="failed",
+            reference=reference,
+            headline_override="Agent payment not completed",
+            message_override=(
+                "Paystack did not complete this agent registration payment. "
+                "Return to CyberCash and start registration again."
+            ),
+        )
+    )
+
 @router.post(
     "/initiate",
     response_model=InitiatePaymentResponse,
@@ -378,8 +456,8 @@ async def paystack_checkout_status(
     """
     Friendly landing page for Paystack success/cancel redirects.
 
-    Paystack opens this URL outside the app too, so it also verifies and credits
-    the matching wallet deposit when a reference is present.
+    Paystack opens this URL outside the app too, so it verifies and fulfills the
+    matching wallet deposit or agent registration fee when a reference is present.
     """
     try:
         cleaned_reference = str(reference or "").strip()
@@ -395,7 +473,6 @@ async def paystack_checkout_status(
             select(Transaction).filter(
                 Transaction.provider == "paystack",
                 Transaction.provider_reference == cleaned_reference,
-                Transaction.type == TransactionType.FUNDING,
             )
         )
         transaction = transaction_result.scalars().first()
@@ -405,8 +482,28 @@ async def paystack_checkout_status(
                     result="pending",
                     reference=cleaned_reference,
                     message_override=(
-                        "We received the Paystack redirect, but this reference is not linked to a wallet top-up yet. "
-                        "Return to CyberCash and tap Refresh Wallet."
+                        "We received the Paystack redirect, but this reference is not linked to a CyberCash payment yet. "
+                        "Return to CyberCash and tap Check Status."
+                    ),
+                )
+            )
+
+        if transaction.type == AGENT_REGISTRATION_TX_TYPE:
+            return await _render_agent_registration_checkout_status(
+                db=db,
+                transaction=transaction,
+                reference=cleaned_reference,
+                paystack_service=paystack_service,
+            )
+
+        if transaction.type != TransactionType.FUNDING:
+            return HTMLResponse(
+                content=_checkout_status_page(
+                    result="pending",
+                    reference=cleaned_reference,
+                    message_override=(
+                        "This Paystack reference was received, but it is not a wallet deposit or agent registration fee. "
+                        "Return to CyberCash and check the related activity."
                     ),
                 )
             )

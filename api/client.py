@@ -70,6 +70,17 @@ def _is_mobile_platform() -> bool:
     return _is_runtime_mobile_platform()
 
 
+def _is_payment_reference_path(path: str) -> bool:
+    lower_path = str(path or "").lower()
+    if lower_path.startswith("/paystack/") or "/paystack/" in lower_path:
+        return True
+    if lower_path.startswith("/api/paystack/") or "/api/paystack/" in lower_path:
+        return True
+    if lower_path.startswith("/api/wallet/topup/paystack/"):
+        return True
+    return lower_path == "/agents/register" or lower_path.startswith("/agents/register/")
+
+
 def _default_api_url() -> str:
     """Default API URL when no env var or app_config.json override is provided.
 
@@ -212,9 +223,7 @@ class APIClient:
         request_headers = headers or {}
         has_auth_header = self._has_auth_header(request_headers)
         transport_error_seen = False
-        path_value = str(path or "")
-        lower_path = path_value.lower()
-        is_paystack_path = lower_path.startswith("/paystack/") or "/paystack/" in lower_path
+        is_paystack_path = _is_payment_reference_path(path)
         ordered_base_urls = self._ordered_base_urls()
         if is_paystack_path:
             # Paystack references must be created, verified, and recovered on

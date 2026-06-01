@@ -97,7 +97,9 @@ def is_valid_paystack_signature(
 
 class PaystackService:
     def __init__(self):
-        self.base_url = "https://api.paystack.co"
+        self.base_url = str(
+            getattr(settings, "PAYSTACK_BASE_URL", "https://api.paystack.co") or "https://api.paystack.co"
+        ).rstrip("/")
         self.secret_key_candidates = get_paystack_secret_key_candidates()
         self.secret_key = self.secret_key_candidates[0] if self.secret_key_candidates else ""
         self.public_key = normalize_paystack_secret_key(getattr(settings, "PAYSTACK_PUBLIC_KEY", ""))

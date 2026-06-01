@@ -1,6 +1,7 @@
 import os
 import threading
 import time
+import webbrowser
 from datetime import datetime, timezone
 
 import requests
@@ -1718,9 +1719,14 @@ class HomeScreen(ResponsiveScreen):
 
     def _initiate_agent_registration_worker(self, headers: dict) -> None:
         try:
-            response = requests.post(f"{API_URL}/agents/register", headers=headers, timeout=15)
-            payload = self._safe_json(response)
-            if response.status_code < 400 and isinstance(payload, dict):
+            result = api_client.request(
+                "POST",
+                "/agents/register",
+                headers=headers,
+                timeout=(4, 15),
+            )
+            payload = result.get("data", {})
+            if result.get("ok") and isinstance(payload, dict):
                 reference = str(payload.get("reference", "") or "").strip()
                 authorization_url = str(payload.get("authorization_url", "") or "").strip()
                 message = str(payload.get("message", "") or "").strip()
@@ -1753,11 +1759,20 @@ class HomeScreen(ResponsiveScreen):
         if authorization_url:
             warmup_paystack_checkout(delay_seconds=0.0)
             opened_in_app = open_paystack_checkout(authorization_url, title="CYBER CASH Paystack", delay_seconds=0.0)
+            opened_in_browser = False
             if not opened_in_app:
+                try:
+                    opened_in_browser = bool(webbrowser.open(authorization_url, new=2))
+                except Exception:
+                    opened_in_browser = False
+            if not opened_in_app and not opened_in_browser:
                 show_message_dialog(
                     self,
                     title="Paystack",
-                    message="Checkout couldn't open. Try again.",
+                    message=(
+                        "Checkout could not open automatically. "
+                        f"Keep this reference and try again: {reference or 'pending'}"
+                    ),
                     close_label="Close",
                 )
 
@@ -1779,14 +1794,15 @@ class HomeScreen(ResponsiveScreen):
             if verify_sequence != self._agent_verify_sequence:
                 return
             try:
-                response = requests.get(
-                    f"{API_URL}/agents/register/verify/{reference}",
+                result = api_client.request(
+                    "GET",
+                    f"/agents/register/verify/{reference}",
                     headers=headers,
-                    timeout=12,
+                    timeout=(4, 12),
                 )
-                payload = self._safe_json(response)
+                payload = result.get("data", {})
 
-                if response.status_code < 400 and isinstance(payload, dict):
+                if result.get("ok") and isinstance(payload, dict):
                     status_value = str(payload.get("status", "") or "").strip().lower()
                     if status_value == "active":
                         Clock.schedule_once(lambda _dt, p=payload: self._on_agent_registration_success(p))
