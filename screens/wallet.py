@@ -1219,6 +1219,7 @@ class WalletScreen(ActionScreen):
             "/paystack/initiate",
             payload={"amount": amount},
             timeout=PAYSTACK_INIT_TIMEOUT,
+            clear_session_on_auth_failure=False,
         )
         Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload, amount))
 
@@ -1305,7 +1306,12 @@ class WalletScreen(ActionScreen):
         ).start()
 
     def _recover_paystack_deposits_worker(self, show_idle: bool) -> None:
-        ok, payload = self._request("POST", "/paystack/recover", timeout=PAYSTACK_VERIFY_TIMEOUT)
+        ok, payload = self._request(
+            "POST",
+            "/paystack/recover",
+            timeout=PAYSTACK_VERIFY_TIMEOUT,
+            clear_session_on_auth_failure=False,
+        )
         Clock.schedule_once(lambda _dt: self._handle_recover_paystack_result(ok, payload, show_idle))
 
     def _handle_recover_paystack_result(self, ok: bool, payload: object, show_idle: bool) -> None:
@@ -1349,6 +1355,7 @@ class WalletScreen(ActionScreen):
                 "GET",
                 f"/paystack/verify/{reference}",
                 timeout=PAYSTACK_VERIFY_TIMEOUT,
+                clear_session_on_auth_failure=False,
             )
 
             if verify_sequence != self._verify_sequence:
@@ -1423,7 +1430,12 @@ class WalletScreen(ActionScreen):
         threading.Thread(target=self._check_last_deposit_status_worker, args=(reference,), daemon=True).start()
 
     def _check_last_deposit_status_worker(self, reference: str) -> None:
-        ok, payload = self._request("GET", f"/paystack/verify/{reference}", timeout=PAYSTACK_VERIFY_TIMEOUT)
+        ok, payload = self._request(
+            "GET",
+            f"/paystack/verify/{reference}",
+            timeout=PAYSTACK_VERIFY_TIMEOUT,
+            clear_session_on_auth_failure=False,
+        )
         Clock.schedule_once(lambda _dt: self._handle_last_deposit_status(ok, payload))
 
     def _handle_last_deposit_status(self, ok: bool, payload: object) -> None:

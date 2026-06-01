@@ -104,6 +104,7 @@ class ActionScreen(ResponsiveScreen):
         *,
         requires_auth: bool = True,
         timeout=None,
+        clear_session_on_auth_failure: bool = True,
     ) -> tuple[bool, object]:
         headers = {}
         if requires_auth:
@@ -125,8 +126,12 @@ class ActionScreen(ResponsiveScreen):
         if isinstance(payload, dict):
             payload.setdefault("_status_code", status_code)
         if requires_auth and self._is_auth_failure(status_code, payload):
-            self._clear_saved_session()
-            return False, self._auth_required_payload()
+            if clear_session_on_auth_failure:
+                self._clear_saved_session()
+                return False, self._auth_required_payload()
+            if isinstance(payload, dict):
+                payload["_auth_warning"] = True
+            return False, payload
         return bool(result.get("ok")), payload
 
     def go_back(self) -> None:
