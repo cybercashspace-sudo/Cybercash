@@ -227,9 +227,10 @@ class APIClient:
         ordered_base_urls = self._ordered_base_urls()
         if is_paystack_path:
             # Paystack references must be created, verified, and recovered on
-            # the same backend/database. Falling back can orphan a paid deposit.
-            primary_base_url = str((self.base_urls or [self.base_url])[0] or "").rstrip("/")
-            ordered_base_urls = [primary_base_url] if primary_base_url else ordered_base_urls[:1]
+            # the same backend/database. Use the backend that last accepted the
+            # current app session so a valid user is not sent to another host
+            # and rejected as unauthenticated.
+            ordered_base_urls = ordered_base_urls[:1]
             failover = False
         elif not failover:
             ordered_base_urls = ordered_base_urls[:1]

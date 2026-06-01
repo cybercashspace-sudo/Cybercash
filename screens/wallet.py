@@ -1221,7 +1221,37 @@ class WalletScreen(ActionScreen):
             timeout=PAYSTACK_INIT_TIMEOUT,
             clear_session_on_auth_failure=False,
         )
+        if not ok and self._is_paystack_auth_warning(payload):
+            session_ok, _session_payload = self._request(
+                "GET",
+                "/auth/me",
+                timeout=PAYSTACK_VERIFY_TIMEOUT,
+                clear_session_on_auth_failure=False,
+            )
+            if session_ok:
+                ok, payload = self._request(
+                    "POST",
+                    "/paystack/initiate",
+                    payload={"amount": amount},
+                    timeout=PAYSTACK_INIT_TIMEOUT,
+                    clear_session_on_auth_failure=False,
+                )
         Clock.schedule_once(lambda _dt: self._handle_initiate_deposit_result(ok, payload, amount))
+
+    @staticmethod
+    def _is_paystack_auth_warning(payload: object) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("_auth_warning"):
+            return True
+        try:
+            code = int(payload.get("_status_code") or 0)
+        except Exception:
+            code = 0
+        if code not in {401, 403}:
+            return False
+        detail = WalletScreen._extract_detail(payload).lower()
+        return "not authenticated" in detail or "token" in detail or "session" in detail
 
     def _handle_initiate_deposit_result(self, ok: bool, payload: object, amount: float | None = None) -> None:
         self.deposit_busy = False
@@ -1286,6 +1316,19 @@ class WalletScreen(ActionScreen):
             self._show_auth_required(
                 "Please sign in again to continue this Paystack deposit. We will bring you back to checkout."
             )
+            return
+
+        if self._is_paystack_auth_warning(payload):
+            self.last_paystack_reference = ""
+            if amount is not None:
+                self._remember_pending_deposit_request(amount, autostart=True)
+            detail = (
+                "We could not confirm your sign-in for Paystack checkout yet. "
+                "Your session was kept. Refresh Wallet and try Pay with Paystack again; "
+                "if it still appears, sign in again and we will bring you back to checkout."
+            )
+            self._set_feedback(detail, "warning")
+            self._show_popup("Paystack Sign-In Check", detail)
             return
 
         detail = self._extract_detail(payload) or "Unable to start Paystack deposit."

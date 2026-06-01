@@ -125,27 +125,27 @@ def test_paystack_request_stays_on_primary_after_server_error():
     assert api.session.urls == ["https://primary.test/paystack/initiate"]
 
 
-def test_paystack_request_ignores_last_successful_fallback_backend():
+def test_paystack_request_uses_last_successful_authenticated_backend():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]
     api.base_url = "https://fallback.test"
     api.session = _FakeSession([
-        _FakeResponse(200, {"reference": "primary_ref"}),
+        _FakeResponse(200, {"reference": "fallback_ref"}),
     ])
 
     result = api.request(
         "GET",
-        "/paystack/verify/primary_ref",
+        "/paystack/verify/fallback_ref",
         headers={"Authorization": "Bearer saved-token"},
     )
 
     assert result["ok"] is True
-    assert result["data"] == {"reference": "primary_ref"}
-    assert api.base_url == "https://primary.test"
-    assert api.session.urls == ["https://primary.test/paystack/verify/primary_ref"]
+    assert result["data"] == {"reference": "fallback_ref"}
+    assert api.base_url == "https://fallback.test"
+    assert api.session.urls == ["https://fallback.test/paystack/verify/fallback_ref"]
 
 
-def test_paystack_alias_request_ignores_last_successful_fallback_backend():
+def test_paystack_alias_request_uses_last_successful_authenticated_backend():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]
     api.base_url = "https://fallback.test"
@@ -162,8 +162,8 @@ def test_paystack_alias_request_ignores_last_successful_fallback_backend():
 
     assert result["ok"] is True
     assert result["data"] == {"reference": "wallet_ref"}
-    assert api.base_url == "https://primary.test"
-    assert api.session.urls == ["https://primary.test/api/paystack/wallet/initialize"]
+    assert api.base_url == "https://fallback.test"
+    assert api.session.urls == ["https://fallback.test/api/paystack/wallet/initialize"]
 
 
 def test_agent_registration_payment_request_stays_on_primary_after_server_error():
@@ -185,7 +185,7 @@ def test_agent_registration_payment_request_stays_on_primary_after_server_error(
     assert api.session.urls == ["https://primary.test/agents/register"]
 
 
-def test_agent_registration_verify_ignores_last_successful_fallback_backend():
+def test_agent_registration_verify_uses_last_successful_authenticated_backend():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]
     api.base_url = "https://fallback.test"
@@ -201,5 +201,5 @@ def test_agent_registration_verify_ignores_last_successful_fallback_backend():
 
     assert result["ok"] is True
     assert result["data"] == {"status": "active"}
-    assert api.base_url == "https://primary.test"
-    assert api.session.urls == ["https://primary.test/agents/register/verify/agent_ref"]
+    assert api.base_url == "https://fallback.test"
+    assert api.session.urls == ["https://fallback.test/agents/register/verify/agent_ref"]
