@@ -13,3 +13,65 @@ services:
         value: sqlite+aiosqlite:///./cybercash.db
       - key: SYNC_DATABASE_URL
         value: sqlite:///./cybercash.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_SERVER
+        sync: false
+      - key: MNOTIFY_API_KEY
+        sync: false
+      - key: HUBTEL_AUTH
+        sync: false
+      - key: HUBTEL_CLIENT_ID
+        sync: false
+      - key: HUBTEL_CLIENT_SECRET
+        sync: false
+      - key: ARKESEL_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_WALLET_CALLBACK_URL
+        sync: false
+      - key: FLW_CLIENT_ID
+        sync: false
+      - key: FLW_CLIENT_SECRET
+        sync: false
+      - key: FLW_ENCRYPTION_KEY
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false
+      - key: FLUTTERWAVE_WEBHOOK_HASH
+        sync: false
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_SECRET_KEY
+        sync: false
+      - key: BINANCE_WITHDRAWALS_ENABLED
+        value: "false"
+      - key: IDATA_API_KEY
+        sync: false
+      - key: AIRTIME_CASH_SMS_WEBHOOK_TOKEN
+        sync: false
+      - key: AIRTIME_CASH_MOMO_CALLBACK_URL
+        sync: false
+      - key: CARD_PROCESSOR_WEBHOOK_KEY
+        sync: false
