@@ -28,6 +28,15 @@ build_apk_wsl_run.log
 buildozer.log
 buildozer_build.log
 
+# Local APK/build evidence downloaded from GitHub Actions
+downloaded_artifacts/
+cybercash-android-apk*.zip
+github_run_*.json
+cybercash_icon_check.png
+
+# Local PostgreSQL safety backups
+backups/postgres_database_backups/
+
 *.db
 *.dll
 *.exe
