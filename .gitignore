@@ -20,6 +20,8 @@ venv/
 backend/.env
 .env.local
 .env.*.local
+.local_pgdata/
+.local_pglog/
 
 android_build.log
 build_apk_wsl_run.log

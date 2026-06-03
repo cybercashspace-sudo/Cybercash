@@ -11,9 +11,9 @@ load_dotenv(dotenv_path)
 # ==========================================
 # DATABASE URLS
 # ==========================================
-# You can set DATABASE_URL in .env, otherwise fallback to SQLite
-SYNC_DATABASE_URL = os.getenv("SYNC_DATABASE_URL", "sqlite:///./cybercash.db")
-ASYNC_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./cybercash.db")
+# You can set DATABASE_URL in .env, otherwise use the local PostgreSQL dev database.
+SYNC_DATABASE_URL = os.getenv("SYNC_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5433/cybercash")
+ASYNC_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/cybercash")
 
 # ==========================================
 # SYNC ENGINE & SESSION (for tests / admin scripts)
