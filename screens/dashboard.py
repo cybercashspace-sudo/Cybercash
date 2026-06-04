@@ -215,23 +215,21 @@ KV = """
 
                         MDCard:
                             size_hint: None, None
-                            size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                            size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
                             radius: [dp(11 * root.layout_scale)]
                             md_bg_color: 0.62, 0.48, 0.22, 0.48
                             elevation: 0
                             padding: 0
 
-                            MDIcon:
+                            MDIconButton:
                                 icon: "card-account-details-outline"
+                                user_font_size: str(18 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                font_size: sp(18 * root.icon_scale)
-                                text_size: self.size
-                                halign: "center"
-                                valign: "center"
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.94, 0.78, 0.44, 1
+                                disabled: True
 
                         MDLabel:
                             text: root.greeting_text
@@ -377,17 +375,15 @@ KV = """
                                 elevation: 0
                                 padding: 0
 
-                                MDIcon:
+                                MDIconButton:
                                     icon: "plus"
+                                    user_font_size: str(20 * root.icon_scale) + "sp"
                                     size_hint: None, None
-                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    font_size: sp(20 * root.icon_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
+                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                     theme_text_color: "Custom"
                                     text_color: 0.23, 0.17, 0.08, 1
+                                    disabled: True
 
                             MDLabel:
                                 text: "Deposit"
@@ -426,17 +422,15 @@ KV = """
                                 elevation: 0
                                 padding: 0
 
-                                MDIcon:
+                                MDIconButton:
                                     icon: "cash-minus"
+                                    user_font_size: str(20 * root.icon_scale) + "sp"
                                     size_hint: None, None
-                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    font_size: sp(20 * root.icon_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
+                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                     theme_text_color: "Custom"
                                     text_color: 0.78, 0.93, 0.77, 1
+                                    disabled: True
 
                             MDBoxLayout:
                                 orientation: "vertical"
