@@ -961,15 +961,17 @@ KV = """
 class HomeScreen(ResponsiveScreen):
     avatar_source = StringProperty("")
     background_source = StringProperty("")
-    greeting_text = StringProperty("Hello, John")
-    notification_count_text = StringProperty("1")
-    notification_badge_visible = BooleanProperty(True)
+    greeting_text = StringProperty("Hello")
+    notification_count_text = StringProperty("0")
+    notification_badge_visible = BooleanProperty(False)
     portfolio_index = NumericProperty(0)
     theme_toggle_icon = StringProperty("weather-night")
-    wallet_balance_amount = NumericProperty(5250.0)
+    wallet_balance_amount = NumericProperty(0.0)
+    wallet_balance_loaded = BooleanProperty(False)
+    balance_placeholder = StringProperty("Syncing...")
     balance_hidden = BooleanProperty(False)
-    balance_display = StringProperty("GHS 5,250.00")
-    balance_status = StringProperty("Demo balance")
+    balance_display = StringProperty("Syncing...")
+    balance_status = StringProperty("Waiting for live wallet")
     is_agent_active = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
     agent_action_hint = StringProperty(f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}")
@@ -1028,11 +1030,13 @@ class HomeScreen(ResponsiveScreen):
 
     def _set_greeting(self, name: str = "") -> None:
         first_name = self._safe_first_name(name)
-        self.greeting_text = f"Hello, {first_name}" if first_name else "Hello, John"
+        self.greeting_text = f"Hello, {first_name}" if first_name else "Hello"
 
     def _update_balance_display(self) -> None:
         if self.balance_hidden:
             self.balance_display = "GHS ****.**"
+        elif not self.wallet_balance_loaded:
+            self.balance_display = self.balance_placeholder or "Syncing..."
         else:
             self.balance_display = f"GHS {float(self.wallet_balance_amount or 0.0):,.2f}"
 
@@ -1113,7 +1117,7 @@ class HomeScreen(ResponsiveScreen):
         text_secondary = list(getattr(app, "ui_text_secondary", [0.74, 0.76, 0.80, 1]))
         theme_mode = str(getattr(app, "theme_mode", "Dark") or "Dark")
         light_mode = theme_mode.lower() == "light"
-        value_surface = "Swipe premium cards"
+        value_surface = self.balance_status or "Waiting for live wallet"
         return [
             {
                 "key": "wallet",
@@ -1353,13 +1357,37 @@ class HomeScreen(ResponsiveScreen):
             return mapping[tx_type]
         return tx_type.replace("_", " ").title() if tx_type else "Transaction"
 
-    @staticmethod
-    def _demo_transactions() -> list[dict]:
-        now = datetime.now(timezone.utc).isoformat()
-        return [
-            {"type": "agent_deposit", "amount": 1000.0, "timestamp": now},
-            {"type": "transfer", "amount": -200.0, "timestamp": now},
-        ]
+    def _build_empty_recent_item(self) -> MDCard:
+        layout_scale = float(self.layout_scale or 1.0)
+        text_scale = float(self.text_scale or 1.0)
+
+        card = MDCard(
+            size_hint_y=None,
+            height=dp(72 * layout_scale),
+            radius=[dp(16 * layout_scale)],
+            md_bg_color=TX_CARD_BG,
+            padding=[dp(12 * layout_scale), dp(10 * layout_scale), dp(12 * layout_scale), dp(10 * layout_scale)],
+            line_color=[0.22, 0.24, 0.28, 0.60],
+            elevation=0,
+        )
+        card.add_widget(
+            MDLabel(
+                text="No recent activity",
+                font_name=FONT_SEMIBOLD,
+                font_size=sp(14 * text_scale),
+                theme_text_color="Custom",
+                text_color=[0.72, 0.72, 0.74, 1],
+                halign="center",
+                valign="center",
+            )
+        )
+        return card
+
+    def _set_balance_unavailable(self, placeholder: str, status_text: str) -> None:
+        self.wallet_balance_loaded = False
+        self.balance_placeholder = str(placeholder or "Sync unavailable").strip()
+        self.balance_status = str(status_text or "Balance sync unavailable").strip()
+        self._update_balance_display()
 
     def _build_recent_item(self, tx: dict) -> MDCard:
         amount = float(tx.get("amount", 0.0) or 0.0)
@@ -1452,15 +1480,19 @@ class HomeScreen(ResponsiveScreen):
         container = self.ids.recent_container
         container.clear_widgets()
 
-        for tx in (rows[:2] if rows else self._demo_transactions()):
+        if not rows:
+            container.add_widget(self._build_empty_recent_item())
+            return
+
+        for tx in rows[:2]:
             container.add_widget(self._build_recent_item(tx))
 
-    def _apply_demo_state(self, greeting_name: str = "") -> None:
+    def _apply_signed_out_state(self, greeting_name: str = "") -> None:
         self._set_greeting(greeting_name)
-        self.wallet_balance_amount = 5250.0
-        self._update_balance_display()
-        self.balance_status = "Demo balance"
+        self._set_balance_unavailable("Sign in", "Sign in to view live wallet")
         self._set_agent_action_state(False)
+        self.notification_count_text = "0"
+        self.notification_badge_visible = False
         self._render_recent_activity([])
         self._refresh_portfolio_values()
 
@@ -1482,21 +1514,22 @@ class HomeScreen(ResponsiveScreen):
             code = int(status_code or 0)
         except Exception:
             code = 0
+        detail = extract_backend_message(payload).lower()
+        invalid_markers = (
+            "could not validate credentials",
+            "invalid token",
+            "not authenticated",
+            "token expired",
+            "session expired",
+            "inactive",
+            "revoked",
+            "expired",
+        )
         if code == 401:
-            return bool(auth_gate)
+            return bool(auth_gate) or any(marker in detail for marker in invalid_markers)
         if code != 403 or not auth_gate:
             return False
-        detail = extract_backend_message(payload).lower()
-        return any(
-            marker in detail
-            for marker in (
-                "could not validate credentials",
-                "invalid token",
-                "inactive",
-                "revoked",
-                "expired",
-            )
-        )
+        return any(marker in detail for marker in invalid_markers)
 
     @staticmethod
     def _api_get(path: str, headers: dict, params: dict | None = None) -> tuple[int, object]:
@@ -1588,6 +1621,7 @@ class HomeScreen(ResponsiveScreen):
             app.access_token = ""
             app.pending_momo = ""
             save_token("")
+            self._apply_signed_out_state()
             if self.manager and self.manager.has_screen("login"):
                 self.manager.current = "login"
             return
@@ -1595,9 +1629,13 @@ class HomeScreen(ResponsiveScreen):
             self._set_greeting(greeting_name)
 
         if balance is None:
-            if self.wallet_balance_amount == 5250.0:
-                self.balance_status = error_text or "Demo balance"
+            if self.wallet_balance_loaded:
+                self.balance_status = error_text or "Live balance shown; sync pending"
+            else:
+                self._set_balance_unavailable("Sync unavailable", error_text or "Balance sync unavailable")
         else:
+            self.wallet_balance_loaded = True
+            self.balance_placeholder = ""
             self.wallet_balance_amount = float(balance)
             self._update_balance_display()
             self.balance_status = "Live balance" if not error_text else error_text
@@ -1618,11 +1656,15 @@ class HomeScreen(ResponsiveScreen):
             self._set_greeting(pending_name)
 
         if not token:
-            self._apply_demo_state(pending_name if not pending_name.isdigit() else "")
+            self._apply_signed_out_state(pending_name if not pending_name.isdigit() else "")
             return
 
         self._is_loading = True
+        if not self.wallet_balance_loaded:
+            self.balance_placeholder = "Syncing..."
+            self._update_balance_display()
         self.balance_status = "Refreshing..."
+        self._refresh_portfolio_values()
         threading.Thread(target=self._load_home_worker, args=(token,), daemon=True).start()
 
     def open_more_actions(self) -> None:

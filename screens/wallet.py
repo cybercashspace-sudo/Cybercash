@@ -261,18 +261,15 @@ KV = """
                                         radius: [dp(11 * root.layout_scale)]
                                         md_bg_color: GOLD_SOFT
                                         elevation: 0
-
-                                        MDIcon:
-                                            icon: "credit-card-check-outline"
-                                            font_size: sp(18 * root.icon_scale)
+                                        MDIconButton:
+                                            icon: "plus"
+                                            user_font_size: str(18 * root.icon_scale) + "sp"
                                             size_hint: None, None
                                             size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
-                                            text_size: self.size
-                                            halign: "center"
-                                            valign: "center"
                                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                             theme_text_color: "Custom"
                                             text_color: BG
+                                            disabled: True
 
                                     MDLabel:
                                         text: "Paystack Deposit"

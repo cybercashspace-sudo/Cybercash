@@ -12,7 +12,7 @@ from api.client import API_URL, api_client
 from core.bottom_nav import BottomNavBar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
-from storage import save_token
+from storage import save_token, clear_token
 
 
 KV = """
@@ -760,7 +760,16 @@ class SettingsScreen(ActionScreen):
         response = logout(token)
         app.access_token = ""
         app.pending_momo = ""
-        save_token("")
+        # Clear any pending wallet/deposit state so we don't accidentally resume
+        # a pending deposit or create duplicate state after signing out.
+        try:
+            app.pending_wallet_action = ""
+            app.pending_deposit_amount = ""
+            app.pending_deposit_autostart = False
+            app.wallet_entry_action = ""
+        except Exception:
+            pass
+        clear_token()
 
         detail = ""
         if isinstance(response, dict):

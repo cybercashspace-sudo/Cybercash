@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
@@ -68,31 +69,37 @@ def _make_text_label(text: str) -> Label:
 
 def _make_dialog_icon(icon: str = "information-outline"):
     if MDIcon is not None:
-        return MDIcon(
+        icon_card = FloatLayout(size_hint=(None, None), size=(dp(54), dp(54)))
+        icon_widget = MDIcon(
             icon=str(icon or "information-outline"),
             theme_text_color="Custom",
             text_color=_ACCENT_GOLD,
             font_size="30sp",
             size_hint=(None, None),
-            size=(dp(54), dp(42)),
-            text_size=(dp(54), dp(42)),
+            size=(dp(28), dp(28)),
+            text_size=(dp(28), dp(28)),
             halign="center",
             valign="center",
-            pos_hint={"center_x": 0.5},
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
+        icon_card.add_widget(icon_widget)
+        return icon_card
 
-    return Label(
+    icon_card = FloatLayout(size_hint=(None, None), size=(dp(54), dp(54)))
+    icon_widget = Label(
         text="i",
         color=_ACCENT_GOLD,
         bold=True,
         font_size="26sp",
         size_hint=(None, None),
-        size=(dp(54), dp(42)),
-        text_size=(dp(54), dp(42)),
+        size=(dp(28), dp(28)),
+        text_size=(dp(28), dp(28)),
         halign="center",
         valign="center",
-        pos_hint={"center_x": 0.5},
+        pos_hint={"center_x": 0.5, "center_y": 0.5},
     )
+    icon_card.add_widget(icon_widget)
+    return icon_card
 
 
 def _resize_label_text(label: Label):

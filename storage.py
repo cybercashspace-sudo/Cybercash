@@ -37,6 +37,10 @@ def save_token(token: str):
         return
 
 
+def clear_token():
+    save_token("")
+
+
 def _decode_jwt_payload(token: str) -> dict:
     try:
         payload_part = str(token or "").split(".")[1]
@@ -64,6 +68,9 @@ def get_token() -> str:
         store = _get_store()
         if store.exists("auth"):
             token = str(store.get("auth").get("access_token", "") or "").strip()
+            if token and token_is_expired(token):
+                clear_token()
+                return ""
             return token
     except Exception:
         return ""

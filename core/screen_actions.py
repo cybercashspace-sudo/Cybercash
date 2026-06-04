@@ -7,7 +7,7 @@ from api.client import api_client
 from core.popup_manager import show_message_dialog
 from core.message_sanitizer import extract_backend_message
 from core.responsive_screen import ResponsiveScreen
-from storage import get_token, save_token
+from storage import clear_token, get_token, token_is_expired
 
 
 AUTH_FAILURE_DETAIL = "Session expired. Please sign in again to continue."
@@ -66,7 +66,7 @@ class ActionScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         if app is not None:
             app.access_token = ""
-        save_token("")
+        clear_token()
 
     def _auth_required_payload(self) -> dict:
         return {"detail": AUTH_FAILURE_DETAIL, "_auth_required": True, "_status_code": 401}
@@ -84,15 +84,15 @@ class ActionScreen(ResponsiveScreen):
     def _auth_headers(self) -> dict | None:
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
+        if token and token_is_expired(token):
+            self._clear_saved_session()
+            return None
         if not token:
             token = get_token().strip()
             if token:
                 app.access_token = token
         if not token:
             return None
-        # Let the backend be the authority for token expiry. Android device
-        # clocks can drift, and a local expiry check must not block Paystack
-        # checkout before the server has a chance to validate the session.
         return {"Authorization": f"Bearer {token}"}
 
     def _request(

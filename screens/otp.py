@@ -68,12 +68,24 @@ KV = """
                             adaptive_height: True
                             spacing: dp(8 * root.layout_scale)
 
-                            MDIconButton:
-                                icon: "shield-check-outline"
-                                user_font_size: str(40 * root.icon_scale) + "sp"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                disabled: True
+                            MDCard:
+                                size_hint: None, None
+                                size: dp(56 * root.layout_scale), dp(56 * root.layout_scale)
+                                radius: [dp(18 * root.layout_scale)]
+                                md_bg_color: SURFACE_SOFT
+                                elevation: 0
+                                padding: 0
+                                pos_hint: {"center_y": 0.5}
+
+                                MDIconButton:
+                                    icon: "shield-check-outline"
+                                    user_font_size: str(28 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(32 * root.layout_scale), dp(32 * root.layout_scale)
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: GOLD
+                                    disabled: True
 
                             MDLabel:
                                 text: "Verify Account"
