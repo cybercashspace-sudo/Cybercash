@@ -120,12 +120,31 @@ KV = """
                         pos_hint: {"center_y": 0.5}
                         on_release: root.go_to_settings()
 
-                        FitImage:
-                            source: root.avatar_source
-                            size_hint: None, None
-                            size: dp(40 * root.layout_scale), dp(40 * root.layout_scale)
-                            radius: [dp(20 * root.layout_scale)]
-                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                        FloatLayout:
+                            FitImage:
+                                source: root.avatar_source
+                                size_hint: None, None
+                                size: dp(40 * root.layout_scale), dp(40 * root.layout_scale)
+                                allow_stretch: True
+                                keep_ratio: True
+                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                            MDCard:
+                                size_hint: None, None
+                                size: dp(18 * root.layout_scale), dp(18 * root.layout_scale)
+                                radius: [dp(9 * root.layout_scale)]
+                                md_bg_color: 0.86, 0.18, 0.14, 1
+                                pos_hint: {"center_x": 0.75, "center_y": 0.75}
+                                elevation: 0
+
+                                MDLabel:
+                                    text: "1"
+                                    halign: "center"
+                                    valign: "center"
+                                    theme_text_color: "Custom"
+                                    text_color: 1, 1, 1, 1
+                                    font_size: sp(10 * root.text_scale)
+                                    bold: True
 
                     MDLabel:
                         text: "CYBER CASH"
@@ -136,50 +155,6 @@ KV = """
                         font_size: sp(24 * root.text_scale)
                         theme_text_color: "Custom"
                         text_color: app.gold
-
-                    FloatLayout:
-                        size_hint: None, None
-                        size: dp(52 * root.layout_scale), dp(54 * root.layout_scale)
-
-                        MDCard:
-                            size_hint: None, None
-                            size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
-                            radius: [dp(14 * root.layout_scale)]
-                            md_bg_color: 0.11, 0.12, 0.14, 0.74
-                            line_color: [0.36, 0.31, 0.24, 0.28]
-                            elevation: 0
-                            padding: 0
-                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                            on_release: root.show_notifications()
-
-                            MDIcon:
-                                icon: "bell-ring-outline"
-                                size_hint: None, None
-                                size: dp(28 * root.layout_scale), dp(28 * root.layout_scale)
-                                font_size: sp(24 * root.icon_scale)
-                                text_size: self.size
-                                halign: "center"
-                                valign: "center"
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: app.gold
-
-                        MDCard:
-                            size_hint: None, None
-                            size: dp(18 * root.layout_scale), dp(18 * root.layout_scale)
-                            radius: [dp(9 * root.layout_scale)]
-                            md_bg_color: 0.86, 0.18, 0.14, 1
-                            pos_hint: {"center_x": 0.82, "center_y": 0.78}
-                            elevation: 0
-
-                            MDLabel:
-                                text: "1"
-                                halign: "center"
-                                valign: "center"
-                                theme_text_color: "Custom"
-                                text_color: 1, 1, 1, 1
-                                font_size: sp(10 * root.text_scale)
-                                bold: True
 
                 MDBoxLayout:
                     size_hint_y: None

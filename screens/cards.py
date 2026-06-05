@@ -28,31 +28,96 @@ KV = """
 #:set TEXT_MAIN (0.96, 0.97, 0.98, 1)
 #:set TEXT_SUB (0.69, 0.73, 0.78, 1)
 <CardScreen>:
-    MDBoxLayout:
-        orientation: "vertical"
+    MDScreen:
+        md_bg_color: "#0A0A0A"
 
-        canvas.before:
-            Color:
-                rgba: BG
-            Rectangle:
-                pos: self.pos
-                size: self.size
-            Color:
-                rgba: 0.40, 0.31, 0.15, 0.10
-            Ellipse:
-                pos: self.x + self.width * 0.16, self.y + self.height * 0.74
-                size: self.width * 0.58, self.width * 0.58
-            Color:
-                rgba: 0.25, 0.39, 0.31, 0.18
-            Ellipse:
-                pos: self.x + self.width * 0.32, self.y + self.height * 0.42
-                size: self.width * 0.72, self.width * 0.72
-            Color:
-                rgba: BG_SOFT
-            RoundedRectangle:
-                pos: self.x - dp(20), self.y + dp(32)
-                size: self.width + dp(40), self.height * 0.64
-                radius: [dp(40), dp(40), dp(18), dp(18)]
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: dp(15)
+            spacing: dp(15)
+
+            MDTopAppBar:
+                title: "Virtual Card"
+                md_bg_color: "#111111"
+                theme_text_color: "Custom"
+                text_color: "#FFD700"
+                left_action_items: [["arrow-left", lambda x: root.go_back()]]
+
+            MDCard:
+                size_hint_y: None
+                height: dp(220)
+                radius: [25]
+                elevation: 10
+                md_bg_color: "#111111"
+
+                FloatLayout:
+
+                    MDLabel:
+                        text: "CYBER CASH"
+                        pos_hint: {"x": 0.05, "top": 0.95}
+                        font_style: "H6"
+                        theme_text_color: "Custom"
+                        text_color: "#FFD700"
+
+                    MDLabel:
+                        text: "●●●●  ●●●●  ●●●●  4587"
+                        font_style: "H5"
+                        pos_hint: {"center_y": 0.55}
+
+                    MDLabel:
+                        text: "JOHN DOE"
+                        pos_hint: {"x": 0.05, "y": 0.15}
+
+                    MDLabel:
+                        text: "EXP 12/29"
+                        pos_hint: {"x": 0.05, "y": 0.05}
+
+                    MDLabel:
+                        text: "$1,250.00"
+                        pos_hint: {"right": 0.95, "top": 0.90}
+                        halign: "right"
+                        theme_text_color: "Custom"
+                        text_color: "#00FF66"
+
+            MDGridLayout:
+                cols: 4
+                spacing: dp(10)
+                size_hint_y: None
+                height: dp(80)
+
+                MDIconButton:
+                    icon: "cash-plus"
+
+                MDIconButton:
+                    icon: "snowflake"
+
+                MDIconButton:
+                    icon: "eye"
+
+                MDIconButton:
+                    icon: "delete"
+
+            MDCard:
+                padding: dp(15)
+
+                MDBoxLayout:
+                    orientation: "vertical"
+
+                    MDLabel:
+                        text: "Card Information"
+                        bold: True
+
+                    MDLabel:
+                        text: "Type: Mastercard"
+
+                    MDLabel:
+                        text: "Currency: USD"
+
+                    MDLabel:
+                        text: "Status: Active"
+
+                    MDLabel:
+                        text: "Daily Limit: $5,000"
 
         ScrollView:
             do_scroll_x: False
@@ -64,86 +129,6 @@ KV = """
                 height: self.minimum_height
                 padding: [dp(16 * root.layout_scale), dp(16 * root.layout_scale), dp(16 * root.layout_scale), dp(18 * root.layout_scale)]
                 spacing: dp(10 * root.layout_scale)
-
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: dp(60 * root.layout_scale)
-
-                    Widget:
-                        size_hint_x: None
-                        width: dp(64 * root.layout_scale)
-
-                    MDLabel:
-                        text: "CYBER CASH"
-                        halign: "center"
-                        theme_text_color: "Custom"
-                        text_color: GOLD
-                        font_style: "Title"
-                        font_size: sp(24 * root.text_scale)
-                        bold: True
-
-                    MDTextButton:
-                        text: "Back"
-                        size_hint_x: None
-                        width: dp(64 * root.layout_scale)
-                        theme_text_color: "Custom"
-                        text_color: GOLD
-                        on_release: root.go_back()
-
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: "1dp"
-                    canvas.before:
-                        Color:
-                            rgba: 0.62, 0.62, 0.64, 0.20
-                        Rectangle:
-                            pos: self.pos
-                            size: self.size
-                        Color:
-                            rgba: 0.97, 0.82, 0.50, 0.88
-                        Rectangle:
-                            pos: self.center_x - self.width * 0.18, self.y
-                            size: self.width * 0.36, self.height
-                        Color:
-                            rgba: 0.96, 0.82, 0.48, 0.20
-                        Rectangle:
-                            pos: self.center_x - self.width * 0.28, self.y - dp(1)
-                            size: self.width * 0.56, dp(3)
-
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: dp(40 * root.layout_scale)
-                    spacing: dp(10 * root.layout_scale)
-
-                    MDCard:
-                        size_hint: None, None
-                        size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                        radius: [dp(10 * root.layout_scale)]
-                        md_bg_color: [0.64, 0.49, 0.20, 0.36]
-                        elevation: 0
-
-                        MDIcon:
-                            icon: "credit-card-outline"
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            font_size: sp(19 * root.icon_scale)
-                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
-
-                    MDLabel:
-                        text: root.page_title
-                        theme_text_color: "Custom"
-                        text_color: TEXT_MAIN
-                        font_style: "Title"
-                        font_size: sp(17 * root.text_scale)
-                        bold: True
-
-                MDLabel:
-                    text: root.page_subtitle
-                    theme_text_color: "Custom"
-                    text_color: TEXT_SUB
-                    font_size: sp(12.5 * root.text_scale)
-                    adaptive_height: True
-
                 MDCard:
                     radius: [dp(22 * root.layout_scale)]
                     md_bg_color: GREEN_CARD
