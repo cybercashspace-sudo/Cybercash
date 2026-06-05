@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from backend.database import Base
@@ -24,6 +24,10 @@ class Transaction(Base):
     provider = Column(String, nullable=True) # e.g., 'paystack', 'momo'
     provider_reference = Column(String, nullable=True, unique=True) # Reference ID from the payment provider
 
+    # Idempotency key: ensures the same transaction isn't processed twice
+    # Example: UUID from client or generated server-side (e.g., for deposits)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
+
     fx_rate = Column(Float, nullable=True) # Exchange rate applied for FX transactions
     fx_spread_amount = Column(Float, nullable=True) # Revenue earned from FX spread
 
@@ -38,3 +42,4 @@ class Transaction(Base):
     wallet = relationship("Wallet", back_populates="transactions")
     journal_entries = relationship("JournalEntry", back_populates="transactions")
     commissions = relationship("Commission", back_populates="transaction")
+    audit_logs = relationship("AuditLog", back_populates="transaction")

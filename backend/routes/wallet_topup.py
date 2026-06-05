@@ -13,6 +13,7 @@ from backend.core.config import settings
 from backend.database import get_db
 from backend.dependencies.auth import get_current_user
 from backend.models import Payment, Transaction, User, Wallet
+from backend.services.reconciliation_service import log_wallet_audit
 
 
 router = APIRouter(prefix="/api/wallet/topup/paystack", tags=["Wallet Top-up"])
@@ -215,11 +216,32 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
         status="completed",
         provider="paystack",
         provider_reference=processor_reference,
+        idempotency_key=reference,  # Use payment reference as idempotency key
         metadata_json=json.dumps({"payment_id": payment.id, "paystack_reference": processor_reference}),
     )
 
     db.add(wallet)
     db.add(transaction)
+    
+    # Log audit entry for wallet topup
+    wallet_before_balance = round(float(wallet.balance or 0.0) - amount, 2)  # Balance before this topup
+    wallet_after_balance = round(float(wallet.balance or 0.0), 2)  # Balance after this topup
+    await log_wallet_audit(
+        db,
+        user_id=int(user_id),
+        action="WALLET_TOPUP",
+        transaction_id=transaction.id,
+        before_balance=wallet_before_balance,
+        after_balance=wallet_after_balance,
+        amount_changed=amount,
+        description=f"Wallet topped up via Paystack: {amount} GHS",
+        metadata_json=json.dumps({
+            "processor": "paystack",
+            "processor_reference": processor_reference,
+            "payment_id": payment.id,
+        }),
+    )
+    
     await db.commit()
 
     return {

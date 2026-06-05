@@ -24,6 +24,7 @@ from backend.schemas.fx import ExchangeRequest, ExchangeResponse # New Import
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.fx_service import FxService, get_fx_service # New Import
 from backend.services import loan_service
+from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user
 from backend.core.transaction_types import TransactionType
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
@@ -117,6 +118,61 @@ async def _resolve_ws_user(token: str) -> User | None:
 @router.get("/")
 def wallet_status():
     return {"wallet": "ready"}
+
+@router.get("/verify", response_model=dict)
+async def verify_wallet(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Verify wallet balance against transaction ledger.
+    
+    Returns the wallet balance, ledger-calculated balance, and verification status.
+    This is the recommended way to trust wallet balance after updates, logouts, or long inactivity.
+    
+    Response:
+    {
+        "wallet_balance": 500.00,
+        "ledger_balance": 500.00,
+        "status": "verified" | "mismatch",
+        "difference": 0.00,
+        "verified_at": "2026-06-04T12:00:00Z"
+    }
+    """
+    try:
+        is_verified, details = await verify_wallet_balance(db, current_user.id)
+        return details
+    finally:
+        await db.close()
+
+
+@router.get("/audit-logs", response_model=list)
+async def get_wallet_audit_logs(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """
+    Retrieve audit logs for the current user's wallet.
+    Shows all balance changes, transfers, and transactions.
+    """
+    try:
+        logs = await get_audit_logs_for_user(db, current_user.id, limit=limit)
+        return [
+            {
+                "id": log.id,
+                "action": log.action,
+                "description": log.description,
+                "before_balance": log.before_balance,
+                "after_balance": log.after_balance,
+                "amount_changed": log.amount_changed,
+                "transaction_id": log.transaction_id,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log in logs
+        ]
+    finally:
+        await db.close()
 
 @router.get("/all_fiat", response_model=List[WalletResponse])
 async def read_all_user_fiat_wallets( # Added async
@@ -393,6 +449,49 @@ async def transfer_funds(
             user_id=recipient_user.id,
             allow_auto_deduction=True,
         )
+        
+        # Log audit entries for sender and recipient
+        sender_before_balance = sender_source_balance
+        sender_after_balance = float(sender_wallet.balance or 0.0)
+        recipient_before_balance = 0.0 if recipient_wallet is None else float(recipient_wallet.balance - requested_amount or 0.0)
+        recipient_after_balance = float(recipient_wallet.balance or 0.0)
+        
+        await log_wallet_audit(
+            db,
+            user_id=current_user.id,
+            action="TRANSFER_SENT",
+            transaction_id=sender_transaction.id,
+            before_balance=sender_before_balance,
+            after_balance=sender_after_balance,
+            amount_changed=-required_amount,
+            description=f"Transfer sent to {recipient_identifier}: {requested_amount} GHS (fee: {transfer_fee} GHS)",
+            metadata_json=json.dumps({
+                "recipient_id": recipient_user.id,
+                "recipient_identifier": recipient_identifier,
+                "transferred_amount": requested_amount,
+                "fee": transfer_fee,
+                "transfer_reference": f"TRX-{int(sender_transaction.id)}",
+            }),
+        )
+        
+        await log_wallet_audit(
+            db,
+            user_id=recipient_user.id,
+            action="TRANSFER_RECEIVED",
+            transaction_id=recipient_transaction.id,
+            before_balance=recipient_before_balance,
+            after_balance=recipient_after_balance,
+            amount_changed=requested_amount,
+            description=f"Transfer received from {sender_identifier}: {requested_amount} GHS",
+            metadata_json=json.dumps({
+                "sender_id": current_user.id,
+                "sender_identifier": sender_identifier,
+                "transferred_amount": requested_amount,
+                "transfer_reference": f"TRX-{int(sender_transaction.id)}",
+            }),
+        )
+        
+        await db.commit()
         await db.refresh(sender_wallet) # Refresh sender wallet to return updated balance
         transfer_reference = f"TRX-{int(sender_transaction.id)}"
         resolved_recipient_number = recipient_user.momo_number or recipient_user.phone_number or recipient_wallet_id

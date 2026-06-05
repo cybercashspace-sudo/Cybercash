@@ -129,6 +129,8 @@ def _apply_schema_patches(sync_conn) -> None:
             "daily_spent": "FLOAT DEFAULT 0.0",
             "daily_spent_reset_at": datetime_type,
             "token_version": "INTEGER DEFAULT 0",
+            "is_deleted": "BOOLEAN DEFAULT FALSE",
+            "deleted_at": datetime_type,
         }
 
         for column, definition in patches.items():
@@ -136,6 +138,27 @@ def _apply_schema_patches(sync_conn) -> None:
                 sync_conn.execute(
                     text(f"ALTER TABLE users ADD COLUMN {column} {definition}")
                 )
+
+    # -------- WALLETS PATCH --------
+    if "wallets" in inspector.get_table_names():
+        wallet_cols = {c["name"] for c in inspector.get_columns("wallets")}
+        wallet_patches = {
+            "is_deleted": "BOOLEAN DEFAULT FALSE",
+            "deleted_at": datetime_type,
+        }
+        for column, definition in wallet_patches.items():
+            if column not in wallet_cols:
+                sync_conn.execute(
+                    text(f"ALTER TABLE wallets ADD COLUMN {column} {definition}")
+                )
+
+    # -------- TRANSACTIONS PATCH (idempotency) --------
+    if "transactions" in inspector.get_table_names():
+        tx_cols = {c["name"] for c in inspector.get_columns("transactions")}
+        if "idempotency_key" not in tx_cols:
+            sync_conn.execute(
+                text("ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR UNIQUE")
+            )
 
     # -------- LOAN APPLICATIONS PATCH --------
     if "loan_applications" in inspector.get_table_names():
@@ -332,6 +355,44 @@ async def startup_db_events():
     except Exception as exc:
         _database_startup_error = f"{type(exc).__name__}: {exc}"
         logger.exception("Database initialization failed during startup; continuing so health checks can respond")
+
+
+async def _run_daily_reconciliation() -> None:
+    """
+    Runs daily at 2 AM UTC to reconcile all wallet balances against their transaction ledgers.
+    Logs mismatches and freezes affected wallets for admin review.
+    """
+    from backend.services.reconciliation_service import reconcile_all_wallets
+    import asyncio
+    from datetime import datetime, timedelta
+
+    logger.info("Daily wallet reconciliation background task started")
+
+    while True:
+        try:
+            # Calculate time until next 2 AM UTC
+            now = datetime.utcnow()
+            next_reconcile = (now + timedelta(days=1)).replace(hour=2, minute=0, second=0, microsecond=0)
+            sleep_seconds = (next_reconcile - now).total_seconds()
+
+            logger.info(f"Next reconciliation scheduled in {sleep_seconds:.0f} seconds at {next_reconcile} UTC")
+            await asyncio.sleep(max(sleep_seconds, 60))
+
+            # Run reconciliation
+            async with async_session() as db:
+                report = await reconcile_all_wallets(db)
+                logger.info(f"Daily reconciliation report: {report}")
+
+        except Exception as e:
+            logger.error(f"Reconciliation task error: {str(e)}", exc_info=True)
+            await asyncio.sleep(3600)  # Retry after 1 hour on error
+
+
+@app.on_event("startup")
+async def startup_background_tasks():
+    """Start background tasks like daily reconciliation"""
+    if os.environ.get("RUNNING_TESTS") != "true":
+        asyncio.create_task(_run_daily_reconciliation())
 
 # ==========================================
 # CORS CONFIG

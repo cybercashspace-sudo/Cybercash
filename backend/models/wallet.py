@@ -17,6 +17,9 @@ class Wallet(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_frozen = Column(Boolean, default=False) # New field for admin control to freeze wallet
+    is_deleted = Column(Boolean, default=False, index=True)  # Soft delete flag for data retention
+    deleted_at = Column(DateTime(timezone=True), nullable=True)  # Timestamp when soft-deleted
     metadata_json = Column(String, nullable=True) # For any additional wallet-specific data
 
     transactions = relationship("Transaction", back_populates="wallet")
+    audit_logs = relationship("AuditLog", back_populates="wallet", foreign_keys="[AuditLog.resource_id]", primaryjoin="and_(Wallet.id==AuditLog.resource_id, AuditLog.resource_type=='wallet')", viewonly=True)

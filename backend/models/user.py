@@ -24,6 +24,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     is_agent = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False, index=True)  # Soft delete flag for GDPR/recovery
     role = Column(String, default="user")
     status = Column(String, default="active")
 
@@ -47,6 +48,7 @@ class User(Base):
     daily_spent_reset_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)  # Timestamp when soft-deleted
 
     @property
     def first_name(self):
@@ -74,3 +76,4 @@ class User(Base):
         back_populates="user",
         foreign_keys="Loan.user_id",
     )
+    audit_logs = relationship("AuditLog", back_populates="user")
