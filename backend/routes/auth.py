@@ -619,8 +619,10 @@ async def access_account(
     )
     db.add(new_user)
     await db.flush()
-    wallet = Wallet(user_id=new_user.id, currency="GHS", balance=0.0)
-    db.add(wallet)
+    # Point 1: Check for existing wallet before creation to prevent balance fragmentation
+    wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == new_user.id))
+    if not wallet_res.scalars().first():
+        db.add(Wallet(user_id=new_user.id, currency="GHS", balance=0.0))
     otp_code, send_result = await otp_service.issue_otp(
         identity,
         purpose="access_verify",

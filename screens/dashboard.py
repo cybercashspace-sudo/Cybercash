@@ -11,6 +11,7 @@ from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, NumericProperty, StringProperty
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.gridlayout import GridLayout
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -185,36 +186,41 @@ KV = """
                     elevation: 0
                     padding: [dp(10 * root.layout_scale), dp(6 * root.layout_scale), dp(12 * root.layout_scale), dp(6 * root.layout_scale)]
 
-                    MDBoxLayout:
-                        spacing: dp(8 * root.layout_scale)
+                    MDRelativeLayout:
+                        MDBoxLayout:
+                            spacing: dp(8 * root.layout_scale)
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
 
-                        MDCard:
-                            size_hint: None, None
-                            size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
-                            radius: [dp(11 * root.layout_scale)]
-                            md_bg_color: 0.62, 0.48, 0.22, 0.48
-                            elevation: 0
-                            padding: 0
-
-                            MDIconButton:
-                                icon: "card-account-details-outline"
-                                user_font_size: str(18 * root.icon_scale) + "sp"
+                            MDCard:
                                 size_hint: None, None
-                                size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.94, 0.78, 0.44, 1
-                                disabled: True
+                                size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
+                                radius: [dp(11 * root.layout_scale)]
+                                md_bg_color: 0.62, 0.48, 0.22, 0.48
+                                elevation: 0
+                                padding: 0
 
-                        MDLabel:
-                            text: root.greeting_text
-                            font_style: "Body"
-                            font_name: FONT_SEMI
-                            font_size: sp(16 * root.text_scale)
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_primary
-                            shorten: True
-                            shorten_from: "right"
+                                MDIconButton:
+                                    icon: "card-account-details-outline"
+                                    user_font_size: str(18 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: 0.94, 0.78, 0.44, 1
+                                    disabled: True
+
+                            MDLabel:
+                                text: root.greeting_text
+                                font_style: "Body"
+                                font_name: FONT_SEMI
+                                font_size: sp(16 * root.text_scale)
+                                valign: "middle"
+                                theme_text_color: "Custom"
+                                pos_hint: {"center_y": 0.5}
+                                text_color: app.ui_text_primary
+                                shorten: True
+                                shorten_from: "right"
 
                 MDCard:
                     radius: [dp(22 * root.layout_scale)]
@@ -245,78 +251,79 @@ KV = """
                             size: self.width * 0.62, self.height * 0.52
                             radius: [dp(34), dp(14), dp(24), dp(12)]
 
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(8 * root.layout_scale)
-
+                    MDRelativeLayout:
                         MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42 * root.layout_scale)
-                            spacing: dp(10 * root.layout_scale)
+                            orientation: "vertical"
+                            spacing: dp(8 * root.layout_scale)
+                            pos_hint: {"center_x": .5, "center_y": .5}
 
-                            MDCard:
-                                size_hint: None, None
-                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                radius: [dp(11 * root.layout_scale)]
-                                md_bg_color: 0.44, 0.66, 0.34, 0.92
+                            MDBoxLayout:
+                                size_hint_y: None
+                                height: dp(42 * root.layout_scale)
+                                spacing: dp(10 * root.layout_scale)
+                                adaptive_height: True
                                 pos_hint: {"center_y": 0.5}
-                                padding: dp(6 * root.layout_scale)
-                                elevation: 0
 
-                                MDIconButton:
-                                    icon: "wallet-outline"
-                                    user_font_size: str(18 * root.icon_scale) + "sp"
+                                MDCard:
                                     size_hint: None, None
-                                    size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                    radius: [dp(11 * root.layout_scale)]
+                                    md_bg_color: 0.44, 0.66, 0.34, 0.92
+                                    pos_hint: {"center_y": 0.5}
+                                    padding: dp(6 * root.layout_scale)
+                                    elevation: 0
+                                    AnchorLayout:
+                                        anchor_x: "center"
+                                        anchor_y: "center"
+                                        MDIconButton:
+                                            icon: "wallet-outline"
+                                            user_font_size: str(18 * root.icon_scale) + "sp"
+                                            size_hint: None, None
+                                            size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                            theme_text_color: "Custom"
+                                            text_color: 0.91, 0.98, 0.83, 1
+                                            disabled: True
+
+                                MDLabel:
+                                    text: "Wallet Balance"
+                                    bold: True
+                                    font_style: "Body"
+                                    font_name: FONT_SEMI
+                                    font_size: sp(15 * root.text_scale)
                                     theme_text_color: "Custom"
-                                    text_color: 0.91, 0.98, 0.83, 1
-                                    halign: "center"
-                                    valign: "center"
-                                    text_size: self.size
-                                    disabled: True
+                                    pos_hint: {"center_y": 0.5}
+                                    text_color: app.ui_text_primary
+                                valign: "middle"
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                    radius: [dp(17 * root.layout_scale)]
+                                    md_bg_color: 0.12, 0.22, 0.19, 0.62
+                                    line_color: [0.55, 0.73, 0.62, 0.22]
+                                    pos_hint: {"center_y": 0.5}
+                                    padding: dp(5 * root.layout_scale)
+                                    elevation: 0
+                                    AnchorLayout:
+                                        anchor_x: "center"
+                                        anchor_y: "center"
+                                        MDIconButton:
+                                            icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
+                                            user_font_size: str(18 * root.icon_scale) + "sp"
+                                            size_hint: None, None
+                                            size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                            theme_text_color: "Custom"
+                                            text_color: 0.90, 0.96, 0.84, 1
+                                            on_release: root.toggle_balance()
 
                             MDLabel:
-                                text: "Wallet Balance"
+                                text: root.balance_display
                                 bold: True
-                                font_style: "Body"
-                                font_name: FONT_SEMI
-                                font_size: sp(15 * root.text_scale)
+                                font_style: "Headline"
+                                font_name: FONT_BOLD
+                                font_size: sp(37 * root.text_scale)
                                 theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                                valign: "center"
-
-                            MDCard:
-                                size_hint: None, None
-                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                radius: [dp(17 * root.layout_scale)]
-                                md_bg_color: 0.12, 0.22, 0.19, 0.62
-                                line_color: [0.55, 0.73, 0.62, 0.22]
-                                pos_hint: {"center_y": 0.5}
-                                padding: dp(5 * root.layout_scale)
-                                elevation: 0
-
-                                MDIconButton:
-                                    icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
-                                    user_font_size: str(18 * root.icon_scale) + "sp"
-                                    size_hint: None, None
-                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                    halign: "center"
-                                    valign: "center"
-                                    text_size: self.size
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: 0.90, 0.96, 0.84, 1
-                                    on_release: root.toggle_balance()
-
-                        MDLabel:
-                            text: root.balance_display
-                            bold: True
-                            font_style: "Headline"
-                            font_name: FONT_BOLD
-                            font_size: sp(37 * root.text_scale)
-                            theme_text_color: "Custom"
-                            text_color: app.gold
+                                text_color: app.gold
 
                 MDBoxLayout:
                     size_hint_y: None
@@ -336,39 +343,48 @@ KV = """
                             RoundedRectangle:
                                 pos: self.x + dp(2), self.top - self.height * 0.34
                                 size: self.width - dp(4), self.height * 0.24
+                                pos_hint: {"center_y": .5}
                                 radius: [dp(18)]
 
-                        MDBoxLayout:
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDCard:
-                                size_hint: None, None
-                                size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                        MDRelativeLayout:
+                            MDBoxLayout:
+                                spacing: dp(10 * root.layout_scale)
+                                adaptive_height: True
                                 pos_hint: {"center_y": 0.5}
-                                radius: [dp(11 * root.layout_scale)]
-                                md_bg_color: 0.58, 0.40, 0.15, 0.56
-                                elevation: 0
-                                padding: 0
 
-                                MDIconButton:
-                                    icon: "plus"
-                                    user_font_size: str(20 * root.icon_scale) + "sp"
+                                MDCard:
                                     size_hint: None, None
-                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: 0.23, 0.17, 0.08, 1
-                                    disabled: True
+                                    size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                                    pos_hint: {"center_y": 0.5}
+                                    radius: [dp(11 * root.layout_scale)]
+                                    md_bg_color: 0.58, 0.40, 0.15, 0.56
+                                    elevation: 0
+                                    padding: 0
 
-                            MDLabel:
-                                text: "Deposit"
-                                bold: True
-                                valign: "center"
-                                font_style: "Title"
-                                font_name: FONT_BOLD
-                                font_size: sp(16 * root.text_scale)
-                                theme_text_color: "Custom"
-                                text_color: 0, 0, 0, 1
+                                    MDBoxLayout:
+                                        pos_hint: {"center_y": .5}
+                                        AnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIconButton:
+                                                icon: "plus"
+                                                user_font_size: str(20 * root.icon_scale) + "sp"
+                                                size_hint: None, None
+                                                size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                                theme_text_color: "Custom"
+                                                text_color: 0.23, 0.17, 0.08, 1
+                                                disabled: True
+
+                                MDLabel:
+                                    text: "Deposit"
+                                    bold: True
+                                    valign: "middle"
+                                    font_style: "Title"
+                                    font_name: FONT_BOLD
+                                    font_size: sp(16 * root.text_scale)
+                                    pos_hint: {"center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: 0, 0, 0, 1
 
                     MDCard:
                         radius: [dp(20 * root.layout_scale)]
@@ -383,55 +399,66 @@ KV = """
                             RoundedRectangle:
                                 pos: self.x + dp(2), self.top - self.height * 0.32
                                 size: self.width - dp(4), self.height * 0.22
+                                pos_hint: {"center_y": .5}
                                 radius: [dp(18)]
 
-                        MDBoxLayout:
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDCard:
-                                size_hint: None, None
-                                size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
-                                pos_hint: {"center_y": 0.5}
-                                radius: [dp(11 * root.layout_scale)]
-                                md_bg_color: 0.10, 0.24, 0.19, 0.82
-                                elevation: 0
-                                padding: 0
-
-                                MDIconButton:
-                                    icon: "cash-minus"
-                                    user_font_size: str(20 * root.icon_scale) + "sp"
-                                    size_hint: None, None
-                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: 0.78, 0.93, 0.77, 1
-                                    disabled: True
-
+                        MDRelativeLayout:
                             MDBoxLayout:
-                                orientation: "vertical"
-                                spacing: dp(1 * root.layout_scale)
+                                spacing: dp(10 * root.layout_scale)
+                                adaptive_height: True
+                                pos_hint: {"center_y": 0.5}
 
-                                Widget:
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                                    pos_hint: {"center_y": 0.5}
+                                    radius: [dp(11 * root.layout_scale)]
+                                    md_bg_color: 0.10, 0.24, 0.19, 0.82
+                                    elevation: 0
+                                    padding: 0
 
-                                MDLabel:
-                                    text: "Withdraw"
-                                    bold: True
-                                    font_style: "Title"
-                                    font_name: FONT_BOLD
-                                    font_size: sp(16 * root.text_scale)
-                                    theme_text_color: "Custom"
-                                    text_color: app.ui_text_primary
+                                    MDBoxLayout:
+                                        pos_hint: {"center_y": .5}
+                                        AnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIconButton:
+                                                icon: "cash-minus"
+                                                user_font_size: str(20 * root.icon_scale) + "sp"
+                                                size_hint: None, None
+                                                size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                                theme_text_color: "Custom"
+                                                text_color: 0.78, 0.93, 0.77, 1
+                                                disabled: True
+
+                                MDBoxLayout:
+                                    orientation: "vertical"
+                                    spacing: dp(1 * root.layout_scale)
                                     adaptive_height: True
 
-                                MDLabel:
-                                    text: "To agent • 1% fee"
-                                    theme_text_color: "Custom"
-                                    text_color: 0.78, 0.93, 0.77, 1
-                                    font_name: FONT_SEMI
-                                    font_size: sp(11.5 * root.text_scale)
-                                    adaptive_height: True
+                                    Widget:
 
-                                Widget:
+                                    MDLabel:
+                                        text: "Withdraw"
+                                        bold: True
+                                        font_style: "Title"
+                                        font_name: FONT_BOLD
+                                        font_size: sp(16 * root.text_scale)
+                                        theme_text_color: "Custom"
+                                        valign: "center"
+                                        text_color: app.ui_text_primary
+                                        adaptive_height: True
+
+                                    MDLabel:
+                                        text: "To agent • 1% fee"
+                                        theme_text_color: "Custom"
+                                        text_color: 0.78, 0.93, 0.77, 1
+                                        font_name: FONT_SEMI
+                                        valign: "center"
+                                        font_size: sp(11.5 * root.text_scale)
+                                        adaptive_height: True
+
+                                    Widget:
 
                 MDBoxLayout:
                     adaptive_height: True
@@ -466,16 +493,22 @@ KV = """
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "0dp"
-                            MDIconButton:
-                                icon: "send"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.55, 0.84, 0.66, 1
-                                on_release: root.go_to_p2p_transfer()
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
+                            spacing: dp(2 * root.layout_scale)
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(34 * root.layout_scale)
+                                MDIconButton:
+                                    icon: "send"
+                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    theme_text_color: "Custom"
+                                    text_color: 0.55, 0.84, 0.66, 1
+                                    on_release: root.go_to_p2p_transfer()
                             MDLabel:
                                 text: "Send"
                                 halign: "center"
@@ -483,6 +516,7 @@ KV = """
                                 font_size: sp(12 * root.text_scale)
                                 theme_text_color: "Custom"
                                 text_color: app.ui_text_primary
+                                valign: "middle"
 
                     MDCard:
                         radius: [dp(16 * root.layout_scale)]
@@ -492,16 +526,22 @@ KV = """
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "0dp"
-                            MDIconButton:
-                                icon: "finance"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.91, 0.75, 0.44, 1
-                                on_release: root.go_to_investments()
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
+                            spacing: dp(2 * root.layout_scale)
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(34 * root.layout_scale)
+                                MDIconButton:
+                                    icon: "finance"
+                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    theme_text_color: "Custom"
+                                    text_color: 0.91, 0.75, 0.44, 1
+                                    on_release: root.go_to_investments()
                             MDLabel:
                                 text: "Invest"
                                 halign: "center"
@@ -518,16 +558,22 @@ KV = """
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "0dp"
-                            MDIconButton:
-                                icon: "shield-check-outline"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.83, 0.92, 0.60, 1
-                                on_release: root.go_to_loans()
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
+                            spacing: dp(2 * root.layout_scale)
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(34 * root.layout_scale)
+                                MDIconButton:
+                                    icon: "shield-check-outline"
+                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    theme_text_color: "Custom"
+                                    text_color: 0.83, 0.92, 0.60, 1
+                                    on_release: root.go_to_loans()
                             MDLabel:
                                 text: "Loan"
                                 halign: "center"
@@ -545,16 +591,22 @@ KV = """
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
-                            spacing: "0dp"
-                            MDIconButton:
-                                icon: "view-grid"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.90, 0.75, 0.43, 1
-                                on_release: root.open_more_actions()
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
+                            spacing: dp(2 * root.layout_scale)
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(34 * root.layout_scale)
+                                MDIconButton:
+                                    icon: "view-grid"
+                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    size_hint: None, None
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    theme_text_color: "Custom"
+                                    text_color: 0.90, 0.75, 0.43, 1
+                                    on_release: root.open_more_actions()
                             MDLabel:
                                 text: "More"
                                 halign: "center"
@@ -1106,10 +1158,9 @@ class DashboardScreen(MDScreen):
             self._update_balance_display()
             self.dashboard_status = "Updated just now"
         else:
-            if self.wallet_balance == 0.0:
-                self.wallet_balance = 5250.0
-                self._update_balance_display()
-            self.dashboard_status = error_text or "Demo wallet balance"
+            # Point 3: Do not mask missing data with default/demo balances
+            self.dashboard_status = error_text or "Balance sync unavailable"
+            self._update_balance_display()
 
         if tx_rows:
             self._render_recent_activity(tx_rows)
@@ -1130,7 +1181,7 @@ class DashboardScreen(MDScreen):
             self._set_greeting("" if pending_momo.isdigit() else pending_momo)
 
         if not token:
-            self.wallet_balance = 5250.0
+            self.wallet_balance = 0.0
             self._update_balance_display()
             self.dashboard_status = "Demo mode. Sign in for live balance."
             self._render_recent_activity([])

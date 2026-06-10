@@ -217,6 +217,7 @@ KV = """
                             font_style: "Body"
                             font_name: FONT_SEMI
                             font_size: sp(16 * root.text_scale)
+                            valign: "center"
                             theme_text_color: "Custom"
                             text_color: TEXT_MAIN
                             shorten: True
@@ -304,6 +305,7 @@ KV = """
                                 font_style: "Body"
                                 font_name: FONT_SEMI
                                 font_size: sp(15 * root.text_scale)
+                                valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 valign: "center"

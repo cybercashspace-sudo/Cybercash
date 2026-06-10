@@ -179,7 +179,7 @@ KV = """
                                 size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
 
                             MDLabel:
-                                text: "Turn this on only when opening an agent account for the first time."
+                                text: "New Agent? Turn this on only for your first setup. Existing agents leave this OFF."
                                 valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN

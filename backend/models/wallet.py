@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, Numeric, ForeignKey, String, DateTime, Boolean, CheckConstraint
+from sqlalchemy import
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base

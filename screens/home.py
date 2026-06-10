@@ -11,6 +11,7 @@ from kivy.logger import Logger
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, NumericProperty, ObjectProperty, StringProperty
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.carousel import Carousel
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -525,8 +526,9 @@ KV = """
 
                 MDBoxLayout:
                     size_hint_y: None
-                    height: dp(40 * root.layout_scale)
+                    adaptive_height: True
                     spacing: dp(10 * root.layout_scale)
+                    pos_hint: {"center_y": 0.5}
 
                     MDCard:
                         size_hint: None, None
@@ -543,9 +545,6 @@ KV = """
                             font_size: sp(19 * root.icon_scale)
                             size_hint: None, None
                             size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                            text_size: self.size
-                            halign: "center"
-                            valign: "center"
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                     MDLabel:
@@ -554,6 +553,8 @@ KV = """
                         text_color: app.ui_text_primary
                         font_name: FONT_SEMI
                         font_size: sp(17 * root.text_scale)
+                        valign: "middle"
+                        pos_hint: {"center_y": 0.5}
                         shorten: True
                         shorten_from: "right"
 
@@ -668,6 +669,8 @@ KV = """
 
                         MDBoxLayout:
                             spacing: dp(10 * root.layout_scale)
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
 
                             MDCard:
                                 size_hint: None, None
@@ -685,9 +688,6 @@ KV = """
                                     font_size: sp(20 * root.icon_scale)
                                     size_hint: None, None
                                     size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
@@ -696,6 +696,8 @@ KV = """
                                 text_color: [0, 0, 0, 1]
                                 font_name: FONT_BOLD
                                 font_size: sp(17 * root.text_scale)
+                                valign: "middle"
+                                pos_hint: {"center_y": 0.5}
                                 bold: True
 
                     MDCard:
@@ -716,6 +718,8 @@ KV = """
 
                         MDBoxLayout:
                             spacing: dp(10 * root.layout_scale)
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
 
                             MDCard:
                                 size_hint: None, None
@@ -733,9 +737,6 @@ KV = """
                                     font_size: sp(20 * root.icon_scale)
                                     size_hint: None, None
                                     size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
@@ -744,6 +745,8 @@ KV = """
                                 text_color: [0.96, 0.94, 0.88, 1]
                                 font_name: FONT_BOLD
                                 font_size: sp(17 * root.text_scale)
+                                valign: "middle"
+                                pos_hint: {"center_y": 0.5}
                                 bold: True
 
                 MDBoxLayout:
@@ -781,8 +784,15 @@ KV = """
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
                             spacing: 0
 
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(42 * root.layout_scale)
                             MDIconButton:
                                 icon: "send"
                                 user_font_size: str(31 * root.icon_scale) + "sp"
@@ -798,6 +808,7 @@ KV = """
                                 text_color: TEXT_MAIN
                                 font_name: FONT_SEMI
                                 font_size: sp(12.5 * root.text_scale)
+                                valign: "middle"
 
                     MDCard:
                         radius: [dp(16 * root.layout_scale)]
@@ -809,8 +820,15 @@ KV = """
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
                             spacing: 0
 
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(42 * root.layout_scale)
                             MDIconButton:
                                 icon: "finance"
                                 user_font_size: str(31 * root.icon_scale) + "sp"
@@ -837,8 +855,15 @@ KV = """
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
                             spacing: 0
 
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(42 * root.layout_scale)
                             MDIconButton:
                                 icon: "shield-check-outline"
                                 user_font_size: str(31 * root.icon_scale) + "sp"
@@ -865,8 +890,15 @@ KV = """
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            adaptive_height: True
+                            pos_hint: {"center_y": 0.5}
                             spacing: 0
 
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(42 * root.layout_scale)
                             MDIconButton:
                                 icon: "view-grid"
                                 user_font_size: str(31 * root.icon_scale) + "sp"
@@ -1206,7 +1238,12 @@ class HomeScreen(ResponsiveScreen):
             )
         )
 
-        title_stack = MDBoxLayout(orientation="vertical", spacing=dp(2 * layout_scale))
+        title_stack = MDBoxLayout(
+            orientation="vertical", 
+            spacing=dp(2 * layout_scale),
+            adaptive_height=True,
+            pos_hint={"center_y": 0.5}
+        )
         title_stack.add_widget(
             MDLabel(
                 text=spec["title"],
@@ -1421,10 +1458,10 @@ class HomeScreen(ResponsiveScreen):
             line_color=icon_line,
             elevation=0,
         )
-        icon_wrap.add_widget(
+        icon_anchor = AnchorLayout(anchor_x="center", anchor_y="center")
+        icon_anchor.add_widget(
             MDIconButton(
                 icon=icon_name,
-                pos_hint={"center_x": 0.5, "center_y": 0.5},
                 size_hint=(None, None),
                 size=(dp(22 * layout_scale), dp(22 * layout_scale)),
                 theme_text_color="Custom",
@@ -1433,6 +1470,7 @@ class HomeScreen(ResponsiveScreen):
                 disabled=True,
             )
         )
+        icon_wrap.add_widget(icon_anchor)
 
         text_col = MDBoxLayout(orientation="vertical", spacing=dp(2 * layout_scale))
         text_col.add_widget(
@@ -1540,6 +1578,7 @@ class HomeScreen(ResponsiveScreen):
         headers = {"Authorization": f"Bearer {token}"}
         greeting_name = ""
         balance = None
+        is_verified = False
         recent_rows = []
         error_text = ""
         is_agent_active = False
@@ -1562,6 +1601,12 @@ class HomeScreen(ResponsiveScreen):
                     reset_token = True
                 elif wallet_status < 400 and isinstance(wallet_payload, dict):
                     balance = float(wallet_payload.get("balance", 0.0) or 0.0)
+                    # Point 8: Perform integrity check against transaction ledger
+                    v_status, v_payload = self._api_get("/wallet/verify", headers=headers)
+                    if v_status < 400 and isinstance(v_payload, dict):
+                        is_verified = v_payload.get("status") == "verified"
+                        if not is_verified and v_payload.get("difference", 0) != 0:
+                            Logger.warning("CyberCashLedger: Balance mismatch detected: %s", v_payload.get("difference"))
                 else:
                     Logger.info("CyberCashAuth: wallet refresh unavailable with HTTP %s; keeping session", wallet_status)
                     error_text = "Balance unavailable."
@@ -1603,6 +1648,7 @@ class HomeScreen(ResponsiveScreen):
                 error_text=error_text,
                 is_agent_active=is_agent_active,
                 reset_token=reset_token,
+                is_verified=is_verified
             )
         )
 
@@ -1614,6 +1660,7 @@ class HomeScreen(ResponsiveScreen):
         error_text: str = "",
         is_agent_active: bool = False,
         reset_token: bool = False,
+        is_verified: bool = False
     ) -> None:
         self._is_loading = False
         if reset_token:
@@ -1638,7 +1685,7 @@ class HomeScreen(ResponsiveScreen):
             self.balance_placeholder = ""
             self.wallet_balance_amount = float(balance)
             self._update_balance_display()
-            self.balance_status = "Live balance" if not error_text else error_text
+            self.balance_status = ("Verified balance ✓" if is_verified else "Live balance") if not error_text else error_text
 
         self._set_agent_action_state(is_agent_active)
         self._render_recent_activity(recent_rows or [])

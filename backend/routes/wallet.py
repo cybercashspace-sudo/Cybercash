@@ -125,7 +125,7 @@ async def verify_wallet(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Verify wallet balance against transaction ledger.
+    Verify wallet balance against the transaction ledger.
     
     Returns the wallet balance, ledger-calculated balance, and verification status.
     This is the recommended way to trust wallet balance after updates, logouts, or long inactivity.
@@ -141,7 +141,7 @@ async def verify_wallet(
     """
     try:
         is_verified, details = await verify_wallet_balance(db, current_user.id)
-        return details
+        return details # This already returns the required dictionary with comparison details
     finally:
         await db.close()
 
@@ -290,9 +290,10 @@ async def transfer_funds(
         if recipient_user.id == current_user.id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer funds to yourself.")
 
-        # Ensure recipient has a wallet before locking
+        # Point 1: Ensure exactly one wallet per user - check before creation
         res = await db.execute(select(Wallet).filter(Wallet.user_id == recipient_user.id))
-        if not res.scalars().first():
+        recipient_wallet = res.scalars().first()
+        if not recipient_wallet:
             db.add(Wallet(user_id=recipient_user.id, currency=request.currency, balance=Decimal("0.00")))
             await db.flush()
 

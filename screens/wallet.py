@@ -6,6 +6,7 @@ import webbrowser
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.metrics import dp
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
 
@@ -261,15 +262,17 @@ KV = """
                                         radius: [dp(11 * root.layout_scale)]
                                         md_bg_color: GOLD_SOFT
                                         elevation: 0
-                                        MDIconButton:
-                                            icon: "plus"
-                                            user_font_size: str(18 * root.icon_scale) + "sp"
-                                            size_hint: None, None
-                                            size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
-                                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                            theme_text_color: "Custom"
-                                            text_color: BG
-                                            disabled: True
+                                        AnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIconButton:
+                                                icon: "plus"
+                                                user_font_size: str(18 * root.icon_scale) + "sp"
+                                                size_hint: None, None
+                                                size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                                theme_text_color: "Custom"
+                                                text_color: BG
+                                                disabled: True
 
                                     MDLabel:
                                         text: "Paystack Deposit"
@@ -472,15 +475,17 @@ KV = """
                                         md_bg_color: 0.22, 0.40, 0.32, 1
                                         elevation: 0
 
-                                        MDIconButton:
-                                            icon: "cash-minus"
-                                            user_font_size: str(18 * root.icon_scale) + "sp"
-                                            size_hint: None, None
-                                            size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
-                                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                            theme_text_color: "Custom"
-                                            text_color: TEXT_MAIN
-                                            disabled: True
+                                        AnchorLayout:
+                                            anchor_x: "center"
+                                            anchor_y: "center"
+                                            MDIconButton:
+                                                icon: "cash-minus"
+                                                user_font_size: str(18 * root.icon_scale) + "sp"
+                                                size_hint: None, None
+                                                size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                                theme_text_color: "Custom"
+                                                text_color: TEXT_MAIN
+                                                disabled: True
 
                                     MDLabel:
                                         text: "Withdraw to Agent"
