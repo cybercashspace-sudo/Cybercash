@@ -161,6 +161,7 @@ class AdminUsersScreen(ActionScreen):
         status = str(user.get("status", "") or "").strip().lower()
         if not status:
             status = "active" if bool(user.get("is_active", True)) else "suspended"
+        sync_date = str(user.get("wallet_sync_date", "Never")).strip()
 
         flags = []
         if bool(user.get("is_admin")):
@@ -175,7 +176,7 @@ class AdminUsersScreen(ActionScreen):
 
         card = MDCard(
             size_hint_y=None,
-            height=dp(154 * layout_scale),
+            height=dp(174 * layout_scale),
             radius=[dp(16 * layout_scale)],
             md_bg_color=[0.08, 0.10, 0.14, 0.95],
             elevation=0,
@@ -222,6 +223,14 @@ class AdminUsersScreen(ActionScreen):
                 font_size=f"{11.0 * text_scale:.1f}sp",
             )
         )
+        content.add_widget(
+            MDLabel(
+                text=f"Last Ledger Sync: {sync_date}",
+                theme_text_color="Custom",
+                text_color=[0.94, 0.79, 0.46, 1],
+                font_size=f"{11.0 * text_scale:.1f}sp",
+            )
+        )
 
         actions = MDBoxLayout(orientation="horizontal", spacing=dp(10 * layout_scale), size_hint_y=None, height=dp(44 * layout_scale))
         actions.add_widget(
@@ -238,6 +247,13 @@ class AdminUsersScreen(ActionScreen):
                 md_bg_color=[0.54, 0.82, 0.67, 1],
                 disabled=status == "active",
                 on_release=lambda _btn, uid=user_id: self.update_user_status(uid, "active"),
+            )
+        )
+        actions.add_widget(
+            MDRaisedButton(
+                text="Fix Balance",
+                md_bg_color=[0.94, 0.79, 0.46, 1],
+                on_release=lambda _btn, uid=user_id: self.fix_user_balance(uid),
             )
         )
         content.add_widget(actions)
@@ -312,6 +328,22 @@ class AdminUsersScreen(ActionScreen):
         detail = self._extract_detail(payload) or "Unable to update user."
         self._set_feedback(detail, "error")
         self._show_popup("User Status", detail)
+
+    def fix_user_balance(self, user_id: int) -> None:
+        self._set_feedback("Reconciling user balance...", "info")
+        ok, payload = self._request(
+            "POST",
+            f"/admin/users/{int(user_id)}/reconcile",
+        )
+        if ok:
+            diff = float(payload.get("difference", 0.0))
+            msg = "Balance was already correct." if diff == 0 else f"Balance repaired from ledger. New balance: GHS {float(payload.get('wallet_balance', 0.0)):,.2f}"
+            self._set_feedback(msg, "success")
+            self._show_popup("Balance Fix", msg)
+            return
+        detail = self._extract_detail(payload) or "Unable to fix balance."
+        self._set_feedback(detail, "error")
+        self._show_popup("Balance Fix", detail)
 
 
 Builder.load_string(KV)

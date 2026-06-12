@@ -24,7 +24,7 @@ from backend.schemas.fx import ExchangeRequest, ExchangeResponse # New Import
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.fx_service import FxService, get_fx_service # New Import
 from backend.services import loan_service
-from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user
+from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user, repair_wallet_balance
 from backend.core.transaction_types import TransactionType
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
@@ -537,6 +537,9 @@ async def read_user_wallet( # Added async
     current_user: User = Depends(get_current_user)
 ):
     try:
+        # Automatic balance integrity check and repair
+        await repair_wallet_balance(db, current_user.id)
+
         await loan_service.run_loan_maintenance_for_user(
             db=db,
             user_id=current_user.id,

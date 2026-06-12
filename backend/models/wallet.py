@@ -1,5 +1,4 @@
-
-from sqlalchemy import
+from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, DateTime, Boolean, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
@@ -16,6 +15,7 @@ class Wallet(Base):
     investment_balance = Column(Numeric(20, 2), nullable=False, default=0.0)
     version = Column(Integer, default=1, nullable=False) # Optimistic locking
     last_verified_at = Column(DateTime(timezone=True), nullable=True) # For audit reconciliation
+    last_synced_with_ledger = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_frozen = Column(Boolean, default=False) # New field for admin control to freeze wallet
@@ -24,9 +24,11 @@ class Wallet(Base):
     metadata_json = Column(String, nullable=True) # For any additional wallet-specific data
 
     transactions = relationship("Transaction", back_populates="wallet")
+    user = relationship("User", back_populates="wallet")
     audit_logs = relationship("AuditLog", back_populates="wallet", foreign_keys="[AuditLog.resource_id]", primaryjoin="and_(Wallet.id==AuditLog.resource_id, AuditLog.resource_type=='wallet')", viewonly=True)
 
     __table_args__ = (
+        UniqueConstraint("user_id", name="uq_wallet_user"),
         CheckConstraint('balance >= 0', name='check_balance_non_negative'),
         CheckConstraint('escrow_balance >= 0', name='check_escrow_non_negative'),
         CheckConstraint('investment_balance >= 0', name='check_investment_non_negative'),

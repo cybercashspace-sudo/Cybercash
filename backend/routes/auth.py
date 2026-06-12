@@ -239,8 +239,10 @@ async def register_initiate(
         )
         db.add(user)
         await db.flush()
-        wallet = Wallet(user_id=user.id, currency="GHS", balance=0.0)
-        db.add(wallet)
+        # Point 1: Ensure exactly one wallet per user
+        wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == user.id))
+        if not wallet_res.scalars().first():
+            db.add(Wallet(user_id=user.id, currency="GHS", balance=0.0))
         if data.is_agent:
             if not data.business_name or not data.ghana_card_id or not data.agent_location:
                 raise HTTPException(
@@ -378,8 +380,10 @@ async def register_user(
         )
         db.add(new_user)
         await db.flush()
-        wallet = Wallet(user_id=new_user.id, currency="GHS", balance=0.0)
-        db.add(wallet)
+        # Point 1: Ensure exactly one wallet per user
+        wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == new_user.id))
+        if not wallet_res.scalars().first():
+            db.add(Wallet(user_id=new_user.id, currency="GHS", balance=0.0))
         if data.is_agent:
             if not data.business_name or not data.ghana_card_id or not data.agent_location:
                 raise HTTPException(

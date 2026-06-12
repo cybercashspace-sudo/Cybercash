@@ -139,12 +139,21 @@ def _apply_schema_patches(sync_conn) -> None:
                     text(f"ALTER TABLE users ADD COLUMN {column} {definition}")
                 )
 
+    # -------- AUDIT LOGS PATCH --------
+    if "audit_logs" in inspector.get_table_names():
+        audit_cols = {c["name"] for c in inspector.get_columns("audit_logs")}
+        if "sync_status" not in audit_cols:
+            sync_conn.execute(
+                text("ALTER TABLE audit_logs ADD COLUMN sync_status VARCHAR")
+            )
+
     # -------- WALLETS PATCH --------
     if "wallets" in inspector.get_table_names():
         wallet_cols = {c["name"] for c in inspector.get_columns("wallets")}
         wallet_patches = {
             "is_deleted": "BOOLEAN DEFAULT FALSE",
             "deleted_at": datetime_type,
+            "last_synced_with_ledger": datetime_type,
         }
         for column, definition in wallet_patches.items():
             if column not in wallet_cols:
@@ -372,10 +381,12 @@ async def _run_daily_reconciliation() -> None:
         try:
             # Calculate time until next 2 AM UTC
             now = datetime.utcnow()
-            next_reconcile = (now + timedelta(days=1)).replace(hour=2, minute=0, second=0, microsecond=0)
-            sleep_seconds = (next_reconcile - now).total_seconds()
+            next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run += timedelta(days=1)
+            sleep_seconds = (next_run - now).total_seconds()
 
-            logger.info(f"Next reconciliation scheduled in {sleep_seconds:.0f} seconds at {next_reconcile} UTC")
+            logger.info(f"Next reconciliation scheduled in {sleep_seconds:.0f} seconds at {next_run} UTC")
             await asyncio.sleep(max(sleep_seconds, 60))
 
             # Run reconciliation

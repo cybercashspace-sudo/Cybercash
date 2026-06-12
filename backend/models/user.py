@@ -59,6 +59,7 @@ class User(Base):
 
     agent = relationship("Agent", back_populates="user", uselist=False)
     agent_profile = relationship("AgentProfile", back_populates="user", uselist=False)
+    wallet = relationship("Wallet", back_populates="user", uselist=False)
     transactions = relationship("Transaction", back_populates="user")
     payments = relationship("Payment", back_populates="user")
     crypto_wallets = relationship("CryptoWallet", back_populates="user")

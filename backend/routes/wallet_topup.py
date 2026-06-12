@@ -66,10 +66,11 @@ async def _get_or_create_wallet(db: AsyncSession, user_id: int) -> Wallet:
     wallet = result.scalars().first()
     if wallet:
         return wallet
-    wallet = Wallet(user_id=user_id, balance=0.0)
-    db.add(wallet)
-    await db.flush()
-    return wallet
+    # Prevent automatic recreation of missing wallets during top-up
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="System error: Wallet record is missing. Please contact support."
+    )
 
 
 async def _initialize_paystack_payment(*, user: User, amount: float, email: str, reference: str) -> dict[str, Any]:

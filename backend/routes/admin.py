@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, timezone
 import json
@@ -48,6 +49,7 @@ from backend.services.bank import BankService, get_bank_service # New import
 from backend.services.payout_service import PayoutService, get_payout_service
 from backend.services.settings_service import get_or_create_platform_settings
 from backend.services.idata_service import IDataApiError, IDataService
+from backend.services.reconciliation_service import repair_wallet_balance
 from backend.services import loan_service # New Import
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -323,7 +325,7 @@ async def get_admin_dashboard(
         await db.close()
 
 
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users")
 async def list_users_admin(
     status: Optional[str] = None,
     role: Optional[str] = None,
@@ -340,7 +342,13 @@ async def list_users_admin(
         capped_limit = max(1, min(int(limit or 50), 200))
         capped_offset = max(0, int(offset or 0))
 
-        query = select(User).order_by(User.created_at.desc()).limit(capped_limit).offset(capped_offset)
+        query = (
+            select(User)
+            .options(selectinload(User.wallet))
+            .order_by(User.created_at.desc())
+            .limit(capped_limit)
+            .offset(capped_offset)
+        )
 
         if status:
             query = query.where(User.status == status)
@@ -358,10 +366,45 @@ async def list_users_admin(
             )
 
         result = await db.execute(query)
-        return result.scalars().all()
+        users = result.scalars().all()
+        
+        output = []
+        for u in users:
+            u_dict = {
+                "id": u.id,
+                "full_name": u.full_name,
+                "momo_number": u.momo_number,
+                "phone_number": u.phone_number,
+                "email": u.email,
+                "role": u.role,
+                "status": u.status,
+                "is_active": u.is_active,
+                "is_admin": u.is_admin,
+                "is_agent": u.is_agent,
+                "is_verified": u.is_verified,
+                "wallet_sync_date": u.wallet.last_synced_with_ledger.isoformat() if u.wallet and u.wallet.last_synced_with_ledger else "Never"
+            }
+            output.append(u_dict)
+        return output
     finally:
         await db.close()
 
+@router.post("/users/{user_id}/reconcile", response_model=dict)
+async def reconcile_user_balance_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+):
+    """
+    Triggers a manual balance reconciliation and repair for a specific user.
+    """
+    try:
+        success, details = await repair_wallet_balance(db, user_id, admin_id=admin_user.id)
+        if not success:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=details.get("error", "Reconciliation failed"))
+        return details
+    finally:
+        await db.close()
 
 @router.put("/users/{user_id}/status", response_model=UserResponse)
 async def update_user_status_admin(

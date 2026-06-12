@@ -2,11 +2,12 @@
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from backend.models import Wallet, Transaction, User, AuditLog
 from backend.core.transaction_types import TransactionType
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ async def log_wallet_audit(
     device_fingerprint: Optional[str] = None,
     description: Optional[str] = None,
     metadata_json: Optional[str] = None,
+    sync_status: Optional[str] = None,
 ) -> AuditLog:
     """
     Log a wallet action to the audit trail.
@@ -41,6 +43,7 @@ async def log_wallet_audit(
         device_fingerprint=device_fingerprint,
         description=description,
         metadata_json=metadata_json,
+        sync_status=sync_status,
     )
     db.add(audit_log)
     await db.flush()
@@ -105,6 +108,68 @@ async def verify_wallet_balance(
     }
 
 
+async def repair_wallet_balance(
+    db: AsyncSession,
+    user_id: int,
+    admin_id: Optional[int] = None
+) -> Tuple[bool, dict]:
+    """
+    Recalculates balance from ledger and updates the wallet.
+    Logs the action in AuditLog with sync_status.
+    """
+    is_verified, details = await verify_wallet_balance(db, user_id)
+    
+    if is_verified:
+        await db.execute(
+            update(Wallet)
+            .where(Wallet.user_id == user_id)
+            .values(last_synced_with_ledger=func.now(), last_verified_at=func.now())
+        )
+        await db.commit()
+        return True, details
+
+    ledger_balance = Decimal(str(details.get("ledger_balance", "0.00")))
+    wallet_balance = Decimal(str(details.get("wallet_balance", "0.00")))
+    difference = ledger_balance - wallet_balance
+
+    res = await db.execute(
+        select(Wallet).filter(Wallet.user_id == user_id).with_for_update()
+    )
+    wallet = res.scalars().first()
+    
+    if not wallet:
+        return False, {"error": "Wallet not found"}
+
+    wallet.balance = ledger_balance
+    wallet.version += 1
+    wallet.last_synced_with_ledger = func.now()
+    wallet.last_verified_at = func.now()
+    if admin_id and wallet.is_frozen:
+        wallet.is_frozen = False
+    
+    action = "MANUAL_BALANCE_REPAIR" if admin_id else "AUTO_BALANCE_REPAIR"
+    
+    await log_wallet_audit(
+        db,
+        user_id=user_id,
+        action=action,
+        before_balance=details["wallet_balance"],
+        after_balance=details["ledger_balance"],
+        amount_changed=difference,
+        description=f"Balance repaired from ledger. Difference: {difference}",
+        sync_status="repaired",
+        metadata_json=json.dumps(details)
+    )
+    
+    await db.commit()
+    await db.refresh(wallet)
+    
+    details["status"] = "repaired"
+    details["wallet_balance"] = float(ledger_balance)
+    details["difference"] = 0.0
+    return True, details
+
+
 async def reconcile_all_wallets(
     db: AsyncSession,
 ) -> dict:
@@ -139,6 +204,7 @@ async def reconcile_all_wallets(
                 wallet_obj = wallet_res.scalars().first()
                 if wallet_obj:
                     wallet_obj.last_verified_at = func.now()
+                    wallet_obj.last_synced_with_ledger = func.now()
             else:
                 mismatch_count += 1
                 difference = Decimal(str(details.get("difference", "0.00")))
@@ -153,6 +219,7 @@ async def reconcile_all_wallets(
                     after_balance=details["ledger_balance"],
                     amount_changed=difference,
                     metadata_json=str(details),
+                    sync_status="mismatch",
                 )
                 
                 # Lock the wallet to prevent further transactions
