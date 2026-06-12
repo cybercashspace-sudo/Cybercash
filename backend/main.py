@@ -139,6 +139,20 @@ def _apply_schema_patches(sync_conn) -> None:
                     text(f"ALTER TABLE users ADD COLUMN {column} {definition}")
                 )
 
+        # Ensure Unique Constraints on Identity Columns
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("users")}
+        unique_constraints = {
+            "uq_user_momo": "momo_number",
+            "uq_user_phone": "phone_number",
+            "uq_user_email": "email"
+        }
+        for name, col in unique_constraints.items():
+            if name not in existing_indexes:
+                try:
+                    sync_conn.execute(text(f"CREATE UNIQUE INDEX {name} ON users ({col})"))
+                except Exception:
+                    pass
+
     # -------- AUDIT LOGS PATCH --------
     if "audit_logs" in inspector.get_table_names():
         audit_cols = {c["name"] for c in inspector.get_columns("audit_logs")}

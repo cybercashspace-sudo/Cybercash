@@ -345,6 +345,7 @@ async def list_users_admin(
         query = (
             select(User)
             .options(selectinload(User.wallet))
+            .distinct()
             .order_by(User.created_at.desc())
             .limit(capped_limit)
             .offset(capped_offset)

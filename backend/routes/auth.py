@@ -1,15 +1,17 @@
 import logging
 import os
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 
 from backend.database import get_db
 from backend.models.agent import Agent
 from backend.models.user import User
 from backend.models.wallet import Wallet
+from backend.models import Transaction, Payment
 from backend.core.security import hash_password, verify_password, create_jwt
 from backend.schemas.auth import (
     RegisterSchema,
@@ -169,6 +171,59 @@ async def _cleanup_stale_unverified(db: AsyncSession, momo_number: str) -> None:
         await db.delete(user)
         await db.commit()
 
+async def _resolve_duplicates(db: AsyncSession, users: list[User]) -> User | None:
+    if not users:
+        return None
+    if len(users) == 1:
+        return users[0]
+
+    # Sort: Verified first, then by creation date (master is the most 'official' or oldest)
+    users.sort(key=lambda u: (bool(u.is_verified), u.created_at or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    master = users[0]
+    slaves = users[1:]
+
+    for slave in slaves:
+        # Only automatically merge/delete if the duplicate is unverified
+        if not slave.is_verified:
+            logger.info("Merging unverified duplicate user ID %s into master ID %s", slave.id, master.id)
+            
+            # Re-link transactions and payments to master user
+            await db.execute(update(Transaction).where(Transaction.user_id == slave.id).values(user_id=master.id))
+            await db.execute(update(Payment).where(Payment.user_id == slave.id).values(user_id=master.id))
+
+            # Merge Wallets
+            s_wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == slave.id))
+            s_wallet = s_wallet_res.scalars().first()
+            if s_wallet:
+                m_wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == master.id))
+                m_wallet = m_wallet_res.scalars().first()
+                if m_wallet:
+                    m_wallet.balance = (m_wallet.balance or Decimal("0.00")) + (s_wallet.balance or Decimal("0.00"))
+                    m_wallet.escrow_balance = (m_wallet.escrow_balance or Decimal("0.00")) + (s_wallet.escrow_balance or Decimal("0.00"))
+                    await db.execute(update(Transaction).where(Transaction.wallet_id == s_wallet.id).values(wallet_id=m_wallet.id))
+                    await db.delete(s_wallet)
+                else:
+                    s_wallet.user_id = master.id
+                    db.add(s_wallet)
+
+            # Re-link Agent records
+            s_agent_res = await db.execute(select(Agent).filter(Agent.user_id == slave.id))
+            s_agent = s_agent_res.scalars().first()
+            if s_agent:
+                m_agent_res = await db.execute(select(Agent).filter(Agent.user_id == master.id))
+                m_agent = m_agent_res.scalars().first()
+                if not m_agent:
+                    s_agent.user_id = master.id
+                else:
+                    m_agent.float_balance = (m_agent.float_balance or Decimal("0.00")) + (s_agent.float_balance or Decimal("0.00"))
+                    m_agent.commission_balance = (m_agent.commission_balance or Decimal("0.00")) + (s_agent.commission_balance or Decimal("0.00"))
+                    await db.delete(s_agent)
+
+            await db.delete(slave)
+    
+    await db.flush()
+    return master
+
 
 @router.post("/register/initiate")
 async def register_initiate(
@@ -192,7 +247,8 @@ async def register_initiate(
     existing_phone_result = await db.execute(
         select(User).filter((User.phone_number == identity_number) | (User.momo_number == identity_number))
     )
-    existing_user = existing_phone_result.scalars().first()
+    users = existing_phone_result.scalars().all()
+    existing_user = await _resolve_duplicates(db, users)
     if existing_user and existing_user.is_verified:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Phone number already registered")
 
@@ -249,14 +305,17 @@ async def register_initiate(
                     status.HTTP_400_BAD_REQUEST,
                     "Agent registration requires business_name, ghana_card_id, and agent_location.",
                 )
-            agent = Agent(
-                user_id=user.id,
-                status="pending",
-                business_name=data.business_name,
-                ghana_card_id=data.ghana_card_id,
-                agent_location=data.agent_location,
-            )
-            db.add(agent)
+            # Avoid duplicate agent record
+            agent_res = await db.execute(select(Agent).filter(Agent.user_id == user.id))
+            if not agent_res.scalars().first():
+                agent = Agent(
+                    user_id=user.id,
+                    status="pending",
+                    business_name=data.business_name,
+                    ghana_card_id=data.ghana_card_id,
+                    agent_location=data.agent_location,
+                )
+                db.add(agent)
 
     otp_code, send_result = await otp_service.issue_otp(identity_number)
     _raise_if_otp_dispatch_failed(send_result)
@@ -326,7 +385,8 @@ async def register_user(
     existing_result = await db.execute(
         select(User).filter((User.phone_number == identity_number) | (User.momo_number == identity_number))
     )
-    existing_user = existing_result.scalars().first()
+    users = existing_result.scalars().all()
+    existing_user = await _resolve_duplicates(db, users)
 
     otp_expires = _now_utc() + timedelta(minutes=2)
     pin_hashed = hash_pin(data.pin)
@@ -390,14 +450,17 @@ async def register_user(
                     status_code=400,
                     detail="Agent registration requires business_name, ghana_card_id, and agent_location",
                 )
-            agent = Agent(
-                user_id=new_user.id,
-                status="pending",
-                business_name=data.business_name,
-                ghana_card_id=data.ghana_card_id,
-                agent_location=data.agent_location,
-            )
-            db.add(agent)
+            # Avoid duplicate agent record
+            agent_res = await db.execute(select(Agent).filter(Agent.user_id == new_user.id))
+            if not agent_res.scalars().first():
+                agent = Agent(
+                    user_id=new_user.id,
+                    status="pending",
+                    business_name=data.business_name,
+                    ghana_card_id=data.ghana_card_id,
+                    agent_location=data.agent_location,
+                )
+                db.add(agent)
 
     otp_code, send_result = await otp_service.issue_otp(identity_number, purpose="access_verify")
     _raise_if_otp_dispatch_failed(send_result)
@@ -422,7 +485,8 @@ async def login(data: LoginSchema, request: Request, db: AsyncSession = Depends(
     user_result = await db.execute(
         select(User).filter((User.phone_number == identity_number) | (User.momo_number == identity_number))
     )
-    user = user_result.scalars().first()
+    users = user_result.scalars().all()
+    user = await _resolve_duplicates(db, users)
 
     if not user:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid credentials")
@@ -515,8 +579,14 @@ async def access_account(
     await _cleanup_stale_unverified(db, identity)
     _enforce_access_rate_limit(identity, request.client.host if request.client else None)
 
-    result = await db.execute(select(User).filter(User.momo_number == identity))
-    user = result.scalars().first()
+    # Resilient lookup to avoid creating duplicate users if formats differ slightly
+    result = await db.execute(
+        select(User).filter(
+            or_(User.momo_number == identity, User.phone_number == identity)
+        )
+    )
+    users = result.scalars().all()
+    user = await _resolve_duplicates(db, users)
 
     # Existing user -> login path.
     if user:
