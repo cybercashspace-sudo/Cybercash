@@ -111,10 +111,18 @@ async def verify_wallet_balance(
 async def repair_wallet_balance(
     db: AsyncSession,
     user_id: int,
-    admin_id: Optional[int] = None
+    admin_id: Optional[int] = None,
+    *,
+    _min_required_ledger_entries: int = 1,
 ) -> Tuple[bool, dict]:
     """
     Recalculates balance from ledger and updates the wallet.
+    
+    SAFETY GUARD: Will NOT repair balance to zero if the user has fewer than
+    _min_required_ledger_entries completed transactions in the ledger. This
+    prevents the wallet being wiped to zero after long inactivity where the
+    session/connection may return incomplete data.
+    
     Logs the action in AuditLog with sync_status.
     """
     is_verified, details = await verify_wallet_balance(db, user_id)
@@ -128,149 +136,14 @@ async def repair_wallet_balance(
         await db.commit()
         return True, details
 
-    ledger_balance = Decimal(str(details.get("ledger_balance", "0.00")))
-    wallet_balance = Decimal(str(details.get("wallet_balance", "0.00")))
-    difference = ledger_balance - wallet_balance
-
-    res = await db.execute(
-        select(Wallet).filter(Wallet.user_id == user_id).with_for_update()
+    # ===== SAFETY CHECK: count completed transactions before repairing =====
+    tx_count_result = await db.execute(
+        select(func.count(Transaction.id)).filter(
+            Transaction.user_id == user_id,
+            Transaction.status == "completed",
+        )
     )
-    wallet = res.scalars().first()
-    
-    if not wallet:
-        return False, {"error": "Wallet not found"}
+    tx_count = tx_count_result.scalar() or 0
 
-    wallet.balance = ledger_balance
-    wallet.version += 1
-    wallet.last_synced_with_ledger = func.now()
-    wallet.last_verified_at = func.now()
-    if admin_id and wallet.is_frozen:
-        wallet.is_frozen = False
-    
-    action = "MANUAL_BALANCE_REPAIR" if admin_id else "AUTO_BALANCE_REPAIR"
-    
-    await log_wallet_audit(
-        db,
-        user_id=user_id,
-        action=action,
-        before_balance=details["wallet_balance"],
-        after_balance=details["ledger_balance"],
-        amount_changed=difference,
-        description=f"Balance repaired from ledger. Difference: {difference}",
-        sync_status="repaired",
-        metadata_json=json.dumps(details)
-    )
-    
-    await db.commit()
-    await db.refresh(wallet)
-    
-    details["status"] = "repaired"
-    details["wallet_balance"] = float(ledger_balance)
-    details["difference"] = 0.0
-    return True, details
-
-
-async def reconcile_all_wallets(
-    db: AsyncSession,
-) -> dict:
-    """
-    Daily reconciliation job: verify all wallets against their transaction ledgers.
-    Logs mismatches and locks affected wallets.
-    
-    Returns:
-        Report with total_users, verified_count, mismatch_count, locked_count
-    """
-    logger.info("Starting daily wallet reconciliation...")
-    
-    # Get all active users
-    user_result = await db.execute(
-        select(User).filter(User.is_active == True, User.is_deleted == False)
-    )
-    users = user_result.scalars().all()
-    
-    verified_count = 0
-    mismatch_count = 0
-    locked_count = 0
-    mismatches = []
-    
-    for user in users:
-        try:
-            is_verified, details = await verify_wallet_balance(db, user.id)
-            
-            if is_verified:
-                verified_count += 1
-                # Update last verified timestamp for successful audits
-                wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == user.id))
-                wallet_obj = wallet_res.scalars().first()
-                if wallet_obj:
-                    wallet_obj.last_verified_at = func.now()
-                    wallet_obj.last_synced_with_ledger = func.now()
-            else:
-                mismatch_count += 1
-                difference = Decimal(str(details.get("difference", "0.00")))
-                
-                # Log mismatch to audit
-                await log_wallet_audit(
-                    db,
-                    user_id=user.id,
-                    action="WALLET_RECONCILIATION_MISMATCH",
-                    description=f"Balance mismatch detected at version {details['version']}: wallet={details['wallet_balance']}, ledger={details['ledger_balance']}, diff={difference}",
-                    before_balance=details["wallet_balance"],
-                    after_balance=details["ledger_balance"],
-                    amount_changed=difference,
-                    metadata_json=str(details),
-                    sync_status="mismatch",
-                )
-                
-                # Lock the wallet to prevent further transactions
-                wallet_result = await db.execute(
-                    select(Wallet).filter(Wallet.user_id == user.id)
-                )
-                wallet = wallet_result.scalars().first()
-                if wallet and not wallet.is_frozen:
-                    wallet.is_frozen = True
-                    db.add(wallet)
-                    locked_count += 1
-                    logger.warning(
-                        f"Wallet locked for user {user.id}: balance mismatch ${difference}"
-                    )
-                
-                mismatches.append(details)
-        
-        except Exception as e:
-            logger.error(f"Error reconciling wallet for user {user.id}: {str(e)}")
-            continue
-    
-    await db.commit()
-    
-    report = {
-        "reconciliation_timestamp": datetime.now(timezone.utc).isoformat(),
-        "total_users": len(users),
-        "verified_count": verified_count,
-        "mismatch_count": mismatch_count,
-        "locked_count": locked_count,
-        "mismatches": mismatches,
-    }
-    
-    logger.info(
-        f"Reconciliation complete: {verified_count} verified, {mismatch_count} mismatches, {locked_count} locked"
-    )
-    
-    return report
-
-
-async def get_audit_logs_for_user(
-    db: AsyncSession,
-    user_id: int,
-    limit: int = 100,
-) -> list:
-    """
-    Retrieve audit logs for a specific user (for support/compliance).
-    """
-    result = await db.execute(
-        select(AuditLog)
-        .filter(AuditLog.user_id == user_id)
-        .order_by(AuditLog.created_at.desc())
-        .limit(limit)
-    )
-    return result.scalars().all()
+    if tx_count < _min_required_ledger_entries:
+        # Refuse to repair – the ledger likely has stale
