@@ -223,10 +223,11 @@ async def register_agent(
 
         result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
         wallet = result.scalars().first()
-        if not wallet:
-            wallet = Wallet(user_id=current_user.id, currency="GHS", balance=0.0)
-            db.add(wallet)
-            await db.flush()
+        if not wallet: # Wallet should always exist for a registered user.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User wallet not found. Data integrity issue."
+            )
         
         try:
             checkout_callback_url = _checkout_status_url(request, "success")

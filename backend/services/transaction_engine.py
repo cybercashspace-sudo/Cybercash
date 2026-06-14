@@ -50,11 +50,8 @@ class TransactionEngine:
         result = await self.db.execute(select(Wallet).filter(Wallet.user_id == user_id).with_for_update())
         wallet = result.scalars().first()
         if not wallet:
-            # Auto-create wallet if missing (for resilience)
-            wallet = Wallet(user_id=user_id)
-            self.db.add(wallet)
-            await self.db.flush() # Ensure ID is generated
-            # raise ValueError(f"Wallet not found for user {user_id}")
+            # Wallet must exist for a user to perform transactions.
+            raise ValueError(f"Wallet not found for user {user_id}. Data integrity issue.")
         return wallet
 
     async def _get_agent(self, agent_id: int) -> Agent:

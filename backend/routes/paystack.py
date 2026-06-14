@@ -216,10 +216,9 @@ async def _get_wallet_balance(db: AsyncSession, wallet_id: int) -> float:
     result = await db.execute(select(Wallet.balance).filter(Wallet.id == wallet_id))
     balance = result.scalar_one_or_none()
     try:
-        return float(balance or 0.0)
-    except (TypeError, ValueError):
+        return float(balance or 0.0) # Ensure balance is float for return type
+    except (TypeError, ValueError): # Handle cases where balance might be None or non-numeric
         return 0.0
-
 
 async def _get_user_wallet_balance(db: AsyncSession, user_id: int) -> float:
     result = await db.execute(select(Wallet.balance).filter(Wallet.user_id == user_id))

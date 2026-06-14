@@ -294,8 +294,9 @@ async def transfer_funds(
         res = await db.execute(select(Wallet).filter(Wallet.user_id == recipient_user.id))
         recipient_wallet = res.scalars().first()
         if not recipient_wallet:
-            db.add(Wallet(user_id=recipient_user.id, currency=request.currency, balance=Decimal("0.00")))
-            await db.flush()
+            # This should ideally not happen if wallet is created with user.
+            # If it does, it's a data integrity issue.
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Recipient wallet not found.")
 
         # 2. Lock both wallets using consistent ordering (by user_id) to prevent deadlocks
         target_user_ids = sorted([current_user.id, recipient_user.id])
