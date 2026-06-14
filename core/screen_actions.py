@@ -147,8 +147,8 @@ class ActionScreen(ResponsiveScreen):
 
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
-        if token and manager.has_screen("dashboard"):
-            manager.current = "dashboard"
+        if token and manager.has_screen("home"):
+            manager.current = "home"
             return
         if manager.has_screen("login"):
             manager.current = "login"

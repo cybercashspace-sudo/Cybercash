@@ -19,6 +19,7 @@ KV = """
 #:set ACTION_BG "#22221E"
 
 <VirtualCardScreen>:
+    name: "virtual_card"
     MDBoxLayout:
         orientation: "vertical"
         md_bg_color: get_color_from_hex(BACKGROUND)
@@ -354,9 +355,20 @@ KV = """
                     adaptive_height: True
                     font_size: sp(12 * root.text_scale)
 
+        BottomNavBar:
+            nav_variant: "default"
+            active_target: "virtual_card"
+            layout_scale: root.layout_scale
+            text_scale: root.text_scale
+            icon_scale: root.icon_scale
+            bar_color: app.ui_surface
+            active_color: app.gold
+            inactive_color: app.ui_text_secondary
+
 """
 
 class VirtualCardScreen(ActionScreen):
+    name = StringProperty("virtual_card")
     card_number_display = StringProperty("••••  ••••  ••••  ••••")
     cardholder = StringProperty("Loading...")
     expiry = StringProperty("--/--")

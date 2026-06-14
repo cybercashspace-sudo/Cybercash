@@ -26,7 +26,7 @@ class BottomNavBar(MDCard):
     _variants = {
         "default": [
             {"target": "home", "icon": "home", "label": "Home"},
-            {"target": "cards", "icon": "credit-card-outline", "label": "Cards"},
+            {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "escrow", "icon": "shield-lock-outline", "label": "Escrow"},
             {"target": "settings", "icon": "menu", "label": "Menu"},
         ],
@@ -39,18 +39,18 @@ class BottomNavBar(MDCard):
         "send": [
             {"target": "home", "icon": "home", "label": "Home"},
             {"target": "p2p_transfer", "icon": "send", "label": "Send"},
-            {"target": "cards", "icon": "credit-card-outline", "label": "Cards"},
+            {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "settings", "icon": "menu", "label": "Menu"},
         ],
         "btc": [
             {"target": "home", "icon": "home", "label": "Home"},
-            {"target": "cards", "icon": "credit-card-outline", "label": "Cards"},
+            {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "btc", "icon": "bitcoin", "label": "BTC"},
             {"target": "settings", "icon": "menu", "label": "Menu"},
         ],
         "agent": [
             {"target": "home", "icon": "home", "label": "Home"},
-            {"target": "cards", "icon": "credit-card-outline", "label": "Cards"},
+            {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "escrow", "icon": "shield-lock-outline", "label": "Escrow"},
             {"target": "agent", "icon": "menu", "label": "Menu"},
         ],

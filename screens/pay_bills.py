@@ -142,6 +142,16 @@ KV = """
                 Widget:
                     size_hint_y: None
                     height: dp(16 * root.layout_scale)
+
+        BottomNavBar:
+            nav_variant: "default"
+            active_target: ""
+            layout_scale: root.layout_scale
+            text_scale: root.text_scale
+            icon_scale: root.icon_scale
+            bar_color: app.ui_surface
+            active_color: app.gold
+            inactive_color: app.ui_text_secondary
 """
 
 

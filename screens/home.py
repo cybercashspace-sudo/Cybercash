@@ -793,13 +793,13 @@ KV = """
                                 anchor_y: "center"
                                 size_hint_y: None
                                 height: dp(42 * root.layout_scale)
-                            MDIconButton:
-                                icon: "send"
-                                user_font_size: str(31 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: [0.55, 0.84, 0.66, 1]
-                                on_release: root.go_to("p2p_transfer")
+                                MDIconButton:
+                                    icon: "send"
+                                    user_font_size: str(31 * root.icon_scale) + "sp"
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: [0.55, 0.84, 0.66, 1]
+                                    on_release: root.go_to("p2p_transfer")
 
                             MDLabel:
                                 text: "Send"
@@ -829,13 +829,13 @@ KV = """
                                 anchor_y: "center"
                                 size_hint_y: None
                                 height: dp(42 * root.layout_scale)
-                            MDIconButton:
-                                icon: "finance"
-                                user_font_size: str(31 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: [0.91, 0.75, 0.44, 1]
-                                on_release: root.go_to("investments")
+                                MDIconButton:
+                                    icon: "finance"
+                                    user_font_size: str(31 * root.icon_scale) + "sp"
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: [0.91, 0.75, 0.44, 1]
+                                    on_release: root.go_to("investments")
 
                             MDLabel:
                                 text: "Invest"
@@ -864,13 +864,13 @@ KV = """
                                 anchor_y: "center"
                                 size_hint_y: None
                                 height: dp(42 * root.layout_scale)
-                            MDIconButton:
-                                icon: "shield-check-outline"
-                                user_font_size: str(31 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: [0.83, 0.92, 0.60, 1]
-                                on_release: root.go_to("loans")
+                                MDIconButton:
+                                    icon: "shield-check-outline"
+                                    user_font_size: str(31 * root.icon_scale) + "sp"
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: [0.83, 0.92, 0.60, 1]
+                                    on_release: root.go_to("loans")
 
                             MDLabel:
                                 text: "Loan"
@@ -899,13 +899,13 @@ KV = """
                                 anchor_y: "center"
                                 size_hint_y: None
                                 height: dp(42 * root.layout_scale)
-                            MDIconButton:
-                                icon: "view-grid"
-                                user_font_size: str(31 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: [0.90, 0.75, 0.43, 1]
-                                on_release: root.open_more_actions()
+                                MDIconButton:
+                                    icon: "view-grid"
+                                    user_font_size: str(31 * root.icon_scale) + "sp"
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    theme_text_color: "Custom"
+                                    text_color: [0.90, 0.75, 0.43, 1]
+                                    on_release: root.open_more_actions()
 
                             MDLabel:
                                 text: "More"
@@ -1188,7 +1188,7 @@ class HomeScreen(ResponsiveScreen):
                 "icon": "credit-card-outline",
                 "accent": emerald,
                 "accent_bg": [emerald[0], emerald[1], emerald[2], 0.18 if not light_mode else 0.14],
-                "target": lambda: self.go_to("cards"),
+                "target": lambda: self.go_to("virtual_card"),
                 "value_color": emerald,
                 "caption_color": text_secondary,
                 "hint": "Swipe to the next card",

@@ -52,7 +52,7 @@ SCREEN_SPECS = {
     "loans": ("screens.loans", "LoanScreen"),
     "investments": ("screens.investments", "InvestmentScreen"),
     "escrow": ("screens.escrow", "EscrowScreen"),
-    "cards": ("screens.cards", "CardScreen"),
+    "virtual_card": ("screens.cards", "VirtualCardScreen"),
     "btc": ("screens.btc", "BTCScreen"),
     "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
     "transactions": ("screens.transactions", "TransactionScreen"),

@@ -253,6 +253,9 @@ KV = """
             layout_scale: root.layout_scale
             text_scale: root.text_scale
             icon_scale: root.icon_scale
+            bar_color: app.ui_surface
+            active_color: app.gold
+            inactive_color: app.ui_text_secondary
 """
 
 CATALOG_CARD_BG = [0.10, 0.12, 0.16, 0.96]
