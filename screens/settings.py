@@ -8,13 +8,13 @@ from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
 
 from api.auth import logout
-from api.client import API_URL, api_client
+from api.client import API_URL, api_client, api_get
 from core.bottom_nav import BottomNavBar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
 from storage import save_token, clear_token
 
-
+from kivymd.uix.card import MDCard
 KV = """
 #:import dp kivy.metrics.dp
 #:import sp kivy.metrics.sp
@@ -45,438 +45,107 @@ KV = """
                 orientation: "vertical"
                 size_hint_y: None
                 height: self.minimum_height
-                padding: [dp(16), dp(16), dp(16), dp(96)]
-                spacing: dp(12)
+                padding: [dp(20), dp(20), dp(20), dp(120)]
+                spacing: dp(20)
+
+                MDLabel:
+                    text: "SETTINGS"
+                    font_style: "H5"
+                    bold: True
+                    theme_text_color: "Custom"
+                    text_color: BRAND_GOLD
+                    adaptive_height: True
 
                 MDCard:
-                    radius: [dp(24)]
-                    md_bg_color: app.ui_surface
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(18)
                     size_hint_y: None
-                    height: self.minimum_height
+                    height: dp(140)
+                    radius: [dp(25)]
+                    md_bg_color: PROFILE_BG
+                    elevation: 0
 
                     MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
+                        spacing: dp(15)
+                        padding: dp(15)
+
+                        FitImage:
+                            source: "assets/profile.png"
+                            size_hint: None, None
+                            size: dp(80), dp(80)
+                            radius: [dp(40)]
+                            pos_hint: {"center_y": .5}
 
                         MDBoxLayout:
-                            orientation: "horizontal"
-                            size_hint_y: None
-                            height: self.minimum_height
-                            spacing: dp(12)
-
-                            MDBoxLayout:
-                                orientation: "vertical"
-                                spacing: dp(2)
-                                adaptive_height: True
-
-                                MDLabel:
-                                    text: "Settings"
-                                    font_style: "Title"
-                                    bold: True
-                                    theme_text_color: "Custom"
-                                    text_color: app.gold
-                                    adaptive_height: True
-
-                                MDLabel:
-                                    text: "Manage security, payments, alerts, and account preferences in one place."
-                                    theme_text_color: "Custom"
-                                    text_color: app.ui_text_secondary
-                                    font_size: sp(12)
-                                    adaptive_height: True
-
+                            orientation: "vertical"
+                            pos_hint: {"center_y": .5}
                             MDLabel:
-                                text: root.role_badge
-                                size_hint_x: None
-                                width: dp(110)
-                                halign: "right"
-                                valign: "center"
-                                text_size: self.size
+                                text: app.user_name
+                                font_style: "H5"
                                 bold: True
                                 theme_text_color: "Custom"
-                                text_color: app.gold
-                                adaptive_height: True
-
-                        MDLabel:
-                            text: root.feedback_text
-                            theme_text_color: "Custom"
-                            text_color: root.feedback_color
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDRaisedButton:
-                            text: "Save Changes"
-                            md_bg_color: app.gold
-                            text_color: app.ui_background
-                            size_hint_y: None
-                            height: dp(46)
-                            on_release: root.save_settings()
-
-                        MDRaisedButton:
-                            text: "Toggle Theme"
-                            md_bg_color: app.ui_surface_soft
-                            text_color: app.ui_text_primary
-                            size_hint_y: None
-                            height: dp(46)
-                            on_release: app.toggle_theme()
-
-                MDCard:
-                    radius: [dp(22)]
-                    md_bg_color: app.ui_surface_soft
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(16)
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
-
-                        MDLabel:
-                            text: "Security"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: app.gold
-                            font_size: sp(18)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Protect sign-in, approvals, and withdrawal access."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
+                                text_color: TEXT_MAIN
                             MDLabel:
-                                text: "Enable biometric login"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: biometric_switch
+                                text: app.user_email
+                                theme_text_color: "Hint"
 
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Require OTP verification"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: otp_switch
+                SettingsItem:
+                    text: "Profile"
+                    secondary: "Manage your personal info"
+                    icon: "account-cog"
+                    on_release: root.open_section("Profile")
 
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Protect withdrawals with a transaction PIN"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: transaction_pin_switch
+                SettingsItem:
+                    text: "Notifications"
+                    secondary: "Alerts & preferences"
+                    icon: "bell-outline"
+                    on_release: root.open_section("Notifications")
 
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Bind this device to your account"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: device_binding_switch
+                SettingsItem:
+                    text: "Security"
+                    secondary: "PIN, Biometrics & Privacy"
+                    icon: "shield-lock-outline"
+                    on_release: root.open_section("Security")
 
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Send login alerts"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: login_alerts_switch
+                SettingsItem:
+                    text: "Help & Support"
+                    secondary: "FAQs and contact us"
+                    icon: "help-circle-outline"
+                    on_release: root.open_section("Support")
 
-                        MDTextField:
-                            id: withdrawal_limit_input
-                            hint_text: "Withdrawal limit (GHS)"
-                            helper_text: "Applies to your account withdrawal cap."
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
+                SettingsItem:
+                    text: "About App"
+                    secondary: "Version & legal"
+                    icon: "information-outline"
+                    on_release: root.open_section("About")
 
-                MDCard:
-                    radius: [dp(22)]
-                    md_bg_color: app.ui_surface_soft
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(16)
-                    size_hint_y: None
-                    height: self.minimum_height
+                SettingsItem:
+                    text: "Logout"
+                    secondary: "Secure session logout"
+                    icon: "logout-variant"
+                    on_release: root.confirm_logout()
 
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(5)
+                    padding: [0, dp(40), 0, 0]
 
-                        MDLabel:
-                            text: "Payments"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: app.gold
-                            font_size: sp(18)
-                            adaptive_height: True
+                    MDLabel:
+                        text: "Cyber Cash Technologies Ltd."
+                        halign: "center"
+                        theme_text_color: "Hint"
+                        font_size: sp(13)
+                    
+                    MDLabel:
+                        text: "Version 1.0.0"
+                        halign: "center"
+                        theme_text_color: "Hint"
+                        font_size: sp(12)
 
-                        MDLabel:
-                            text: "Choose how payouts behave and what fees are visible."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Auto-settle to MoMo"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: auto_settle_switch
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Show fee breakdown"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: fee_display_switch
-
-                        MDTextField:
-                            id: payout_method_input
-                            hint_text: "Default payout method"
-                            helper_text: "momo, bank, or crypto"
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            multiline: False
-
-                        MDTextField:
-                            id: preferred_currency_input
-                            hint_text: "Preferred currency"
-                            mode: "rectangle"
-                            multiline: False
-
-                MDCard:
-                    radius: [dp(22)]
-                    md_bg_color: app.ui_surface_soft
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(16)
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
-
-                        MDLabel:
-                            text: "Notifications"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: app.gold
-                            font_size: sp(18)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Decide where alerts should reach you."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Send SMS alerts"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: sms_alerts_switch
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Send email alerts"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: email_alerts_switch
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Enable push notifications"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: push_notifications_switch
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(42)
-                            MDLabel:
-                                text: "Receive fraud alerts"
-                                theme_text_color: "Custom"
-                                text_color: app.ui_text_primary
-                            MDSwitch:
-                                id: fraud_alerts_switch
-
-                MDCard:
-                    radius: [dp(22)]
-                    md_bg_color: app.ui_surface_soft
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(16)
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
-
-                        MDLabel:
-                            text: "Account"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: app.gold
-                            font_size: sp(18)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Keep your session secure and manage your PIN."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(46)
-                            spacing: dp(10)
-
-                            MDRaisedButton:
-                                text: "Change PIN"
-                                md_bg_color: app.emerald
-                                size_hint_x: 0.5
-                                on_release: root.open_change_pin_help()
-
-                            MDRaisedButton:
-                                text: "Sign out"
-                                md_bg_color: (0.27, 0.18, 0.18, 1)
-                                size_hint_x: 0.5
-                                on_release: root.confirm_logout()
-
-                MDCard:
-                    id: admin_card
-                    radius: [dp(22)]
-                    md_bg_color: app.ui_surface_soft
-                    line_color: (0.27, 0.23, 0.14, 0.45)
-                    elevation: 0
-                    padding: dp(16)
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(10)
-                        adaptive_height: True
-
-                        MDLabel:
-                            text: "Admin Platform Controls"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: app.gold
-                            font_size: sp(18)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "These controls apply platform-wide."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Manage fees, thresholds, and commission defaults."
-                            theme_text_color: "Custom"
-                            text_color: app.ui_text_secondary
-                            font_size: sp(12)
-                            adaptive_height: True
-
-                        MDTextField:
-                            id: admin_registration_fee_input
-                            hint_text: "API / agent activation fee (GHS)"
-                            helper_text: "Used when agents activate."
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
-
-                        MDTextField:
-                            id: platform_fee_rate_input
-                            hint_text: "Platform fee rate"
-                            helper_text: "Decimal rate, e.g. 0.01 = 1%"
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
-
-                        MDTextField:
-                            id: admin_withdrawal_limit_input
-                            hint_text: "Platform withdrawal limit (GHS)"
-                            helper_text: "Maximum platform withdrawal."
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
-
-                        MDTextField:
-                            id: fraud_threshold_input
-                            hint_text: "Fraud threshold (GHS)"
-                            helper_text: "Amounts above this are flagged."
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
-
-                        MDTextField:
-                            id: commission_rate_input
-                            hint_text: "Default commission rate"
-                            helper_text: "Decimal rate, e.g. 0.02 = 2%"
-                            helper_text_mode: "on_focus"
-                            mode: "rectangle"
-                            input_filter: "float"
-                            multiline: False
-
-                        MDRaisedButton:
-                            text: "Open Admin Dashboard"
-                            md_bg_color: app.emerald
-                            size_hint_y: None
-                            height: dp(46)
-                            on_release: root.confirm_open_admin_dashboard()
+                    MDLabel:
+                        text: "© 2026 All Rights Reserved"
+                        halign: "center"
+                        theme_text_color: "Hint"
+                        font_size: sp(11)
 
         BottomNavBar:
             nav_variant: "default"
@@ -488,6 +157,11 @@ KV = """
             active_color: app.gold
             inactive_color: app.ui_text_secondary
 """
+
+class SettingsItem(MDCard):
+    text = StringProperty()
+    secondary = StringProperty()
+    icon = StringProperty()
 
 
 class SettingsScreen(ActionScreen):
@@ -517,13 +191,16 @@ class SettingsScreen(ActionScreen):
         self.refresh_admin_gate()
 
     def on_pre_enter(self):
-        self.refresh_admin_gate()
+        # Refresh local data
+        app = MDApp.get_running_app()
         self.load_settings()
 
     def _show_popup(self, title: str, message: str, on_close=None):
         show_message_dialog(self, title=title, message=message, close_label="Close", on_close=on_close)
 
     def _set_admin_card_visible(self, visible: bool) -> None:
+        # The new layout doesn't use the admin card directly, 
+        # but we could add an Admin SettingsItem if needed.
         if self._admin_card is None or self._admin_card_parent is None:
             return
         if visible:
@@ -540,15 +217,39 @@ class SettingsScreen(ActionScreen):
                     pass
 
     def refresh_admin_gate(self) -> None:
-        ok, payload = self._request("GET", "/auth/me")
-        is_admin = False
-        role = "user"
-        if ok and isinstance(payload, dict):
-            role = str(payload.get("role", "") or "").strip().lower() or "user"
-            is_admin = bool(payload.get("is_admin", False)) or role == "admin"
-        self.is_admin_gate = bool(is_admin)
-        self.role_badge = "ADMIN MODE" if self.is_admin_gate else f"{role.upper()} MODE"
-        self._set_admin_card_visible(self.is_admin_gate)
+        # We'll stick to a simple check for now
+        app = MDApp.get_running_app()
+        # If we had a role property on app, we'd use it here.
+        # For now, we'll assume USER MODE as default in UI.
+        pass
+
+    def open_section(self, section_name: str):
+        """Handles navigation to specific settings sub-sections/dialogs."""
+        if section_name == "Security":
+            self.open_security_dialog()
+        else:
+            self._show_popup(section_name, f"Manage your {section_name.lower()} settings. This section is coming soon.")
+
+    def open_security_dialog(self):
+        """Special handling for Security to include Privacy Mode toggle."""
+        app = MDApp.get_running_app()
+        content = MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=dp(15), padding=dp(20))
+        
+        # Re-using the Privacy Mode logic from before
+        row = MDBoxLayout(size_hint_y=None, height=dp(42))
+        row.add_widget(MDLabel(text="Privacy Mode (Task Switcher)", theme_text_color="Primary"))
+        
+        from kivymd.uix.selectioncontrol import MDSwitch
+        switch = MDSwitch(active=app.privacy_mode)
+        def _on_toggle(instance, value):
+            app.privacy_mode = value
+        switch.bind(active=_on_toggle)
+        row.add_widget(switch)
+        
+        content.add_widget(row)
+        content.add_widget(MDLabel(text="Change PIN and Biometrics settings can be accessed here.", theme_text_color="Secondary", font_size=sp(12)))
+
+        show_custom_dialog(self, title="Security Settings", content_cls=content)
 
     def load_settings(self) -> None:
         if getattr(self, "_loading_settings", False):
@@ -560,11 +261,12 @@ class SettingsScreen(ActionScreen):
         threading.Thread(target=self._load_settings_worker, args=(seq,), daemon=True).start()
 
     def _load_settings_worker(self, seq: int) -> None:
-        user_result = self._request("GET", "/settings/me")
-        platform_result = (False, {})
-        if self.is_admin_gate:
-            platform_result = self._request("GET", "/settings/platform")
-        Clock.schedule_once(lambda _dt: self._apply_loaded_settings(seq, user_result, platform_result))
+        # Fetch both user profile and settings
+        profile = self._request("GET", "/auth/me")
+        settings_res = self._request("GET", "/settings/me")
+        platform_res = (False, {})
+        
+        Clock.schedule_once(lambda _dt: self._apply_loaded_settings(seq, profile, settings_res))
 
     def _apply_loaded_settings(self, seq: int, user_result, platform_result) -> None:
         if seq != int(getattr(self, "_load_seq", 0)):
@@ -575,34 +277,17 @@ class SettingsScreen(ActionScreen):
         if not user_ok:
             self._set_feedback(self._extract_detail(user_payload) or "Unable to load your settings.", "error")
             return
+
+        app = MDApp.get_running_app()
         if isinstance(user_payload, dict):
-            self._apply_user_settings(user_payload)
+            app.user_name = user_payload.get("full_name") or user_payload.get("first_name") or app.user_name
+            app.user_email = user_payload.get("email") or app.user_email
 
-        if self.is_admin_gate:
-            platform_ok, platform_payload = platform_result
-            if not platform_ok:
-                self._set_feedback(self._extract_detail(platform_payload) or "Unable to load admin settings.", "warning")
-                return
-            if isinstance(platform_payload, dict):
-                self._apply_platform_settings(platform_payload)
-
-        self._set_feedback("Settings ready. Make your changes and tap Save Changes.", "success")
+        self._set_feedback("Settings loaded.", "success")
 
     def _apply_user_settings(self, payload: dict) -> None:
-        self._set_switch("biometric_switch", payload.get("biometric", False))
-        self._set_switch("otp_switch", payload.get("otp", True))
-        self._set_switch("auto_settle_switch", payload.get("auto_settle", True))
-        self._set_switch("sms_alerts_switch", payload.get("sms_alerts", True))
-        self._set_switch("email_alerts_switch", payload.get("email_alerts", False))
-        self._set_switch("transaction_pin_switch", payload.get("transaction_pin", True))
-        self._set_switch("device_binding_switch", payload.get("device_binding", True))
-        self._set_switch("login_alerts_switch", payload.get("login_alerts", True))
-        self._set_switch("push_notifications_switch", payload.get("push_notifications", False))
-        self._set_switch("fraud_alerts_switch", payload.get("fraud_alerts", True))
-        self._set_text("withdrawal_limit_input", payload.get("withdrawal_limit", 2000.0), "2000")
-        self._set_text("payout_method_input", payload.get("default_payout_method", "momo"), "momo")
-        self._set_text("preferred_currency_input", payload.get("preferred_currency", "GHS"), "GHS")
-        self._set_switch("fee_display_switch", payload.get("fee_display", True))
+        # Map backend settings to UI components if needed
+        pass
 
     def _apply_platform_settings(self, payload: dict) -> None:
         self._set_text("admin_registration_fee_input", payload.get("agent_registration_fee", 100.0), "100")

@@ -63,8 +63,8 @@ jobs:
         with:
           name: cybercash-android-apk
           path: |
-            bin/*.apk
-            bin/*.aab
+            **/*.apk
+            **/*.aab
           if-no-files-found: error
 
       - name: Upload build logs

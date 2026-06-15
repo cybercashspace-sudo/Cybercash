@@ -89,7 +89,8 @@ python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
 
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install "Cython<3" "buildozer==1.5.0"
+python -m pip install cython==0.29.37 # Pinning to a known stable version
+python -m pip install buildozer==1.5.0 # Ensure buildozer itself is installed
 
 git config --global http.version HTTP/1.1 || true
 git config --global http.lowSpeedLimit 0 || true

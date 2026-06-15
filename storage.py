@@ -42,6 +42,23 @@ def clear_token():
     save_token("")
 
 
+def save_privacy_mode(enabled: bool):
+    try:
+        _get_store().put("settings", privacy_mode=bool(enabled))
+    except Exception:
+        pass
+
+
+def get_privacy_mode() -> bool:
+    try:
+        store = _get_store()
+        if store.exists("settings"):
+            return bool(store.get("settings").get("privacy_mode", True))
+    except Exception:
+        return True
+    return True
+
+
 def _decode_jwt_payload(token: str) -> dict:
     try:
         payload_part = str(token or "").split(".")[1]

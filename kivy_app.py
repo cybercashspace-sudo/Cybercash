@@ -8,7 +8,7 @@ os.environ.setdefault("SDL_JOYSTICK_HIDAPI", "0")
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
-from kivy.properties import ColorProperty, StringProperty
+from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
 from kivy.utils import platform
 from kivymd.app import MDApp
@@ -26,7 +26,13 @@ from core.theme_manager import ThemeManager
 install_kivymd_font_style_compat()
 
 from screens.splash import SplashScreen
-from storage import get_token, get_remember_me, save_token
+from storage import (
+    get_token,
+    get_remember_me,
+    save_token,
+    get_privacy_mode,
+    save_privacy_mode,
+)
 from theme import CyberTheme
 
 # Prevent third-party logging formatting failures from flooding stderr and freezing UI.
@@ -87,6 +93,9 @@ class AppScreenManager(ScreenManager):
 
 class CyberCashApp(MDApp):
     theme_mode = StringProperty("Dark")
+    privacy_mode = BooleanProperty(True)
+    user_name = StringProperty("Cyber Cash User")
+    user_email = StringProperty("support@cybercash.app")
     gold = ColorProperty(CyberTheme.GOLD)
     emerald = ColorProperty(CyberTheme.EMERALD)
     dark_bg = ColorProperty(CyberTheme.DARK_BG)
@@ -186,6 +195,37 @@ class CyberCashApp(MDApp):
 
     def _is_mobile_runtime(self) -> bool:
         return str(platform or "").strip().lower() in {"android", "ios"}
+
+    def on_privacy_mode(self, _instance, value: bool) -> None:
+        save_privacy_mode(value)
+        self.set_privacy_mode(value)
+
+    def set_privacy_mode(self, enabled: bool) -> None:
+        """
+        Implementation of 'Privacy Mode' for Android.
+        Uses FLAG_SECURE to hide app content in the Task Switcher (Recent Apps)
+        and prevents screen recording/screenshots.
+        """
+        if platform != "android":
+            return
+
+        try:
+            from jnius import autoclass
+
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            LayoutParams = autoclass("android.view.WindowManager$LayoutParams")
+            activity = PythonActivity.mActivity
+
+            def _apply():
+                window = activity.getWindow()
+                if enabled:
+                    window.addFlags(LayoutParams.FLAG_SECURE)
+                else:
+                    window.clearFlags(LayoutParams.FLAG_SECURE)
+
+            activity.runOnUiThread(_apply)
+        except Exception:
+            logging.exception("Failed to apply Android Privacy Mode flags")
 
     def on_pause(self):
         # Allow the app to pause and save the state
@@ -305,6 +345,10 @@ class CyberCashApp(MDApp):
         self.success = list(CyberTheme.SUCCESS)
         self.error = list(CyberTheme.ERROR)
         self.btc = list(CyberTheme.BTC)
+
+        # Load and apply initial Privacy Mode state
+        self.privacy_mode = get_privacy_mode()
+        self.set_privacy_mode(self.privacy_mode)
 
         self.theme_manager = ThemeManager(self)
         self.theme_manager.apply(self.theme_mode, animate=False)
