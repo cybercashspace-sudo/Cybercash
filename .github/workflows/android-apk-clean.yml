@@ -47,7 +47,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git rsync zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            build-essential git rsync zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config libsqlite3-dev lld \
             zlib1g-dev libncurses-dev libtinfo6 cmake libffi-dev libssl-dev \
             ccache
 

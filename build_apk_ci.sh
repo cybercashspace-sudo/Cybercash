@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
-  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-elif [ -d /usr/lib/jvm/temurin-17-jdk-amd64 ]; then
-  export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-fi
 if [ -z "${JAVA_HOME:-}" ]; then
-  echo "JAVA_HOME is not set and no JDK 17 install was found." >&2
-  exit 1
+  if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+  elif [ -d /usr/lib/jvm/temurin-17-jdk-amd64 ]; then
+    export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
+  fi
+  if [ -z "${JAVA_HOME:-}" ]; then
+    echo "JAVA_HOME is not set and no JDK 17 install was found." >&2
+    exit 1
+  fi
 fi
 export PATH="$JAVA_HOME/bin:$PATH"
 java -version
@@ -45,15 +47,17 @@ for path in "${copy_paths[@]}"; do
 done
 
 if [ ! -f "$app_src_dir/main.py" ]; then
-  echo "Staged Android source is missing main.py" >&2
-  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
-  exit 1
-fi
-
-if [ ! -f "$app_src_dir/app.py" ]; then
-  echo "Staged Android source is missing app.py" >&2
-  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
-  exit 1
+  if [ -f "$app_src_dir/kivy_app.py" ]; then
+    echo "Auto-generating main.py shim for kivy_app.py..."
+    cat <<EOF > "$app_src_dir/main.py"
+from kivy_app import CyberCashApp
+if __name__ == "__main__":
+    CyberCashApp().run()
+EOF
+  else
+    echo "Staged Android source is missing main.py and no kivy_app.py found to shim." >&2
+    exit 1
+  fi
 fi
 
 if [ ! -f "$app_src_dir/kivy_app.py" ]; then
@@ -88,7 +92,7 @@ ls -l "$app_src_dir/main.py" "$app_src_dir/app.py" "$app_src_dir/kivy_app.py"
 python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
 
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install --upgrade pip "setuptools<70.0.0" wheel
 python -m pip install cython==0.29.37 # Pinning to a known stable version
 python -m pip install buildozer==1.5.0 # Ensure buildozer itself is installed
 
