@@ -70,6 +70,7 @@ SCREEN_SPECS = {
     "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
     "transactions": ("screens.transactions", "TransactionScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
+    "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
     "admin_agents": ("screens.admin_agents", "AdminAgentsScreen"),
     "admin_users": ("screens.admin_users", "AdminUsersScreen"),
@@ -190,8 +191,9 @@ class CyberCashApp(MDApp):
                 self._screen_cache[screen_name] = getattr(module, class_name)
             
             screen_cls = self._screen_cache[screen_name]
-            # Instantiate on next frame to keep main thread fluid
-            Clock.schedule_once(lambda dt: sm.add_widget(screen_cls(name=screen_name)), 0)
+            # Point 1: Fixed race condition. The screen must be added synchronously
+            # so that ScreenManager.current can be set immediately in go_to_screen.
+            sm.add_widget(screen_cls(name=screen_name))
             return True
         except Exception:
             logging.exception("Failed to load screen %s", screen_name)
@@ -207,6 +209,12 @@ class CyberCashApp(MDApp):
 
     def go_to_screen(self, screen_name: str, fallback: str = "login") -> bool:
         target = str(screen_name or "").strip()
+
+        # Centralized Role-Based Access Control (RBAC)
+        if target.startswith("admin_") and not self.is_admin:
+            logging.warning("RBAC Security: Access to restricted screen '%s' denied for non-admin user.", target)
+            target = "home" if self.access_token else "login"
+
         sm = getattr(self, "root", None)
         if sm and self.ensure_screen(target):
             sm.current = target

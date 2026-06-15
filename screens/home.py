@@ -2063,8 +2063,6 @@ class HomeScreen(ResponsiveScreen):
         )
 
     def go_to(self, screen_name: str) -> None:
-        if self.manager and self.manager.has_screen(screen_name):
-            tap_feedback()
         tap_feedback()
         app = MDApp.get_running_app()
         if hasattr(app, "go_to_screen"):

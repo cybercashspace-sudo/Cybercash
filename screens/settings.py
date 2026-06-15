@@ -118,6 +118,13 @@ KV = """
                     on_release: root.open_section("About")
 
                 SettingsItem:
+                    id: admin_card
+                    text: "Admin Dashboard"
+                    secondary: "System metrics & management"
+                    icon: "shield-crown-outline"
+                    on_release: root.confirm_open_admin_dashboard()
+
+                SettingsItem:
                     text: "Logout"
                     secondary: "Secure session logout"
                     icon: "logout-variant"
@@ -193,6 +200,7 @@ class SettingsScreen(ActionScreen):
     def on_pre_enter(self):
         # Refresh local data
         app = MDApp.get_running_app()
+        self.refresh_admin_gate()
         self.load_settings()
 
     def _show_popup(self, title: str, message: str, on_close=None):
@@ -217,11 +225,10 @@ class SettingsScreen(ActionScreen):
                     pass
 
     def refresh_admin_gate(self) -> None:
-        # We'll stick to a simple check for now
         app = MDApp.get_running_app()
-        # If we had a role property on app, we'd use it here.
-        # For now, we'll assume USER MODE as default in UI.
-        pass
+        self.is_admin_gate = bool(getattr(app, "is_admin", False))
+        self.role_badge = "ADMIN MODE" if self.is_admin_gate else "USER MODE"
+        self._set_admin_card_visible(self.is_admin_gate)
 
     def open_section(self, section_name: str):
         """Handles navigation to specific settings sub-sections/dialogs."""
@@ -283,6 +290,7 @@ class SettingsScreen(ActionScreen):
             app.user_name = user_payload.get("full_name") or user_payload.get("first_name") or app.user_name
             app.user_email = user_payload.get("email") or app.user_email
             app.is_admin = bool(user_payload.get("is_admin"))
+            self.refresh_admin_gate()
 
         self._set_feedback("Settings loaded.", "success")
 
@@ -419,10 +427,11 @@ class SettingsScreen(ActionScreen):
                 f"Admin tools need the backend running at {API_URL}.\n\nTip: run start_all.ps1 from the project root.",
             )
             return
-        if not self.manager or not self.manager.has_screen("admin_dashboard"):
-            self._show_popup("Admin Dashboard", "The admin dashboard screen is not available in this build.")
-            return
-        self.manager.current = "admin_dashboard"
+        app = MDApp.get_running_app()
+        if hasattr(app, "go_to_screen"):
+            app.go_to_screen("admin_dashboard")
+        elif self.manager:
+            self.manager.current = "admin_dashboard"
 
     def open_change_pin_help(self):
         self._show_popup(
