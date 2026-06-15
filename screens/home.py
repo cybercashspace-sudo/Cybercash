@@ -1,4 +1,5 @@
 import os
+import json
 import threading
 import time
 import webbrowser
@@ -118,6 +119,52 @@ KV = """
                     height: dp(14 * root.layout_scale)
                     shorten: True
                     shorten_from: "right"
+
+        MDCard:
+            radius: [dp(18 * root.layout_scale)]
+            md_bg_color: [0.15, 0.10, 0.10, 0.96]
+            line_color: [0.60, 0.30, 0.30, 0.50]
+            elevation: 0
+            padding: [dp(12 * root.layout_scale)] * 4
+            opacity: 1 if app.is_admin else 0.0 # Ensure it's fully hidden when not admin
+            disabled: not app.is_admin
+            on_release: root.trigger_action("admin_dashboard") # Changed target to admin_dashboard
+
+            MDBoxLayout:
+                orientation: "vertical"
+                spacing: dp(6 * root.layout_scale)
+
+                MDCard:
+                    size_hint: None, None
+                    size: dp(44 * root.layout_scale), dp(44 * root.layout_scale)
+                    radius: [dp(14 * root.layout_scale)]
+                    md_bg_color: [0.30, 0.15, 0.15, 0.98]
+                    elevation: 0
+
+                    MDIcon:
+                        icon: "shield-account"
+                        theme_text_color: "Custom"
+                        text_color: [1, 0.6, 0.6, 1]
+                        font_size: sp(22 * root.icon_scale)
+                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                MDLabel:
+                    text: "Admin Tools"
+                    theme_text_color: "Custom"
+                    text_color: TEXT_MAIN
+                    font_name: FONT_SEMI
+                    font_size: sp(14 * root.text_scale)
+                    size_hint_y: None
+                    height: dp(18 * root.layout_scale)
+
+                MDLabel:
+                    text: "System management"
+                    theme_text_color: "Custom"
+                    text_color: [0.72, 0.75, 0.78, 1]
+                    font_name: FONT_REGULAR
+                    font_size: sp(11 * root.text_scale)
+                    size_hint_y: None
+                    height: dp(14 * root.layout_scale)
 
         MDCard:
             radius: [dp(18 * root.layout_scale)]
@@ -2033,5 +2080,3 @@ class MoreActionsContent(MDBoxLayout):
     def trigger_action(self, screen_name: str) -> None:
         if self.controller:
             self.controller.handle_more_action(str(screen_name or ""))
-
-Builder.load_string(KV)

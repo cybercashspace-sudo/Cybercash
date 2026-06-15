@@ -3,13 +3,18 @@ import threading
 import logging
 from importlib import import_module
 
+# Performance Tuning for Low-End Devices
+from kivy.config import Config
+Config.set('graphics', 'max_fps', '40')  # Balance between smoothness and battery
+Config.set('graphics', 'multisamples', '0') # Disable anti-aliasing to save GPU cycles
+
 # Android 14+ can emit noisy SDL HID receiver errors while probing gamepads.
 os.environ.setdefault("SDL_JOYSTICK_HIDAPI", "0")
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
-from kivy.uix.screenmanager import ScreenManager, SlideTransition
+from kivy.uix.screenmanager import ScreenManager, FadeTransition
 from kivy.utils import platform
 from kivymd.app import MDApp
 
@@ -34,6 +39,8 @@ from storage import (
     save_privacy_mode,
 )
 from theme import CyberTheme
+
+from kivy.cache import Cache
 
 # Prevent third-party logging formatting failures from flooding stderr and freezing UI.
 logging.raiseExceptions = False
@@ -63,7 +70,6 @@ SCREEN_SPECS = {
     "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
     "transactions": ("screens.transactions", "TransactionScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
-    "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
     "admin_agents": ("screens.admin_agents", "AdminAgentsScreen"),
     "admin_users": ("screens.admin_users", "AdminUsersScreen"),
@@ -94,6 +100,7 @@ class AppScreenManager(ScreenManager):
 class CyberCashApp(MDApp):
     theme_mode = StringProperty("Dark")
     privacy_mode = BooleanProperty(True)
+    is_admin = BooleanProperty(False)
     user_name = StringProperty("Cyber Cash User")
     user_email = StringProperty("support@cybercash.app")
     gold = ColorProperty(CyberTheme.GOLD)
@@ -111,6 +118,12 @@ class CyberCashApp(MDApp):
     ui_overlay = ColorProperty([0.03, 0.03, 0.05, 0.90])
     ui_text_primary = ColorProperty([0.96, 0.96, 0.98, 1])
     ui_text_secondary = ColorProperty([0.74, 0.76, 0.80, 1])
+    
+    # Performance cache for loaded screens
+    _screen_cache = {}
+    # Debounce for heavy UI tasks
+    _theme_task = None
+
     _warmup_started = False
     _loading_screen_name = ""
 
@@ -134,7 +147,11 @@ class CyberCashApp(MDApp):
 
     def toggle_theme(self):
         if self.theme_manager:
-            self.theme_manager.toggle()
+            # Delay theme toggle to keep UI responsive
+            if self._theme_task:
+                self._theme_task.cancel()
+            self._theme_task = Clock.schedule_once(
+                lambda dt: self.theme_manager.toggle(), 0.1)
 
     def _warm_backend(self) -> None:
         try:
@@ -168,14 +185,20 @@ class CyberCashApp(MDApp):
         module_name, class_name = spec
         self._loading_screen_name = screen_name
         try:
-            module = import_module(module_name)
-            screen_cls = getattr(module, class_name)
-            sm.add_widget(screen_cls(name=screen_name))
+            if screen_name not in self._screen_cache:
+                module = import_module(module_name)
+                self._screen_cache[screen_name] = getattr(module, class_name)
+            
+            screen_cls = self._screen_cache[screen_name]
+            # Instantiate on next frame to keep main thread fluid
+            Clock.schedule_once(lambda dt: sm.add_widget(screen_cls(name=screen_name)), 0)
             return True
         except Exception:
             logging.exception("Failed to load screen %s", screen_name)
             return False
         finally:
+            # Clear image cache to free memory on low-end devices
+            Cache.remove('kv.image')
             self._loading_screen_name = ""
 
     def ensure_screens(self, screen_names) -> None:
@@ -353,7 +376,7 @@ class CyberCashApp(MDApp):
         self.theme_manager = ThemeManager(self)
         self.theme_manager.apply(self.theme_mode, animate=False)
 
-        sm = AppScreenManager(transition=SlideTransition(duration=0.3))
+        sm = AppScreenManager(transition=FadeTransition(duration=0.15))
         sm.add_widget(SplashScreen(name="splash"))
         sm.current = "splash"
 

@@ -237,6 +237,7 @@ class LoginScreen(ResponsiveScreen):
     detected_first_name = StringProperty("")
     biometric_ready = BooleanProperty(False)
     _signing_in = False
+    _lookup_event = None
 
     def on_pre_enter(self):
         data = get_remember_me()
@@ -280,10 +281,20 @@ class LoginScreen(ResponsiveScreen):
         return extract_backend_message(response)
 
     def on_momo_input(self, text: str):
+        # Cancel any pending lookup to save CPU cycles
+        if self._lookup_event:
+            self._lookup_event.cancel()
+
         network = detect_network(text)
         normalized = normalize_ghana_number(text)
+        
         if not normalized or len(normalized) != 10 or not normalized.startswith("0"):
-            self.network_text = DEFAULT_NETWORK_TEXT
+            # Clear hint text immediately if input is clearly invalid/cleared
+            if not text.strip():
+                self.network_text = DEFAULT_NETWORK_TEXT
+                self.name_hint_text = DEFAULT_NAME_HINT_TEXT
+            else:
+                self.network_text = "Invalid number format..."
             self.name_hint_text = DEFAULT_NAME_HINT_TEXT
             self.detected_first_name = ""
             return
@@ -292,7 +303,13 @@ class LoginScreen(ResponsiveScreen):
 
         self._lookup_seq = int(getattr(self, "_lookup_seq", 0)) + 1
         seq = self._lookup_seq
-        threading.Thread(target=self._lookup_name_worker, args=(seq, normalized), daemon=True).start()
+        
+        # Debounce: only call backend if user stops typing for 0.6 seconds
+        self._lookup_event = Clock.schedule_once(
+            lambda dt: threading.Thread(
+                target=self._lookup_name_worker, args=(seq, normalized), daemon=True
+            ).start(), 0.6
+        )
 
     def _lookup_name_worker(self, seq: int, momo: str):
         response = lookup_registered_name(momo)
@@ -390,6 +407,7 @@ class LoginScreen(ResponsiveScreen):
                 f"Welcome back, {welcome_name}.",
                 on_close=self._go_home,
             )
+            threading.Thread(target=self._fetch_user_admin_status, daemon=True).start()
             return
 
         if status in {"registered", "verify_required"}:
@@ -419,6 +437,14 @@ class LoginScreen(ResponsiveScreen):
         error_message = self._extract_detail(response) or "Unable to sign in right now."
         self._set_feedback(error_message, "error")
         self._show_popup("Sign-in Failed", error_message)
+
+    def _fetch_user_admin_status(self):
+        app = MDApp.get_running_app()
+        headers = {"Authorization": f"Bearer {app.access_token}"}
+        ok, payload = api_client.get("/auth/me", headers=headers)
+        if ok and isinstance(payload, dict):
+            is_admin = bool(payload.get("is_admin"))
+            Clock.schedule_once(lambda dt: setattr(app, "is_admin", is_admin))
 
     def biometric_login(self):
         """Uses the global app biometric service to sign in."""

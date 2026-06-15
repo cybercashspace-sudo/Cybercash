@@ -3,14 +3,12 @@ import base64
 import json
 import time
 from kivy.utils import platform
-
 from kivy.app import App
-from kivy.storage.jsonstore import JsonStore
+from cryptography.fernet import Fernet
+import hashlib
 
-_store = None
-_store_path = ""
 TOKEN_EXPIRY_SKEW_SECONDS = 30
-
+KEY_FILE = ".storage.key"
 
 def _session_store_path() -> str:
     app = App.get_running_app()
@@ -21,19 +19,56 @@ def _session_store_path() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "session.json")
 
 
-def _get_store() -> JsonStore:
-    global _store, _store_path
+def _get_encryption_key() -> bytes:
     path = _session_store_path()
-    if _store is None or _store_path != path:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        _store = JsonStore(path)
-        _store_path = path
-    return _store
+    key_path = os.path.join(os.path.dirname(path), KEY_FILE)
+    
+    if os.path.exists(key_path):
+        with open(key_path, "rb") as f:
+            return f.read()
+    
+    # Generate a new key if none exists
+    new_key = Fernet.generate_key()
+    os.makedirs(os.path.dirname(key_path), exist_ok=True)
+    with open(key_path, "wb") as f:
+        f.write(new_key)
+    return new_key
+
+
+def _read_secure_data() -> dict:
+    path = _session_store_path()
+    if not os.path.exists(path):
+        return {}
+    
+    try:
+        fernet = Fernet(_get_encryption_key())
+        with open(path, "rb") as f:
+            encrypted_data = f.read()
+        decrypted_data = fernet.decrypt(encrypted_data)
+        return json.loads(decrypted_data.decode("utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_secure_data(data: dict):
+    path = _session_store_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    
+    try:
+        fernet = Fernet(_get_encryption_key())
+        json_str = json.dumps(data)
+        encrypted_data = fernet.encrypt(json_str.encode("utf-8"))
+        with open(path, "wb") as f:
+            f.write(encrypted_data)
+    except Exception:
+        pass
 
 
 def save_token(token: str):
     try:
-        _get_store().put("auth", access_token=str(token or ""))
+        data = _read_secure_data()
+        data["access_token"] = str(token or "")
+        _write_secure_data(data)
     except Exception:
         return
 
@@ -44,19 +79,16 @@ def clear_token():
 
 def save_privacy_mode(enabled: bool):
     try:
-        _get_store().put("settings", privacy_mode=bool(enabled))
+        data = _read_secure_data()
+        data["privacy_mode"] = bool(enabled)
+        _write_secure_data(data)
     except Exception:
         pass
 
 
 def get_privacy_mode() -> bool:
-    try:
-        store = _get_store()
-        if store.exists("settings"):
-            return bool(store.get("settings").get("privacy_mode", True))
-    except Exception:
-        return True
-    return True
+    data = _read_secure_data()
+    return bool(data.get("privacy_mode", True))
 
 
 def _decode_jwt_payload(token: str) -> dict:
@@ -83,13 +115,12 @@ def token_is_expired(token: str) -> bool:
 
 def get_token() -> str:
     try:
-        store = _get_store()
-        if store.exists("auth"):
-            token = str(store.get("auth").get("access_token", "") or "").strip()
-            if token and token_is_expired(token):
-                clear_token()
-                return ""
-            return token
+        data = _read_secure_data()
+        token = str(data.get("access_token", "") or "").strip()
+        if token and token_is_expired(token):
+            clear_token()
+            return ""
+        return token
     except Exception:
         return ""
     return ""

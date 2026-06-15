@@ -282,6 +282,7 @@ class SettingsScreen(ActionScreen):
         if isinstance(user_payload, dict):
             app.user_name = user_payload.get("full_name") or user_payload.get("first_name") or app.user_name
             app.user_email = user_payload.get("email") or app.user_email
+            app.is_admin = bool(user_payload.get("is_admin"))
 
         self._set_feedback("Settings loaded.", "success")
 
