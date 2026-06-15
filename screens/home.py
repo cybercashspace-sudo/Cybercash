@@ -381,12 +381,12 @@ KV = """
                 pos: self.pos
                 size: self.size
             Color:
-                rgba: 0.42, 0.32, 0.14, 0.10 if app.theme_mode == "Dark" else 0.05
+                rgba: (0.42, 0.32, 0.14, 0.10) if app.theme_mode == "Dark" else (0.42, 0.32, 0.14, 0.05)
             Ellipse:
                 pos: self.x + self.width * 0.16, self.y + self.height * 0.74
                 size: self.width * 0.66, self.width * 0.66
             Color:
-                rgba: 0.25, 0.39, 0.32, 0.16 if app.theme_mode == "Dark" else 0.08
+                rgba: (0.25, 0.39, 0.32, 0.16) if app.theme_mode == "Dark" else (0.25, 0.39, 0.32, 0.08)
             Ellipse:
                 pos: self.x + self.width * 0.38, self.y + self.height * 0.16
                 size: self.width * 0.62, self.width * 0.62

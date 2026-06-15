@@ -2,6 +2,7 @@ import os
 import base64
 import json
 import time
+from kivy.utils import platform
 
 from kivy.app import App
 from kivy.storage.jsonstore import JsonStore

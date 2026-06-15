@@ -10,7 +10,7 @@ os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 from kivy.clock import Clock
 from kivy.properties import ColorProperty, StringProperty
 from kivy.uix.screenmanager import ScreenManager, SlideTransition
-from kivy.utils import platform as kivy_platform
+from kivy.utils import platform
 from kivymd.app import MDApp
 
 from core.silent_touch import install_silent_touch
@@ -26,7 +26,7 @@ from core.theme_manager import ThemeManager
 install_kivymd_font_style_compat()
 
 from screens.splash import SplashScreen
-from storage import get_token
+from storage import get_token, get_remember_me, save_token
 from theme import CyberTheme
 
 # Prevent third-party logging formatting failures from flooding stderr and freezing UI.
@@ -39,8 +39,8 @@ SCREEN_SPECS = {
     "login": ("screens.login", "LoginScreen"),
     "register": ("screens.register", "RegisterScreen"),
     "otp": ("screens.otp", "OTPScreen"),
+    "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
     "home": ("screens.home", "HomeScreen"),
-    "dashboard": ("screens.dashboard", "DashboardScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
     "deposit": ("screens.wallet", "DepositScreen"),
     "withdraw": ("screens.wallet", "WithdrawScreen"),
@@ -185,7 +185,87 @@ class CyberCashApp(MDApp):
         return False
 
     def _is_mobile_runtime(self) -> bool:
-        return str(kivy_platform or "").strip().lower() in {"android", "ios"}
+        return str(platform or "").strip().lower() in {"android", "ios"}
+
+    def on_pause(self):
+        # Allow the app to pause and save the state
+        return True
+
+    def on_resume(self):
+        # Trigger App Lock if authenticated and biometric-ready
+        if self.access_token:
+            data = get_remember_me()
+            if data.get("pin"):
+                self.request_biometric_auth(
+                    reason="Resume Session",
+                    on_success=lambda: None, # Stay on current screen
+                    on_failure=self._lock_app_to_login
+                )
+
+    def _lock_app_to_login(self, message="Session Locked"):
+        self.access_token = ""
+        save_token("")
+        self.go_to_screen("login")
+
+    def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None):
+        """Central biometric service for Login and App Lock."""
+        data = get_remember_me()
+        momo = data.get("momo", "User")
+        pin = data.get("pin")
+
+        if not pin:
+            if on_failure: on_failure("Biometric not set up")
+            return
+
+        if platform == 'android':
+            try:
+                from jnius import autoclass, PythonJavaClass, java_method
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                BiometricPrompt = autoclass('androidx.biometric.BiometricPrompt')
+                PromptInfo = autoclass('androidx.biometric.BiometricPrompt$PromptInfo')
+                ContextCompat = autoclass('androidx.core.content.ContextCompat')
+                
+                activity = PythonActivity.mActivity
+                executor = ContextCompat.getMainExecutor(activity)
+
+                class BiometricCallback(PythonJavaClass):
+                    __javainterfaces__ = ['androidx/biometric/BiometricPrompt$AuthenticationCallback']
+                    def __init__(self, s_cb, f_cb):
+                        self.s_cb = s_cb
+                        self.f_cb = f_cb
+                        super().__init__()
+
+                    @java_method('(Landroidx/biometric/BiometricPrompt$AuthenticationResult;)V')
+                    def onAuthenticationSucceeded(self, result):
+                        Clock.schedule_once(lambda dt: self.s_cb())
+
+                    @java_method('(ILjava/lang/CharSequence;)V')
+                    def onAuthenticationError(self, errorCode, errString):
+                        if int(errorCode) != 13: # 13 is cancel
+                            Clock.schedule_once(lambda dt: self.f_cb(str(errString)))
+
+                callback = BiometricCallback(
+                    lambda: on_success() if on_success else None,
+                    lambda msg: on_failure(msg) if on_failure else None
+                )
+                prompt = BiometricPrompt(activity, executor, callback)
+                builder = PromptInfo.Builder()
+                builder.setTitle("CYBER CASH Secure Access")
+                builder.setSubtitle(f"{reason} for {momo}")
+                builder.setNegativeButtonText("Cancel")
+                builder.setAllowedAuthenticators(15)
+                activity.runOnUiThread(lambda: prompt.authenticate(builder.build()))
+                return
+            except Exception as e:
+                print(f"Native auth failed: {e}")
+
+        # Fallback simulation
+        from core.popup_manager import show_message_dialog
+        show_message_dialog(
+            self.root, title="Biometric Check", 
+            message=f"Authenticating {momo}...",
+            on_close=lambda: Clock.schedule_once(lambda dt: on_success(), 0.5) if on_success else None
+        )
 
     def _open_authenticated_start_screen(self, *_args) -> None:
         if self.access_token:

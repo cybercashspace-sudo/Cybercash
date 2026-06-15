@@ -2,14 +2,15 @@ import threading
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import ColorProperty, StringProperty
+from kivy.properties import BooleanProperty, ColorProperty, StringProperty
+from kivy.utils import platform
 from kivymd.app import MDApp
 
 from api.auth import access_account, lookup_registered_name
 from core.message_sanitizer import extract_backend_message
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
-from storage import save_token
+from storage import save_token, get_remember_me, save_remember_me, clear_remember_me
 from utils.network import detect_network, normalize_ghana_number
 
 DEFAULT_NETWORK_TEXT = "Network: Enter your Ghana MoMo number to detect your network."
@@ -174,12 +175,13 @@ KV = """
                             spacing: "8dp"
 
                             MDCheckbox:
-                                id: agent_toggle
+                                id: remember_me_toggle
                                 size_hint: None, None
                                 size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                active: True
 
                             MDLabel:
-                                text: "New Agent? Turn this on only for your first setup. Existing agents leave this OFF."
+                                text: "Remember Me"
                                 valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
@@ -201,6 +203,13 @@ KV = """
                             theme_text_color: "Custom"
                             text_color: root.feedback_color
                             adaptive_height: True
+
+                        MDTextButton:
+                            text: "Forgot PIN?"
+                            theme_text_color: "Custom"
+                            text_color: GOLD
+                            pos_hint: {"center_x": 0.5}
+                            on_release: app.go_to_screen("reset_pin")
 
                         MDFillRoundFlatIconButton:
                             text: "Sign In"
@@ -226,7 +235,19 @@ class LoginScreen(ResponsiveScreen):
     feedback_text = StringProperty(DEFAULT_FEEDBACK_TEXT)
     feedback_color = ColorProperty([0.72, 0.74, 0.79, 1])
     detected_first_name = StringProperty("")
+    biometric_ready = BooleanProperty(False)
     _signing_in = False
+
+    def on_pre_enter(self):
+        data = get_remember_me()
+        momo = data.get("momo", "")
+        first_name = data.get("first_name", "")
+        pin = data.get("pin", "")
+        if momo:
+            self.ids.momo_input.text = momo
+        if first_name:
+            self.ids.first_name_input.text = first_name
+        self.biometric_ready = bool(momo and pin)
 
     def _go_home(self):
         app = MDApp.get_running_app()
@@ -237,7 +258,7 @@ class LoginScreen(ResponsiveScreen):
             if go_to_screen and go_to_screen("deposit", fallback="wallet"):
                 return
         if go_to_screen:
-            go_to_screen("home", fallback="dashboard")
+            go_to_screen("home")
         elif self.manager:
             self.manager.current = "home"
 
@@ -313,7 +334,8 @@ class LoginScreen(ResponsiveScreen):
         momo = normalize_ghana_number(raw_momo)
         first_name = self.ids.first_name_input.text.strip() or self.detected_first_name.strip() or "Customer"
         pin = self.ids.pin_input.text.strip()
-        is_agent = bool(self.ids.agent_toggle.active)
+        is_agent = False
+        remember_me = bool(self.ids.remember_me_toggle.active)
 
         if not momo or len(momo) != 10 or not momo.startswith("0"):
             self._set_feedback("Enter a valid 10-digit Ghana MoMo number.", "error")
@@ -324,6 +346,11 @@ class LoginScreen(ResponsiveScreen):
             self._set_feedback("PIN must be exactly 4 digits.", "error")
             self._show_popup("Invalid PIN", "PIN must be exactly 4 digits.")
             return
+
+        if remember_me:
+            save_remember_me(momo, first_name, pin=pin)
+        else:
+            clear_remember_me()
 
         self.ids.momo_input.text = momo
         self._set_feedback("Signing in...", "info")
@@ -392,6 +419,25 @@ class LoginScreen(ResponsiveScreen):
         error_message = self._extract_detail(response) or "Unable to sign in right now."
         self._set_feedback(error_message, "error")
         self._show_popup("Sign-in Failed", error_message)
+
+    def biometric_login(self):
+        """Uses the global app biometric service to sign in."""
+        app = MDApp.get_running_app()
+        data = get_remember_me()
+        pin = data.get("pin")
+        if not pin:
+            self._show_popup("Biometric Setup", "Sign in with PIN once to enable.")
+            return
+
+        def _on_success():
+            self.ids.pin_input.text = pin
+            self.submit()
+
+        app.request_biometric_auth(
+            reason="Sign-in",
+            on_success=_on_success,
+            on_failure=lambda msg: self._set_feedback(msg, "warning")
+        )
 
 
 Builder.load_string(KV)
