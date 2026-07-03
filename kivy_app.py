@@ -18,6 +18,14 @@ from kivy.uix.screenmanager import ScreenManager, FadeTransition
 from kivy.utils import platform
 from kivymd.app import MDApp
 
+# Diagnostic check for cryptography shared libraries in Android environment
+try:
+    import cryptography
+    from cryptography.hazmat.backends import default_backend
+    logging.info("CRYPTOGRAPHY_CHECK: Successfully loaded cryptography version %s", cryptography.__version__)
+except Exception as e:
+    logging.error("CRYPTOGRAPHY_CHECK: Failed to load cryptography shared libraries: %s", e)
+
 from core.silent_touch import install_silent_touch
 
 install_silent_touch()

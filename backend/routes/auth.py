@@ -29,6 +29,7 @@ from backend.schemas.auth import (
 )
 from backend.schemas.user import UserResponse
 from backend.services.compliance_service import ensure_daily_window, resolve_daily_limit_for_tier
+from backend.services.reconciliation_service import verify_wallet_balance
 from backend.services.otp_service import OTPService, get_otp_service
 from backend.dependencies.auth import get_current_user
 from utils.network import detect_network, normalize_ghana_number
@@ -122,6 +123,20 @@ def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
     if detail:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Unable to send OTP via {provider}: {detail}")
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Unable to send OTP via {provider}.")
+
+
+async def _verify_wallet_for_authenticated_user(db: AsyncSession, user_id: int) -> None:
+    _is_ok, details = await verify_wallet_balance(db, user_id)
+    if details.get("status") == "missing_wallet":
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Wallet missing. Manual investigation required.",
+        )
+    if details.get("status") == "mismatch":
+        logger.warning(
+            "Wallet verification mismatch for user_id=%s during authentication; leaving realtime wallet balance unchanged.",
+            user_id,
+        )
 
 
 def revoke_user_tokens(user: User) -> None:
@@ -558,6 +573,7 @@ async def login(data: LoginSchema, request: Request, db: AsyncSession = Depends(
     user.last_login_ip = request.client.host if request.client else None
     db.add(user)
     await db.commit()
+    await _verify_wallet_for_authenticated_user(db, user.id)
 
     access_token = create_jwt(user.id, token_version=int(user.token_version or 0))
 
@@ -658,6 +674,7 @@ async def access_account(
             user.last_login_device_id = data.device_id
         db.add(user)
         await db.commit()
+        await _verify_wallet_for_authenticated_user(db, user.id)
         token = create_jwt(user.id, token_version=int(user.token_version or 0))
         return {
             "status": "login_success",
@@ -694,7 +711,7 @@ async def access_account(
     db.add(new_user)
     await db.flush()
     # Point 1: Check for existing wallet before creation to prevent balance fragmentation
-        if not await db.scalar(select(Wallet).filter(Wallet.user_id == new_user.id)):
+    if not await db.scalar(select(Wallet).filter(Wallet.user_id == new_user.id)):
         db.add(Wallet(user_id=new_user.id, currency="GHS", balance=0.0))
     otp_code, send_result = await otp_service.issue_otp(
         identity,
@@ -793,6 +810,7 @@ async def verify_account(
     user.last_login_ip = request.client.host if request.client else None
     db.add(user)
     await db.commit()
+    await _verify_wallet_for_authenticated_user(db, user.id)
     token = create_jwt(user.id, token_version=int(user.token_version or 0))
     return {
         "status": "verified",

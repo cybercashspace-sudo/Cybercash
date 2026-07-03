@@ -388,9 +388,10 @@ async def initiate_paystack_payment(
         result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
         wallet = result.scalars().first()
         if not wallet:
-            wallet = Wallet(user_id=current_user.id, currency="GHS", balance=0.0)
-            db.add(wallet)
-            await db.flush()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Wallet missing. Manual investigation required.",
+            )
 
         try:
             checkout_callback_url = _checkout_status_url(http_request, "success")

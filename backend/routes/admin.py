@@ -400,9 +400,16 @@ async def reconcile_user_balance_admin(
     Triggers a manual balance reconciliation and repair for a specific user.
     """
     try:
-        success, details = await repair_wallet_balance(db, user_id, admin_id=admin_user.id)
+        success, details = await repair_wallet_balance(
+            db,
+            user_id,
+            admin_id=admin_user.id,
+        )
         if not success:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=details.get("error", "Reconciliation failed"))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=details.get("error") or details.get("reason") or "Reconciliation failed",
+            )
         return details
     finally:
         await db.close()

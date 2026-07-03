@@ -66,10 +66,10 @@ class PayoutService:
         if wallet:
             return wallet
 
-        wallet = Wallet(user_id=user_id, currency=currency, balance=0.0)
-        self.db.add(wallet)
-        await self.db.flush()
-        return wallet
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Wallet missing. Manual investigation required.",
+        )
 
     async def _get_active_agent(self, user_id: int) -> Agent:
         result = await self.db.execute(select(Agent).filter(Agent.user_id == user_id))

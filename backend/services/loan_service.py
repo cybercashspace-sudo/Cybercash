@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Any
 
 from backend.core.transaction_types import TransactionType
 from backend.services.ledger_service import LedgerService
@@ -117,9 +118,7 @@ async def sync_wallet_loan_balance(
         result = await db.execute(select(models.Wallet).filter(models.Wallet.user_id == user_id).with_for_update())
         wallet = result.scalars().first()
         if wallet is None:
-            wallet = models.Wallet(user_id=user_id, currency="GHS", balance=Decimal("0.00"))
-            db.add(wallet)
-            await db.flush()
+            raise ValueError(f"Wallet missing for user {user_id}. Manual investigation required.")
 
     owner_filter = _loan_owner_filter(models.Loan, user_id, active_agent_id)
     result = await db.execute(
@@ -181,9 +180,7 @@ async def _fetch_user_wallet_and_agent(
     wallet_result = await db.execute(stmt)
     wallet = wallet_result.scalars().first()
     if wallet is None:
-        wallet = models.Wallet(user_id=user_id, currency="GHS", balance=Decimal("0.00"))
-        db.add(wallet)
-        await db.flush()
+        raise ValueError(f"Wallet missing for user {user_id}. Manual investigation required.")
 
     active_agent = await get_active_agent_for_user(db, user_id)
     return user, wallet, active_agent

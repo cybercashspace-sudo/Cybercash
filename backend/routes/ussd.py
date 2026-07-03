@@ -188,10 +188,7 @@ async def _ensure_wallet(db: AsyncSession, user_id: int) -> models.Wallet:
     if wallet:
         return wallet
 
-    wallet = models.Wallet(user_id=user_id, currency="GHS", balance=0.0)
-    db.add(wallet)
-    await db.flush()
-    return wallet
+    raise ValueError(f"Wallet missing for user {user_id}. Manual investigation required.")
 
 
 async def _resolve_p2p_total_sent_today(db: AsyncSession, user_id: int) -> float:

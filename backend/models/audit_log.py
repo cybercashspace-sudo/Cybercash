@@ -47,3 +47,9 @@ class AuditLog(Base):
     # Relationships
     user = relationship("User", back_populates="audit_logs")
     transaction = relationship("Transaction", back_populates="audit_logs")
+    wallet = relationship(
+        "Wallet",
+        back_populates="audit_logs",
+        primaryjoin="and_(Wallet.id==foreign(AuditLog.resource_id), AuditLog.resource_type=='wallet')",
+        viewonly=True,
+    )

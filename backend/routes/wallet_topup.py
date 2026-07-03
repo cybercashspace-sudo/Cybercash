@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.config import settings
@@ -62,14 +62,13 @@ def _paystack_url(path: str) -> str:
 
 
 async def _get_or_create_wallet(db: AsyncSession, user_id: int) -> Wallet:
-    result = await db.execute(select(Wallet).filter(Wallet.user_id == user_id))
+    result = await db.execute(select(Wallet).filter(Wallet.user_id == user_id).with_for_update())
     wallet = result.scalars().first()
     if wallet:
         return wallet
-    # Prevent automatic recreation of missing wallets during top-up
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="System error: Wallet record is missing. Please contact support."
+        detail="Wallet missing. Manual investigation required.",
     )
 
 
@@ -178,6 +177,34 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
             "provider_response": verify_payload,
         }
 
+    existing_tx_result = await db.execute(
+        select(Transaction).filter(
+            or_(
+                Transaction.provider_reference == processor_reference,
+                Transaction.idempotency_key == reference,
+            )
+        )
+    )
+    existing_tx = existing_tx_result.scalars().first()
+    if existing_tx:
+        wallet = await _get_or_create_wallet(db, int(user_id))
+        if payment and metadata.get("wallet_credited") is not True:
+            metadata["wallet_credited"] = True
+            metadata["wallet_credit_amount"] = amount
+            metadata["paystack_reference"] = processor_reference
+            payment.metadata_json = json.dumps(metadata)
+            payment.status = "successful"
+            db.add(payment)
+            await db.commit()
+        return {
+            "status": "success",
+            "message": "Wallet was already credited.",
+            "reference": reference,
+            "amount": amount,
+            "wallet_balance": round(float(wallet.balance or 0.0), 2),
+            "provider_response": verify_payload,
+        }
+
     wallet = await _get_or_create_wallet(db, int(user_id))
     wallet.balance = round(float(wallet.balance or 0.0) + amount, 2)
 
@@ -223,6 +250,7 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
 
     db.add(wallet)
     db.add(transaction)
+    await db.flush()
     
     # Log audit entry for wallet topup
     wallet_before_balance = round(float(wallet.balance or 0.0) - amount, 2)  # Balance before this topup

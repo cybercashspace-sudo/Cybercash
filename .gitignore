@@ -5,6 +5,8 @@
 ci_android_src/
 .kivy/
 .pytest_cache/
+.codex-python-packages/
+.codex-venv/
 .venv/
 .vscode/
 .apk_build_background

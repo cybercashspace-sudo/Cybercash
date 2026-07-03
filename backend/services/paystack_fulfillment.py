@@ -59,10 +59,7 @@ async def _get_or_create_wallet(db: AsyncSession, user_id: int, currency: str = 
     if wallet:
         return wallet
 
-    wallet = Wallet(user_id=user_id, currency=currency or "GHS", balance=0.0)
-    db.add(wallet)
-    await db.flush()
-    return wallet
+    raise ValueError(f"Wallet missing for user {user_id}. Manual investigation required.")
 
 
 async def _get_or_create_agent(db: AsyncSession, user_id: int) -> Agent:

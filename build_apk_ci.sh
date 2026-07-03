@@ -42,7 +42,12 @@ copy_paths=(
 
 for path in "${copy_paths[@]}"; do
   if [ -e "$path" ]; then
-    rsync -a "$path" "$app_src_dir/"
+    rsync -a \
+      --exclude '__pycache__/' \
+      --exclude '*.pyc' \
+      --exclude 'test_*.py' \
+      --exclude '*_test.py' \
+      "$path" "$app_src_dir/"
   fi
 done
 
@@ -106,15 +111,27 @@ pushd "$stage_dir" >/dev/null
 p4a_parent_dir=".buildozer/android/platform"
 p4a_dir="$p4a_parent_dir/python-for-android"
 private_app_dir=".buildozer/android/app"
+p4a_ref="${P4A_REF:-v2024.01.21}"
 mkdir -p "$p4a_parent_dir"
 
-if ! git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
-   ! git -C "$p4a_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+p4a_needs_clone=1
+if git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && \
+   git -C "$p4a_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+  current_p4a_ref="$(git -C "$p4a_dir" describe --tags --exact-match HEAD 2>/dev/null || git -C "$p4a_dir" rev-parse --verify HEAD)"
+  if [ "$current_p4a_ref" = "$p4a_ref" ]; then
+    p4a_needs_clone=0
+  else
+    echo "Cached python-for-android ref is $current_p4a_ref; expected $p4a_ref. Refreshing..."
+  fi
+fi
+
+if [ "$p4a_needs_clone" -eq 1 ]; then
   rm -rf "$p4a_dir"
-  echo "Pre-cloning python-for-android with retries..."
+  echo "Pre-cloning python-for-android ($p4a_ref) with retries..."
   for attempt in 1 2 3 4 5; do
     echo "python-for-android clone attempt $attempt/5"
-    if git clone --depth 1 --single-branch --branch master https://github.com/kivy/python-for-android.git "$p4a_dir"; then
+    if git clone --depth 1 --single-branch --branch "$p4a_ref" https://github.com/kivy/python-for-android.git "$p4a_dir"; then
+      git -C "$p4a_dir" describe --tags --exact-match HEAD || git -C "$p4a_dir" rev-parse --short HEAD
       break
     fi
     rm -rf "$p4a_dir"

@@ -232,8 +232,10 @@ async def _ensure_default_access_user() -> None:
         )
         user = result.scalars().first()
         pin_hashed = hash_pin(default_pin)
+        created_default_admin = False
 
         if not user:
+            created_default_admin = True
             user = User(
                 momo_number=default_phone,
                 phone_number=default_phone,
@@ -271,6 +273,9 @@ async def _ensure_default_access_user() -> None:
         result = await session.execute(select(Wallet).filter(Wallet.user_id == user.id))
         wallet = result.scalars().first()
         if not wallet:
+            if not created_default_admin:
+                logger.critical("Default admin user %s is missing a wallet; refusing automatic recreation.", user.id)
+                raise RuntimeError("Default admin wallet missing. Manual investigation required.")
             wallet = Wallet(user_id=user.id, balance=0.0, currency="GHS")
             session.add(wallet)
 
@@ -383,7 +388,7 @@ async def startup_db_events():
 async def _run_daily_reconciliation() -> None:
     """
     Runs daily at 2 AM UTC to reconcile all wallet balances against their transaction ledgers.
-    Logs mismatches and freezes affected wallets for admin review.
+    Logs mismatches for admin review without rewriting realtime wallet balances.
     """
     from backend.services.reconciliation_service import reconcile_all_wallets
     import asyncio

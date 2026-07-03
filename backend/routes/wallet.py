@@ -24,7 +24,7 @@ from backend.schemas.fx import ExchangeRequest, ExchangeResponse # New Import
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.fx_service import FxService, get_fx_service # New Import
 from backend.services import loan_service
-from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user, repair_wallet_balance
+from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user
 from backend.core.transaction_types import TransactionType
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
@@ -377,6 +377,7 @@ async def transfer_funds(
             user_id=current_user.id,
             wallet_id=sender_wallet.id,
             type=TransactionType.TRANSFER,
+            entry_type="debit",
             amount=-required_amount,
             currency=request.currency,
             status="completed",
@@ -402,7 +403,8 @@ async def transfer_funds(
                             "p2p_feeable_amount": p2p_feeable_amount,
                         }
                     ),
-                }
+                },
+                default=str,
             ),
         )
         db.add(sender_transaction)
@@ -412,6 +414,7 @@ async def transfer_funds(
             user_id=recipient_user.id,
             wallet_id=recipient_wallet.id,
             type=TransactionType.TRANSFER,
+            entry_type="credit",
             amount=requested_amount,
             currency=request.currency,
             status="completed",
@@ -424,7 +427,8 @@ async def transfer_funds(
                     "transferred_amount": requested_amount,
                     "transfer_fee": transfer_fee,
                     "transfer_fee_rate": fee_rate,
-                }
+                },
+                default=str,
             ),
         )
         db.add(recipient_transaction)
@@ -434,12 +438,12 @@ async def transfer_funds(
         recipient_identifier = recipient_user.momo_number or recipient_user.phone_number or f"user:{recipient_user.id}"
 
         ledger_entries_data = [
-            {"account_name": "Customer Wallets (Liability)", "debit": required_amount, "credit": 0.0},
-            {"account_name": "Customer Wallets (Liability)", "debit": 0.0, "credit": requested_amount},
+            {"account_name": "Customer Wallets (Liability)", "debit": float(required_amount), "credit": 0.0},
+            {"account_name": "Customer Wallets (Liability)", "debit": 0.0, "credit": float(requested_amount)},
         ]
         if transfer_fee > 0:
             ledger_entries_data.append(
-                {"account_name": "Revenue - Transaction Fees", "debit": 0.0, "credit": transfer_fee}
+                {"account_name": "Revenue - Transaction Fees", "debit": 0.0, "credit": float(transfer_fee)}
             )
 
         await ledger_service.create_journal_entry(
@@ -469,13 +473,16 @@ async def transfer_funds(
             after_balance=sender_after_balance,
             amount_changed=-required_amount,
             description=f"Transfer sent to {recipient_identifier}: {requested_amount} GHS (fee: {transfer_fee} GHS)",
-            metadata_json=json.dumps({
-                "recipient_id": recipient_user.id,
-                "recipient_identifier": recipient_identifier,
-                "transferred_amount": requested_amount,
-                "fee": transfer_fee,
-                "transfer_reference": f"TRX-{int(sender_transaction.id)}",
-            }),
+            metadata_json=json.dumps(
+                {
+                    "recipient_id": recipient_user.id,
+                    "recipient_identifier": recipient_identifier,
+                    "transferred_amount": requested_amount,
+                    "fee": transfer_fee,
+                    "transfer_reference": f"TRX-{int(sender_transaction.id)}",
+                },
+                default=str,
+            ),
         )
         
         await log_wallet_audit(
@@ -487,12 +494,15 @@ async def transfer_funds(
             after_balance=recipient_after_balance,
             amount_changed=requested_amount,
             description=f"Transfer received from {sender_identifier}: {requested_amount} GHS",
-            metadata_json=json.dumps({
-                "sender_id": current_user.id,
-                "sender_identifier": sender_identifier,
-                "transferred_amount": requested_amount,
-                "transfer_reference": f"TRX-{int(sender_transaction.id)}",
-            }),
+            metadata_json=json.dumps(
+                {
+                    "sender_id": current_user.id,
+                    "sender_identifier": sender_identifier,
+                    "transferred_amount": requested_amount,
+                    "transfer_reference": f"TRX-{int(sender_transaction.id)}",
+                },
+                default=str,
+            ),
         )
         
         await db.commit()
@@ -538,8 +548,10 @@ async def read_user_wallet( # Added async
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # Automatic balance integrity check and repair
-        await repair_wallet_balance(db, current_user.id)
+        # Read-only integrity check. Never rewrite a realtime wallet during a user read.
+        _is_verified, verification_details = await verify_wallet_balance(db, current_user.id)
+        if verification_details.get("status") == "missing_wallet":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wallet not found for this user.")
 
         await loan_service.run_loan_maintenance_for_user(
             db=db,
