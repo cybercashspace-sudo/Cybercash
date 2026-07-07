@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Numeric, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -13,7 +13,7 @@ class Commission(Base):
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    amount = Column(Float, nullable=False)
+    amount = Column(Numeric(20, 2), nullable=False)
     currency = Column(String, nullable=False, default="GHS")
     commission_type = Column(String, nullable=False, default="AGENT_TRANSACTION")
     status = Column(String, nullable=False, default="accrued")

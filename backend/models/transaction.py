@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Numeric, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from backend.database import Base
@@ -13,11 +13,12 @@ class Transaction(Base):
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False) # The specific wallet involved
 
     type = Column(String, nullable=False) # canonical type from backend.core.transaction_types
-    amount = Column(Float, nullable=False)
+    entry_type = Column(String, nullable=False) # 'credit' (add) or 'debit' (subtract)
+    amount = Column(Numeric(20, 2), nullable=False)
     currency = Column(String, default="GHS") # Assuming Ghanaian Cedis based on previous context
     metadata_json = Column(String, nullable=True) # JSON metadata for provider/risk/reference fields
     
-    commission_earned = Column(Float, default=0.0) # Commission for the agent on this transaction
+    commission_earned = Column(Numeric(20, 2), default=0.0) # Commission for the agent on this transaction
     
     status = Column(String, default="pending") # e.g., 'pending', 'completed', 'failed', 'reversed'
     
@@ -28,8 +29,8 @@ class Transaction(Base):
     # Example: UUID from client or generated server-side (e.g., for deposits)
     idempotency_key = Column(String, nullable=True, unique=True, index=True)
 
-    fx_rate = Column(Float, nullable=True) # Exchange rate applied for FX transactions
-    fx_spread_amount = Column(Float, nullable=True) # Revenue earned from FX spread
+    fx_rate = Column(Numeric(20, 8), nullable=True) # Higher precision for exchange rates
+    fx_spread_amount = Column(Numeric(20, 2), nullable=True) # Revenue earned from FX spread
 
     latitude = Column(Float, nullable=True) # Geo-location of the transaction
     longitude = Column(Float, nullable=True) # Geo-location of the transaction

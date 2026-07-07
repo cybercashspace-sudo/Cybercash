@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from backend.database import Base
@@ -10,13 +10,13 @@ class LoanApplication(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     agent_id = Column(Integer, ForeignKey("agents.id"), index=True)
     
-    amount = Column(Float, nullable=False)
+    amount = Column(Numeric(20, 2), nullable=False)
     repayment_duration = Column(Integer, nullable=False) # requested duration in days or months
     purpose = Column(String, nullable=True) # e.g., "cash float", "airtime", "liquidity"
     
     # Loan Offer Details (generated after risk assessment)
-    approved_amount = Column(Float, nullable=True)
-    fee_percentage = Column(Float, nullable=True)
+    approved_amount = Column(Numeric(20, 2), nullable=True)
+    fee_percentage = Column(Numeric(20, 2), nullable=True)
     offered_repayment_duration = Column(Integer, nullable=True) # in days or months
     
     status = Column(String, default="pending_admin_approval") # pending_admin_approval -> approved/rejected -> disbursed

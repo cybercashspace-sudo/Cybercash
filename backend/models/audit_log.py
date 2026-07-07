@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from backend.database import Base
@@ -25,9 +25,9 @@ class AuditLog(Base):
     resource_id = Column(Integer, nullable=True)
     
     # Balance information for reconciliation
-    before_balance = Column(Float, nullable=True)  # Wallet balance before action
-    after_balance = Column(Float, nullable=True)   # Wallet balance after action
-    amount_changed = Column(Float, nullable=True)  # +/- amount in this transaction
+    before_balance = Column(Numeric(20, 2), nullable=True)  # Wallet balance before action
+    after_balance = Column(Numeric(20, 2), nullable=True)   # Wallet balance after action
+    amount_changed = Column(Numeric(20, 2), nullable=True)  # +/- amount in this transaction
     
     # Security metadata
     ip_address = Column(String, nullable=True)

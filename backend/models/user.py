@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from backend.database import Base
@@ -43,8 +43,8 @@ class User(Base):
 
     # Compliance / KYC controls.
     kyc_tier = Column(Integer, default=1)
-    daily_limit = Column(Float, default=2000.0)
-    daily_spent = Column(Float, default=0.0)
+    daily_limit = Column(Numeric(20, 2), default=2000.0)
+    daily_spent = Column(Numeric(20, 2), default=0.0)
     daily_spent_reset_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

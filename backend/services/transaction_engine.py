@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from fastapi import Depends
 import json
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from backend.database import get_db
 from backend.models import Transaction, Wallet, User, Agent, Account, CryptoWallet, VirtualCard, Loan, RiskEvent
 from backend.core.transaction_types import TransactionType, normalize_transaction_type
@@ -15,14 +16,14 @@ from utils.network import normalize_ghana_number
 import logging
 
 logger = logging.getLogger(__name__)
-ESCROW_MIN_DEAL_AMOUNT_GHS = float(getattr(settings, "ESCROW_MIN_DEAL_AMOUNT_GHS", 20.0))
-ESCROW_CREATE_FEE_GHS = float(getattr(settings, "ESCROW_CREATE_FEE_GHS", 5.0))
-ESCROW_RELEASE_FEE_GHS = float(getattr(settings, "ESCROW_RELEASE_FEE_GHS", 5.0))
-INVESTMENT_MIN_AMOUNT_GHS = float(getattr(settings, "INVESTMENT_MIN_AMOUNT_GHS", 10.0))
+ESCROW_MIN_DEAL_AMOUNT_GHS = Decimal(str(getattr(settings, "ESCROW_MIN_DEAL_AMOUNT_GHS", "20.00")))
+ESCROW_CREATE_FEE_GHS = Decimal(str(getattr(settings, "ESCROW_CREATE_FEE_GHS", "5.00")))
+ESCROW_RELEASE_FEE_GHS = Decimal(str(getattr(settings, "ESCROW_RELEASE_FEE_GHS", "5.00")))
+INVESTMENT_MIN_AMOUNT_GHS = Decimal(str(getattr(settings, "INVESTMENT_MIN_AMOUNT_GHS", "10.00")))
 INVESTMENT_MIN_DAYS = int(getattr(settings, "INVESTMENT_MIN_DAYS", 7))
 INVESTMENT_MAX_DAYS = int(getattr(settings, "INVESTMENT_MAX_DAYS", 365))
-INVESTMENT_RISK_FREE_ANNUAL_RATE = float(getattr(settings, "INVESTMENT_RISK_FREE_ANNUAL_RATE", 12.0))
-INVESTMENT_PROFIT_FEE_RATE = 0.10
+INVESTMENT_RISK_FREE_ANNUAL_RATE = Decimal(str(getattr(settings, "INVESTMENT_RISK_FREE_ANNUAL_RATE", "12.00")))
+INVESTMENT_PROFIT_FEE_RATE = Decimal("0.10")
 INVESTMENT_ALLOWED_DURATIONS_DAYS = (7, 14, 30, 60, 90, 180, 365)
 
 
@@ -35,13 +36,18 @@ def _parse_metadata_json(raw_metadata: Optional[str]) -> Dict[str, Any]:
     except Exception:
         return {}
 
+def _money(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0.00")
+    return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
 class TransactionEngine:
     def __init__(self, db: AsyncSession, ledger_service: LedgerService):
         self.db = db
         self.ledger_service = ledger_service
 
     async def _get_wallet(self, user_id: int) -> Wallet:
-        result = await self.db.execute(select(Wallet).filter(Wallet.user_id == user_id))
+        result = await self.db.execute(select(Wallet).filter(Wallet.user_id == user_id).with_for_update())
         wallet = result.scalars().first()
         if not wallet:
             # Auto-create wallet if missing (for resilience)
@@ -85,7 +91,7 @@ class TransactionEngine:
         self,
         user_id: int,
         transaction_type: str,
-        amount: float,
+        amount: Union[float, Decimal],
         agent_id: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Transaction:
@@ -93,6 +99,8 @@ class TransactionEngine:
         The core engine that processes ALL transactions.
         Unified Flow: Request -> Validation -> Lock -> Ledger -> Balance Update -> Notification
         """
+        amount = _money(amount)
+        
         # 1. Validation (Balance, Limits)
         wallet = await self._get_wallet(user_id)
         if wallet.is_frozen:
@@ -143,7 +151,7 @@ class TransactionEngine:
             # 5. Update Denormalized Wallet Balances (The "State Change")
             await self._update_wallet_balances(transaction, wallet, agent_id, metadata)
 
-            commission_amount = float((metadata or {}).get("commission", 0.0))
+            commission_amount = _money((metadata or {}).get("commission", 0.0))
             if agent_id and commission_amount:
                 await record_commission(
                     self.db,
@@ -300,7 +308,7 @@ class TransactionEngine:
     async def _validate_transaction(
         self, 
         tx_type: str, 
-        amount: float, 
+        amount: Decimal, 
         wallet: Wallet, 
         agent_id: Optional[int],
         metadata: Optional[Dict[str, Any]] = None
@@ -309,7 +317,7 @@ class TransactionEngine:
         if amount <= 0:
             raise ValueError("Amount must be positive.")
 
-        fee = metadata.get("fee", 0.0)
+        fee = _money(metadata.get("fee", 0.0))
         total_deduction = amount + fee
 
         # Fiat Withdrawals / Transfers
@@ -323,14 +331,14 @@ class TransactionEngine:
             TransactionType.INVESTMENT_CREATE,
             TransactionType.ESCROW_CREATE,
         ]:
-            if wallet.balance < total_deduction:
+            if Decimal(str(wallet.balance)) < total_deduction:
                 raise ValueError(f"Insufficient available balance. Required: {total_deduction}, Available: {wallet.balance}")
         
         # Agent Cash Deposit (Agent needs float)
         if tx_type == TransactionType.AGENT_DEPOSIT and agent_id:
             agent = await self._get_agent(agent_id)
             withdrawable_float = await get_withdrawable_agent_float(self.db, agent)
-            if withdrawable_float < amount:
+            if Decimal(str(withdrawable_float)) < amount:
                 raise ValueError(
                     "Insufficient withdrawable float. Startup loan funds are locked for airtime/data resale only."
                 )
@@ -341,10 +349,10 @@ class TransactionEngine:
             if not coin_type:
                 raise ValueError("coin_type required for crypto withdrawal")
             crypto_wallet = await self._get_crypto_wallet(wallet.user_id, coin_type)
-            if crypto_wallet.balance < total_deduction:
+            if Decimal(str(crypto_wallet.balance)) < total_deduction:
                 raise ValueError(f"Insufficient crypto balance. Required: {total_deduction} {coin_type}")
 
-        if tx_type == TransactionType.INVESTMENT_PAYOUT and wallet.investment_balance < amount:
+        if tx_type == TransactionType.INVESTMENT_PAYOUT and Decimal(str(wallet.investment_balance)) < amount:
             raise ValueError("Insufficient investment balance.")
 
         if tx_type == TransactionType.INVESTMENT_CREATE:
@@ -358,8 +366,8 @@ class TransactionEngine:
             if duration_days not in INVESTMENT_ALLOWED_DURATIONS_DAYS:
                 allowed = ", ".join(str(item) for item in INVESTMENT_ALLOWED_DURATIONS_DAYS)
                 raise ValueError(f"Unsupported investment period. Choose one of: {allowed} days.")
-            expected_rate = float(metadata.get("expected_rate", INVESTMENT_RISK_FREE_ANNUAL_RATE) or INVESTMENT_RISK_FREE_ANNUAL_RATE)
-            if abs(expected_rate - INVESTMENT_RISK_FREE_ANNUAL_RATE) > 1e-9:
+            expected_rate = _money(metadata.get("expected_rate", INVESTMENT_RISK_FREE_ANNUAL_RATE) or INVESTMENT_RISK_FREE_ANNUAL_RATE)
+            if expected_rate != INVESTMENT_RISK_FREE_ANNUAL_RATE:
                 raise ValueError(
                     f"Risk-free investment annual rate is fixed at {INVESTMENT_RISK_FREE_ANNUAL_RATE:.2f}%."
                 )
@@ -373,19 +381,19 @@ class TransactionEngine:
             except (TypeError, ValueError):
                 raise ValueError("Investment ID is invalid.")
 
-            net_profit = float(metadata.get("gain", 0.0) or 0.0)
-            gross_profit = float(metadata.get("gross_profit", net_profit) or net_profit)
-            profit_fee = float(metadata.get("fee", 0.0) or 0.0)
-            fee_rate = float(metadata.get("profit_fee_rate", INVESTMENT_PROFIT_FEE_RATE) or INVESTMENT_PROFIT_FEE_RATE)
+            net_profit = _money(metadata.get("gain", 0.0))
+            gross_profit = _money(metadata.get("gross_profit", net_profit))
+            profit_fee = _money(metadata.get("fee", 0.0))
+            fee_rate = _money(metadata.get("profit_fee_rate", INVESTMENT_PROFIT_FEE_RATE) or INVESTMENT_PROFIT_FEE_RATE)
 
             if net_profit < 0 or gross_profit < 0 or profit_fee < 0:
                 raise ValueError("Investment payout profit values cannot be negative.")
-            if abs((gross_profit - profit_fee) - net_profit) > 0.05:
+            if (gross_profit - profit_fee) != net_profit:
                 raise ValueError("Investment payout profit breakdown is inconsistent.")
-            if abs(fee_rate - INVESTMENT_PROFIT_FEE_RATE) > 1e-9:
+            if fee_rate != INVESTMENT_PROFIT_FEE_RATE:
                 raise ValueError(f"Investment profit fee rate is fixed at {INVESTMENT_PROFIT_FEE_RATE * 100:.0f}%.")
-            expected_profit_fee = round(gross_profit * INVESTMENT_PROFIT_FEE_RATE, 2)
-            if abs(expected_profit_fee - profit_fee) > 0.05:
+            expected_profit_fee = _money(gross_profit * INVESTMENT_PROFIT_FEE_RATE)
+            if expected_profit_fee != profit_fee:
                 raise ValueError(
                     f"Investment payout fee must be {INVESTMENT_PROFIT_FEE_RATE * 100:.0f}% of gross profit."
                 )
@@ -407,8 +415,8 @@ class TransactionEngine:
             if len(recipient_wallet_id) != 10 or not recipient_wallet_id.isdigit():
                 raise ValueError("Recipient registered number must be a valid 10-digit number.")
 
-            escrow_fee = float(fee or 0.0)
-            if abs(escrow_fee - ESCROW_CREATE_FEE_GHS) > 1e-9:
+            escrow_fee = _money(fee)
+            if escrow_fee != ESCROW_CREATE_FEE_GHS:
                 raise ValueError(f"Escrow creation fee is fixed at GHS {ESCROW_CREATE_FEE_GHS:.2f}.")
             if amount < ESCROW_MIN_DEAL_AMOUNT_GHS:
                 raise ValueError(f"Minimum escrow deal amount is GHS {ESCROW_MIN_DEAL_AMOUNT_GHS:.2f}.")
@@ -501,14 +509,14 @@ class TransactionEngine:
             if expected_recipient_int != recipient_id_int:
                 raise ValueError("Escrow release recipient does not match the original deal recipient.")
 
-            if abs(float(deal_tx.amount or 0.0) - float(amount)) > 1e-9:
+            if _money(deal_tx.amount) != amount:
                 raise ValueError("Escrow release amount must match the original deal amount.")
 
     async def _run_pre_validation_checks(
         self,
         user_id: int,
         tx_type: str,
-        amount: float,
+        amount: Decimal,
         metadata: Dict[str, Any],
         agent_id: Optional[int],
     ):
@@ -549,20 +557,20 @@ class TransactionEngine:
             if recipient_numbers and recipient_wallet_id not in recipient_numbers:
                 raise ValueError("Recipient registered number does not match recipient account.")
 
-        biometric_threshold = float(metadata.get("biometric_threshold", 2500.0))
+        biometric_threshold = _money(metadata.get("biometric_threshold", 2500.0))
         if amount >= biometric_threshold and not metadata.get("biometric_verified", False):
             raise ValueError("Biometric verification required for high-value transaction.")
 
         start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         total_today_query = await self.db.execute(
-            select(func.coalesce(func.sum(func.abs(Transaction.amount)), 0.0)).filter(
+            select(func.coalesce(func.sum(func.abs(Transaction.amount)), Decimal("0.00"))).filter(
                 Transaction.user_id == user_id,
                 Transaction.status.in_(["pending", "completed"]),
                 Transaction.timestamp >= start_of_day,
             )
         )
-        total_today = float(total_today_query.scalar_one() or 0.0)
-        daily_limit = float(metadata.get("daily_limit", 10000.0))
+        total_today = _money(total_today_query.scalar_one())
+        daily_limit = _money(metadata.get("daily_limit", 10000.0))
         if tx_type in {TransactionType.INVESTMENT_CREATE, TransactionType.INVESTMENT_PAYOUT}:
             # Investments are intentionally uncapped by the generic daily limit so users/agents
             # can move any available wallet principal into investment plans.
@@ -606,8 +614,8 @@ class TransactionEngine:
         metadata = metadata or {}
         entries = []
         tx_type = transaction.type
-        amount = transaction.amount
-        fee = metadata.get("fee", 0.0)
+        amount = _money(transaction.amount)
+        fee = _money(metadata.get("fee", 0.0))
         net_amount = amount - fee # For receiver logic if applicable
 
         # --- AGENT TRANSACTIONS ---
@@ -618,7 +626,7 @@ class TransactionEngine:
             entries.append({"account_name": "Customer Wallets (Liability)", "credit": amount})
             
             # Commission
-            commission = metadata.get("commission", 0.0)
+            commission = _money(metadata.get("commission", 0.0))
             if commission > 0:
                 entries.append({"account_name": "Commissions Expense", "debit": commission})
                 entries.append({"account_name": "Commissions Payable (Liability)", "credit": commission})
@@ -657,7 +665,7 @@ class TransactionEngine:
             entries.append({"account_name": "Customer Wallets (Liability)", "credit": amount})
 
         elif tx_type in [TransactionType.AIRTIME, TransactionType.DATA]:
-            cost = metadata.get("cost_price", amount * 0.95) # Assume 5% margin if not specified
+            cost = _money(metadata.get("cost_price", amount * Decimal("0.95"))) # Assume 5% margin if not specified
             margin = amount - cost
             entries.append({"account_name": "Customer Wallets (Liability)", "debit": amount})
             entries.append({"account_name": "Cash (External Bank)", "credit": cost}) # We pay provider
@@ -670,7 +678,7 @@ class TransactionEngine:
             entries.append({"account_name": "Customer Wallets (Liability)", "credit": amount})
 
         elif tx_type == TransactionType.LOAN_REPAY:
-            interest = metadata.get("interest_amount", 0.0)
+            interest = _money(metadata.get("interest_amount", 0.0))
             principal_repayment = amount - interest
             entries.append({"account_name": "Customer Wallets (Liability)", "debit": amount})
             entries.append({"account_name": "Loan Principal (Asset)", "credit": principal_repayment})
@@ -706,9 +714,9 @@ class TransactionEngine:
             entries.append({"account_name": "Customer Investments (Liability)", "credit": amount})
 
         elif tx_type == TransactionType.INVESTMENT_PAYOUT:
-            net_profit = float(metadata.get("gain", 0.0) or 0.0)
-            gross_profit = float(metadata.get("gross_profit", net_profit) or net_profit)
-            profit_fee = float(metadata.get("fee", 0.0) or 0.0)
+            net_profit = _money(metadata.get("gain", 0.0))
+            gross_profit = _money(metadata.get("gross_profit", net_profit))
+            profit_fee = _money(metadata.get("fee", 0.0))
             total_payout = amount + net_profit
             entries.append({"account_name": "Customer Investments (Liability)", "debit": amount}) # Principal
             if gross_profit > 0:
@@ -740,7 +748,7 @@ class TransactionEngine:
              entries.append({"account_name": "Customer Wallets (Liability)", "credit": amount})
 
         elif tx_type == TransactionType.CARD_SPEND:
-            fx_margin = float(metadata.get("fx_margin", 0.0))
+            fx_margin = _money(metadata.get("fx_margin", 0.0))
             total_spend = amount + fee + fx_margin
             entries.append({"account_name": "Customer Wallets (Liability)", "debit": total_spend})
             entries.append({"account_name": "Cash (External Bank)", "credit": amount})
@@ -770,119 +778,123 @@ class TransactionEngine:
     async def _update_wallet_balances(self, transaction: Transaction, wallet: Wallet, agent_id: Optional[int], metadata: Optional[Dict[str, Any]] = None):
         metadata = metadata or {}
         tx_type = transaction.type
-        amount = transaction.amount
-        fee = metadata.get("fee", 0.0)
+        amount = _money(transaction.amount)
+        fee = _money(metadata.get("fee", 0.0))
         
         # --- AGENT ---
         if tx_type == TransactionType.AGENT_DEPOSIT:
-            wallet.balance += amount
+            wallet.balance = _money(Decimal(str(wallet.balance)) + amount)
             if agent_id:
                 agent = await self._get_agent(agent_id)
-                agent.float_balance -= amount
-                commission = metadata.get("commission", 0.0)
+                agent.float_balance = _money(Decimal(str(agent.float_balance)) - amount)
+                commission = _money(metadata.get("commission", 0.0))
                 if commission > 0:
-                    agent.commission_balance += commission
+                    agent.commission_balance = _money(Decimal(str(agent.commission_balance)) + commission)
+                agent.version += 1
         
         elif tx_type == TransactionType.AGENT_WITHDRAWAL:
-            wallet.balance -= (amount + fee)
+            wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee))
             if agent_id:
                 agent = await self._get_agent(agent_id)
-                agent.float_balance += amount
-                commission = metadata.get("commission", 0.0)
+                agent.float_balance = _money(Decimal(str(agent.float_balance)) + amount)
+                commission = _money(metadata.get("commission", 0.0))
                 if commission > 0:
-                    agent.commission_balance += commission
+                    agent.commission_balance = _money(Decimal(str(agent.commission_balance)) + commission)
+                agent.version += 1
 
         # --- WALLET ---
         elif tx_type == TransactionType.TRANSFER:
-            wallet.balance -= (amount + fee)
+            wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee))
             receiver_id = metadata.get("receiver_id")
-            result = await self.db.execute(select(Wallet).filter(Wallet.user_id == receiver_id))
+            result = await self.db.execute(select(Wallet).filter(Wallet.user_id == receiver_id).with_for_update())
             receiver_wallet = result.scalars().first()
             if receiver_wallet:
-                receiver_wallet.balance += amount
+                receiver_wallet.balance = _money(Decimal(str(receiver_wallet.balance)) + amount)
+                receiver_wallet.version += 1
 
         elif tx_type == TransactionType.FUNDING:
-            wallet.balance += amount
+            wallet.balance = _money(Decimal(str(wallet.balance)) + amount)
 
         elif tx_type in [TransactionType.AIRTIME, TransactionType.DATA]:
-            wallet.balance -= amount
+            wallet.balance = _money(Decimal(str(wallet.balance)) - amount)
 
         elif tx_type == TransactionType.LOAN_DISBURSE:
-            loan_balance_increase = float(metadata.get("wallet_loan_balance_increase", amount) or amount)
-            wallet.balance += amount
-            wallet.loan_balance += loan_balance_increase
+            loan_balance_increase = _money(metadata.get("wallet_loan_balance_increase", amount) or amount)
+            wallet.balance = _money(Decimal(str(wallet.balance)) + amount)
+            wallet.loan_balance = _money(Decimal(str(wallet.loan_balance)) + loan_balance_increase)
 
         elif tx_type == TransactionType.LOAN_REPAY:
-            wallet.balance -= amount
-            wallet.loan_balance -= amount
-            if wallet.loan_balance < 0: wallet.loan_balance = 0
+            wallet.balance = _money(Decimal(str(wallet.balance)) - amount)
+            wallet.loan_balance = _money(max(Decimal("0.00"), Decimal(str(wallet.loan_balance)) - amount))
 
         elif tx_type == TransactionType.ESCROW_CREATE:
-            wallet.balance -= (amount + fee)
-            wallet.escrow_balance += amount
+            wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee))
+            wallet.escrow_balance = _money(Decimal(str(wallet.escrow_balance)) + amount)
 
         elif tx_type == TransactionType.ESCROW_RELEASE:
             receiver_net_amount = amount - fee
             if receiver_net_amount < 0:
                 raise ValueError("Escrow release fee cannot exceed release amount.")
-            wallet.escrow_balance -= amount
+            wallet.escrow_balance = _money(Decimal(str(wallet.escrow_balance)) - amount)
             recipient_id = metadata.get("recipient_id")
             if recipient_id and recipient_id != wallet.user_id:
                 recipient_wallet = await self._get_wallet(int(recipient_id))
-                recipient_wallet.balance += receiver_net_amount
+                recipient_wallet.balance = _money(Decimal(str(recipient_wallet.balance)) + receiver_net_amount)
+                recipient_wallet.version += 1
             else:
-                 wallet.balance += receiver_net_amount # Release back to self (net of receiver fee)
+                 wallet.balance = _money(Decimal(str(wallet.balance)) + receiver_net_amount) # Release back to self (net of receiver fee)
 
         elif tx_type == TransactionType.INVESTMENT_CREATE:
-            wallet.balance -= amount
-            wallet.investment_balance += amount
+            wallet.balance = _money(Decimal(str(wallet.balance)) - amount)
+            wallet.investment_balance = _money(Decimal(str(wallet.investment_balance)) + amount)
 
         elif tx_type == TransactionType.INVESTMENT_PAYOUT:
-            wallet.investment_balance -= amount
-            gain = metadata.get("gain", 0.0)
-            wallet.balance += (amount + gain)
+            wallet.investment_balance = _money(Decimal(str(wallet.investment_balance)) - amount)
+            gain = _money(metadata.get("gain", 0.0))
+            wallet.balance = _money(Decimal(str(wallet.balance)) + (amount + gain))
 
         # --- VIRTUAL CARD ---
         elif tx_type == TransactionType.CARD_LOAD:
-            wallet.balance -= (amount + fee)
+            wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee))
             card_id = metadata.get("card_id") # Optional specific card
             card = await self._get_virtual_card(wallet.user_id, card_id)
-            card.balance += amount
+            card.balance = _money(Decimal(str(card.balance)) + amount)
             self.db.add(card)
 
         elif tx_type == TransactionType.CARD_WITHDRAW:
             card_id = metadata.get("card_id")
             card = await self._get_virtual_card(wallet.user_id, card_id)
-            if card.balance < amount:
+            if Decimal(str(card.balance)) < amount:
                  raise ValueError("Insufficient Virtual Card balance")
-            card.balance -= amount
-            wallet.balance += amount
+            card.balance = _money(Decimal(str(card.balance)) - amount)
+            wallet.balance = _money(Decimal(str(wallet.balance)) + amount)
             self.db.add(card)
 
         elif tx_type == TransactionType.CARD_SPEND:
-            fx_margin = float(metadata.get("fx_margin", 0.0))
-            wallet.balance -= (amount + fee + fx_margin)
+            fx_margin = _money(metadata.get("fx_margin", 0.0))
+            wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee + fx_margin))
             card_id = metadata.get("card_id")
             if card_id and metadata.get("use_card_balance", False):
                 card = await self._get_virtual_card(wallet.user_id, card_id)
-                if card.balance < amount:
+                if Decimal(str(card.balance)) < amount:
                     raise ValueError("Insufficient Virtual Card balance")
-                card.balance -= amount
+                card.balance = _money(Decimal(str(card.balance)) - amount)
                 self.db.add(card)
 
         # --- CRYPTO ---
         elif tx_type == TransactionType.BTC_DEPOSIT:
             coin_type = metadata.get("coin_type")
             crypto_wallet = await self._get_crypto_wallet(wallet.user_id, coin_type)
-            crypto_wallet.balance += amount
+            crypto_wallet.balance = _money(Decimal(str(crypto_wallet.balance)) + amount)
             self.db.add(crypto_wallet)
 
         elif tx_type == TransactionType.BTC_WITHDRAW:
             coin_type = metadata.get("coin_type")
             crypto_wallet = await self._get_crypto_wallet(wallet.user_id, coin_type)
-            crypto_wallet.balance -= (amount + fee) # Fee is usually taken from crypto balance in this model
+            crypto_wallet.balance = _money(Decimal(str(crypto_wallet.balance)) - (amount + fee)) # Fee is usually taken from crypto balance in this model
             self.db.add(crypto_wallet)
 
+        wallet.version += 1
         self.db.add(wallet)
 
     async def _send_notification(self, user_id: int, message: str):

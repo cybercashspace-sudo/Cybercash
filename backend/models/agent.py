@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from backend.database import Base
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,9 +12,9 @@ class Agent(Base):
     business_name = Column(String, nullable=True)
     ghana_card_id = Column(String, nullable=True, index=True)
     agent_location = Column(String, nullable=True)
-    commission_rate = Column(Float, default=0.0) # Commission rate for the agent
-    float_balance = Column(Float, default=0.0) # Agent's current cash float
-    commission_balance = Column(Float, default=0.0) # Accumulated commissions
+    commission_rate = Column(Numeric(20, 2), default=0.0) # Commission rate for the agent
+    float_balance = Column(Numeric(20, 2), default=0.0) # Agent's current cash float
+    commission_balance = Column(Numeric(20, 2), default=0.0) # Accumulated commissions
     pin_hash = Column(String, nullable=True) # Hashed 4-digit PIN for USSD access
     is_borrowing_frozen = Column(Boolean, default=False) # New field for admin control to freeze borrowing
     loan_auto_deduction_enabled = Column(Boolean, default=True)

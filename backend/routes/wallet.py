@@ -1,6 +1,6 @@
-
 import asyncio
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 import json
 from typing import List
 
@@ -34,10 +34,10 @@ ALLOWED_SOURCE_BALANCES = {
     "loan_balance": "Loan Balance",
     "investment_balance": "Investment Balance",
 }
-MIN_TRANSFER_AMOUNT_GHS = 1.0
-WITHDRAW_TO_AGENT_FEE_RATE = 0.01
-P2P_TRANSFER_FEE_RATE = 0.005
-P2P_DAILY_FREE_LIMIT_GHS = 100.0
+MIN_TRANSFER_AMOUNT_GHS = Decimal("1.00")
+WITHDRAW_TO_AGENT_FEE_RATE = Decimal("0.01")
+P2P_TRANSFER_FEE_RATE = Decimal("0.005")
+P2P_DAILY_FREE_LIMIT_GHS = Decimal("100.00")
 
 
 def _safe_load_metadata(metadata_json: str | None) -> dict:
@@ -50,7 +50,7 @@ def _safe_load_metadata(metadata_json: str | None) -> dict:
         return {}
 
 
-async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> float:
+async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> Decimal:
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
@@ -66,7 +66,7 @@ async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> fl
     )
     transactions = result.scalars().all()
 
-    total_sent = 0.0
+    total_sent = Decimal("0.00")
     for tx in transactions:
         metadata = _safe_load_metadata(tx.metadata_json)
         if str(metadata.get("direction", "")).lower() != "send":
@@ -76,12 +76,12 @@ async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> fl
 
         transferred_amount = metadata.get("transferred_amount")
         if transferred_amount is None:
-            transferred_amount = abs(float(tx.amount or 0.0))
-            fee = float(metadata.get("transfer_fee", 0.0) or 0.0)
-            transferred_amount = max(0.0, transferred_amount - fee)
-        total_sent += float(transferred_amount or 0.0)
+            transferred_amount = abs(Decimal(str(tx.amount or "0.00")))
+            fee = Decimal(str(metadata.get("transfer_fee", "0.00")))
+            transferred_amount = max(Decimal("0.00"), transferred_amount - fee)
+        total_sent += Decimal(str(transferred_amount or "0.00"))
 
-    return round(total_sent, 2)
+    return total_sent.quantize(Decimal("0.01"))
 
 
 def _tx_to_dict(t: Transaction) -> dict:
@@ -227,7 +227,7 @@ async def get_p2p_fee_status(
     """Return the sender's remaining daily free P2P transfer allowance (GHS)."""
     try:
         total_sent_today = await _resolve_p2p_total_sent_today(db, user_id=current_user.id)
-        free_remaining = max(0.0, round(P2P_DAILY_FREE_LIMIT_GHS - total_sent_today, 2))
+        free_remaining = max(Decimal("0.00"), P2P_DAILY_FREE_LIMIT_GHS - total_sent_today)
         return {
             "p2p_daily_free_limit": P2P_DAILY_FREE_LIMIT_GHS,
             "p2p_total_sent_today": total_sent_today,
@@ -257,26 +257,60 @@ async def transfer_funds(
                 detail = f"Minimum P2P transfer amount is GHS {min_amount_text}."
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
-        requested_amount = round(float(request.amount), 2)
+        requested_amount = Decimal(str(request.amount)).quantize(Decimal("0.01"))
         fee_rate = WITHDRAW_TO_AGENT_FEE_RATE if is_agent_withdraw else P2P_TRANSFER_FEE_RATE
 
-        p2p_total_sent_today_before = 0.0
-        p2p_free_remaining_before = 0.0
-        p2p_fee_free_amount = 0.0
+        p2p_total_sent_today_before = Decimal("0.00")
+        p2p_free_remaining_before = Decimal("0.00")
+        p2p_fee_free_amount = Decimal("0.00")
         p2p_feeable_amount = requested_amount
 
         if not is_agent_withdraw:
             p2p_total_sent_today_before = await _resolve_p2p_total_sent_today(db, user_id=current_user.id)
-            p2p_free_remaining_before = max(0.0, round(P2P_DAILY_FREE_LIMIT_GHS - p2p_total_sent_today_before, 2))
+            p2p_free_remaining_before = max(Decimal("0.00"), P2P_DAILY_FREE_LIMIT_GHS - p2p_total_sent_today_before)
             p2p_fee_free_amount = min(requested_amount, p2p_free_remaining_before)
-            p2p_feeable_amount = max(0.0, round(requested_amount - p2p_free_remaining_before, 2))
+            p2p_feeable_amount = max(Decimal("0.00"), requested_amount - p2p_free_remaining_before)
 
-        transfer_fee = round(p2p_feeable_amount * fee_rate, 2)
-        total_debited = round(requested_amount + transfer_fee, 2)
+        transfer_fee = (p2p_feeable_amount * fee_rate).quantize(Decimal("0.01"))
+        total_debited = requested_amount + transfer_fee
+
+        # Recipient resolution
+        recipient_wallet_id = normalize_ghana_number(request.recipient_wallet_id or "").strip()
+        if not recipient_wallet_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="recipient_wallet_id is required.")
+
+        result = await db.execute(
+            select(User).filter(
+                (User.momo_number == recipient_wallet_id) | (User.phone_number == recipient_wallet_id)
+            )
+        )
+        recipient_user = result.scalars().first()
+        if not recipient_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found.")
+        if recipient_user.id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer funds to yourself.")
+
+        # Ensure recipient has a wallet before locking
+        res = await db.execute(select(Wallet).filter(Wallet.user_id == recipient_user.id))
+        if not res.scalars().first():
+            db.add(Wallet(user_id=recipient_user.id, currency=request.currency, balance=Decimal("0.00")))
+            await db.flush()
+
+        # 2. Lock both wallets using consistent ordering (by user_id) to prevent deadlocks
+        target_user_ids = sorted([current_user.id, recipient_user.id])
+        stmt = (
+            select(Wallet)
+            .filter(Wallet.user_id.in_(target_user_ids))
+            .order_by(Wallet.user_id)
+            .with_for_update()
+        )
+        res = await db.execute(stmt)
+        wallets = res.scalars().all()
+        
+        sender_wallet = next((w for w in wallets if w.user_id == current_user.id), None)
+        recipient_wallet = next((w for w in wallets if w.user_id == recipient_user.id), None)
 
         # Sender's wallet
-        result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
-        sender_wallet = result.scalars().first()
         if not sender_wallet:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sender's wallet not found.")
         
@@ -303,40 +337,13 @@ async def transfer_funds(
                 ),
             )
 
-        sender_source_balance = float(getattr(sender_wallet, source_balance_key, 0.0) or 0.0)
+        sender_source_balance = Decimal(str(getattr(sender_wallet, source_balance_key, "0.00")))
         required_amount = total_debited
         if sender_source_balance < required_amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Insufficient balance in {ALLOWED_SOURCE_BALANCES[source_balance_key]}.",
             )
-
-        recipient_wallet_id = normalize_ghana_number(request.recipient_wallet_id or "").strip()
-
-        if not recipient_wallet_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="recipient_wallet_id (registered number) is required.",
-            )
-        if len(recipient_wallet_id) != 10 or not recipient_wallet_id.isdigit():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="recipient_wallet_id must be a valid 10-digit registered number.",
-            )
-
-        # Recipient resolution strictly by wallet ID (registered number).
-        result = await db.execute(
-            select(User).filter(
-                (User.momo_number == recipient_wallet_id) | (User.phone_number == recipient_wallet_id)
-            )
-        )
-        recipient_user = result.scalars().first()
-
-        if not recipient_user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found for this wallet ID.")
-        
-        if recipient_user.id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer funds to yourself.")
 
         if is_agent_withdraw:
             agent_result = await db.execute(
@@ -349,14 +356,6 @@ async def transfer_funds(
                     detail="Recipient is not an active registered agent.",
                 )
 
-        result = await db.execute(select(Wallet).filter(Wallet.user_id == recipient_user.id))
-        recipient_wallet = result.scalars().first()
-        if not recipient_wallet:
-            # Create a wallet for the recipient if they don't have one
-            recipient_wallet = Wallet(user_id=recipient_user.id, currency=request.currency, balance=0.0)
-            db.add(recipient_wallet)
-            await db.flush() # Flush to get recipient_wallet.id
-        
         if recipient_wallet.is_frozen:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -364,8 +363,13 @@ async def transfer_funds(
             )
 
         # Atomic transfer operation: wallet updates + transaction logs + ledger in one DB commit.
+        sender_before_balance = Decimal(str(sender_wallet.balance))
+        recipient_before_balance = Decimal(str(recipient_wallet.balance))
+
         setattr(sender_wallet, source_balance_key, sender_source_balance - required_amount)
         recipient_wallet.balance += requested_amount
+        sender_wallet.version += 1
+        recipient_wallet.version += 1
 
         sender_transaction = Transaction(
             user_id=current_user.id,
@@ -451,10 +455,8 @@ async def transfer_funds(
         )
         
         # Log audit entries for sender and recipient
-        sender_before_balance = sender_source_balance
-        sender_after_balance = float(sender_wallet.balance or 0.0)
-        recipient_before_balance = 0.0 if recipient_wallet is None else float(recipient_wallet.balance - requested_amount or 0.0)
-        recipient_after_balance = float(recipient_wallet.balance or 0.0)
+        sender_after_balance = Decimal(str(sender_wallet.balance))
+        recipient_after_balance = Decimal(str(recipient_wallet.balance))
         
         await log_wallet_audit(
             db,

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -296,7 +297,7 @@ async def disburse_loan(
 @router.post("/{loan_id}/repay", response_model=LoanInDB)
 async def repay_loan(
     loan_id: int,
-    repayment_amount: float,
+    repayment_amount: Decimal,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):

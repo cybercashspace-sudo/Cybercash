@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from backend.core.transaction_types import TransactionType
 from backend.services.ledger_service import LedgerService
@@ -14,14 +15,16 @@ from ..schemas.loan_admin import LoanOverviewResponse, AgentCreditProfileRespons
 
 USER_LOAN_PERIODS = (1, 7, 14, 30)
 AGENT_ONLY_LOAN_PERIODS = (60, 90)
-BASE_LOAN_FEE_PERCENTAGE = 15.0
-LATE_LOAN_FEE_PERCENTAGE = 20.0
+BASE_LOAN_FEE_PERCENTAGE = Decimal("15.00")
+LATE_LOAN_FEE_PERCENTAGE = Decimal("20.00")
 LATE_FEE_GRACE_HOURS = 24
 OPEN_LOAN_STATUSES = ("active", "overdue")
 
 
-def _money(value: float | int | None) -> float:
-    return round(float(value or 0.0), 2)
+def _money(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0.00")
+    return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _loan_owner_filter(model, user_id: int, active_agent_id: int | None = None):
@@ -31,12 +34,12 @@ def _loan_owner_filter(model, user_id: int, active_agent_id: int | None = None):
     return or_(*filters) if len(filters) > 1 else filters[0]
 
 
-def _loan_total_fee_amount(loan: models.Loan) -> float:
-    return _money(float(loan.base_fee_amount or 0.0) + float(loan.late_fee_amount or 0.0))
+def _loan_total_fee_amount(loan: models.Loan) -> Decimal:
+    return _money(Decimal(str(loan.base_fee_amount or "0.00")) + Decimal(str(loan.late_fee_amount or "0.00")))
 
 
-def _loan_total_due_amount(loan: models.Loan) -> float:
-    return _money(float(loan.amount or 0.0) + _loan_total_fee_amount(loan))
+def _loan_total_due_amount(loan: models.Loan) -> Decimal:
+    return _money(Decimal(str(loan.amount or "0.00")) + _loan_total_fee_amount(loan))
 
 
 async def get_active_agent_for_user(db: AsyncSession, user_id: int) -> models.Agent | None:
@@ -89,15 +92,17 @@ async def get_open_loan_for_user(
     db: AsyncSession,
     user_id: int,
     active_agent_id: int | None = None,
+    with_for_update: bool = False
 ) -> models.Loan | None:
-    result = await db.execute(
-        select(models.Loan)
-        .filter(
-            _loan_owner_filter(models.Loan, user_id, active_agent_id),
-            models.Loan.status.in_(OPEN_LOAN_STATUSES),
-        )
-        .order_by(models.Loan.disbursement_date.desc(), models.Loan.id.desc())
-    )
+    stmt = select(models.Loan).filter(
+        _loan_owner_filter(models.Loan, user_id, active_agent_id),
+        models.Loan.status.in_(OPEN_LOAN_STATUSES),
+    ).order_by(models.Loan.disbursement_date.desc(), models.Loan.id.desc())
+    
+    if with_for_update:
+        stmt = stmt.with_for_update()
+        
+    result = await db.execute(stmt)
     return result.scalars().first()
 
 
@@ -109,10 +114,10 @@ async def sync_wallet_loan_balance(
     active_agent_id: int | None = None,
 ) -> models.Wallet:
     if wallet is None:
-        result = await db.execute(select(models.Wallet).filter(models.Wallet.user_id == user_id))
+        result = await db.execute(select(models.Wallet).filter(models.Wallet.user_id == user_id).with_for_update())
         wallet = result.scalars().first()
         if wallet is None:
-            wallet = models.Wallet(user_id=user_id, currency="GHS", balance=0.0)
+            wallet = models.Wallet(user_id=user_id, currency="GHS", balance=Decimal("0.00"))
             db.add(wallet)
             await db.flush()
 
@@ -124,7 +129,7 @@ async def sync_wallet_loan_balance(
         )
     )
     outstanding_values = result.scalars().all()
-    wallet.loan_balance = _money(sum(float(value or 0.0) for value in outstanding_values))
+    wallet.loan_balance = _money(sum(Decimal(str(value or "0.00")) for value in outstanding_values))
     db.add(wallet)
     return wallet
 
@@ -142,18 +147,18 @@ async def apply_due_loan_updates(db: AsyncSession, loan: models.Loan) -> bool:
     if due_date.tzinfo is not None:
         now = datetime.now(due_date.tzinfo)
 
-    if loan.outstanding_balance > 0 and now > due_date and str(loan.status or "").strip().lower() != "overdue":
+    if Decimal(str(loan.outstanding_balance or "0.00")) > 0 and now > due_date and str(loan.status or "").strip().lower() != "overdue":
         loan.status = "overdue"
         changed = True
 
     late_fee_amount = _money(loan.late_fee_amount)
     late_fee_due_at = due_date + timedelta(hours=LATE_FEE_GRACE_HOURS)
-    if loan.outstanding_balance > 0 and now >= late_fee_due_at and late_fee_amount <= 0.0:
-        late_fee_amount = _money(float(loan.amount or 0.0) * (float(loan.late_fee_percentage or LATE_LOAN_FEE_PERCENTAGE) / 100.0))
+    if Decimal(str(loan.outstanding_balance or "0.00")) > 0 and now >= late_fee_due_at and late_fee_amount <= 0:
+        late_fee_amount = _money(Decimal(str(loan.amount or "0.00")) * (Decimal(str(loan.late_fee_percentage or LATE_LOAN_FEE_PERCENTAGE)) / Decimal("100.00")))
         if late_fee_amount > 0:
             loan.late_fee_amount = late_fee_amount
             loan.late_fee_applied_at = now
-            loan.outstanding_balance = _money(float(loan.outstanding_balance or 0.0) + late_fee_amount)
+            loan.outstanding_balance = _money(Decimal(str(loan.outstanding_balance or "0.00")) + late_fee_amount)
             loan.status = "overdue"
             changed = True
 
@@ -165,14 +170,18 @@ async def apply_due_loan_updates(db: AsyncSession, loan: models.Loan) -> bool:
 async def _fetch_user_wallet_and_agent(
     db: AsyncSession,
     user_id: int,
+    with_for_update: bool = False
 ) -> tuple[models.User | None, models.Wallet | None, models.Agent | None]:
     user_result = await db.execute(select(models.User).filter(models.User.id == user_id))
     user = user_result.scalars().first()
 
-    wallet_result = await db.execute(select(models.Wallet).filter(models.Wallet.user_id == user_id))
+    stmt = select(models.Wallet).filter(models.Wallet.user_id == user_id)
+    if with_for_update:
+        stmt = stmt.with_for_update()
+    wallet_result = await db.execute(stmt)
     wallet = wallet_result.scalars().first()
     if wallet is None:
-        wallet = models.Wallet(user_id=user_id, currency="GHS", balance=0.0)
+        wallet = models.Wallet(user_id=user_id, currency="GHS", balance=Decimal("0.00"))
         db.add(wallet)
         await db.flush()
 
@@ -184,15 +193,15 @@ async def repay_loan_for_user(
     db: AsyncSession,
     user_id: int,
     loan_id: int,
-    repayment_amount: float,
+    repayment_amount: Decimal | float,
     *,
     trigger: str = "manual",
 ) -> models.Loan | None:
-    user, wallet, active_agent = await _fetch_user_wallet_and_agent(db, user_id)
+    user, wallet, active_agent = await _fetch_user_wallet_and_agent(db, user_id, with_for_update=True)
     if user is None or wallet is None:
         return None
 
-    result = await db.execute(select(models.Loan).filter(models.Loan.id == loan_id))
+    result = await db.execute(select(models.Loan).filter(models.Loan.id == loan_id).with_for_update())
     db_loan = result.scalars().first()
     if not db_loan or str(db_loan.status or "").strip().lower() == "repaid":
         return None
@@ -219,9 +228,9 @@ async def repay_loan_for_user(
 
     total_fee = _loan_total_fee_amount(db_loan)
     total_due = _loan_total_due_amount(db_loan)
-    paid_so_far = max(0.0, _money(total_due - float(db_loan.outstanding_balance or 0.0)))
+    paid_so_far = max(Decimal("0.00"), _money(total_due - Decimal(str(db_loan.outstanding_balance or "0.00"))))
     fee_paid_so_far = min(total_fee, paid_so_far)
-    remaining_fee = max(0.0, _money(total_fee - fee_paid_so_far))
+    remaining_fee = max(Decimal("0.00"), _money(total_fee - fee_paid_so_far))
     fee_component = min(capped_amount, remaining_fee)
 
     ledger_service = LedgerService(db)
@@ -239,9 +248,9 @@ async def repay_loan_for_user(
         },
     )
 
-    db_loan.outstanding_balance = _money(float(db_loan.outstanding_balance or 0.0) - capped_amount)
+    db_loan.outstanding_balance = _money(Decimal(str(db_loan.outstanding_balance or "0.00")) - capped_amount)
     if db_loan.outstanding_balance <= 0:
-        db_loan.outstanding_balance = 0.0
+        db_loan.outstanding_balance = Decimal("0.00")
         db_loan.status = "repaid"
         db_loan.repayment_date = datetime.now()
     elif db_loan.repayment_due_date and datetime.now() > db_loan.repayment_due_date:
@@ -267,22 +276,22 @@ async def run_loan_maintenance_for_user(
     *,
     allow_auto_deduction: bool = False,
 ) -> dict:
-    user, wallet, active_agent = await _fetch_user_wallet_and_agent(db, user_id)
+    user, wallet, active_agent = await _fetch_user_wallet_and_agent(db, user_id, with_for_update=allow_auto_deduction)
     if user is None or wallet is None:
-        return {"loan": None, "wallet": None, "auto_deducted_amount": 0.0, "late_fee_applied": False}
+        return {"loan": None, "wallet": None, "auto_deducted_amount": Decimal("0.00"), "late_fee_applied": False}
 
     active_agent_id = active_agent.id if active_agent else None
-    loan = await get_open_loan_for_user(db, user.id, active_agent_id)
+    loan = await get_open_loan_for_user(db, user.id, active_agent_id, with_for_update=allow_auto_deduction)
     if loan is None:
         await sync_wallet_loan_balance(db, user.id, wallet=wallet, active_agent_id=active_agent_id)
         await db.commit()
         await db.refresh(wallet)
-        return {"loan": None, "wallet": wallet, "auto_deducted_amount": 0.0, "late_fee_applied": False}
+        return {"loan": None, "wallet": wallet, "auto_deducted_amount": Decimal("0.00"), "late_fee_applied": False}
 
     late_fee_applied = await apply_due_loan_updates(db, loan)
 
-    auto_deducted_amount = 0.0
-    if allow_auto_deduction and float(wallet.balance or 0.0) > 0.0 and float(loan.outstanding_balance or 0.0) > 0.0:
+    auto_deducted_amount = Decimal("0.00")
+    if allow_auto_deduction and Decimal(str(wallet.balance or "0.00")) > 0 and Decimal(str(loan.outstanding_balance or "0.00")) > 0:
         payable_amount = min(_money(wallet.balance), _money(loan.outstanding_balance))
         if payable_amount > 0:
             loan = await repay_loan_for_user(
@@ -349,7 +358,7 @@ async def create_self_service_loan(
     if pending_application:
         raise ValueError("You already have a loan request being processed. Complete that loan first.")
 
-    base_fee_amount = _money(amount * (BASE_LOAN_FEE_PERCENTAGE / 100.0))
+    base_fee_amount = _money(amount * (BASE_LOAN_FEE_PERCENTAGE / Decimal("100.00")))
     total_due = _money(amount + base_fee_amount)
     now = datetime.now()
     repayment_due_date = now + timedelta(days=duration)
@@ -382,7 +391,7 @@ async def create_self_service_loan(
         base_fee_percentage=BASE_LOAN_FEE_PERCENTAGE,
         base_fee_amount=base_fee_amount,
         late_fee_percentage=LATE_LOAN_FEE_PERCENTAGE,
-        late_fee_amount=0.0,
+        late_fee_amount=Decimal("0.00"),
         outstanding_balance=total_due,
         repayment_due_date=repayment_due_date,
         status="active",
@@ -469,25 +478,25 @@ def _calculate_volume_score(transactions: list) -> float:
 
 def _calculate_consistency_score(transactions: list) -> float:
     """Calculate Consistency Score based on cash-in vs cash-out balance and average size."""
-    cash_in = sum(
+    cash_in = Decimal(sum(
         tx.amount
         for tx in transactions
         if tx.type in [TransactionType.AGENT_DEPOSIT, "cash_deposit", "topup"]
-    )
-    cash_out = sum(
+    ))
+    cash_out = Decimal(sum(
         tx.amount
         for tx in transactions
         if tx.type in [TransactionType.AGENT_WITHDRAWAL, TransactionType.AIRTIME, "cash_withdrawal", "airtime_resale"]
-    )
+    ))
     
     balance_ratio_score = 50.0 # Default
     if (cash_in + cash_out) > 0:
         if cash_in > cash_out:
-            balance_ratio_score = 50 + min(50, (cash_in - cash_out) / (cash_in + cash_out) * 100)
+            balance_ratio_score = 50 + float(min(Decimal("50.00"), (cash_in - cash_out) / (cash_in + cash_out) * 100))
         else:
-            balance_ratio_score = 50 - min(50, (cash_out - cash_in) / (cash_in + cash_out) * 100)
+            balance_ratio_score = 50 - float(min(Decimal("50.00"), (cash_out - cash_in) / (cash_in + cash_out) * 100))
             
-    avg_tx_size = sum(tx.amount for tx in transactions) / len(transactions) if transactions else 0
+    avg_tx_size = float(sum(tx.amount for tx in transactions) / len(transactions)) if transactions else 0
     avg_tx_size_score = min(50.0, avg_tx_size / 100.0 * 20) # Max 50 for average size
 
     return min(100.0, max(0.0, (balance_ratio_score + avg_tx_size_score) / 2))
@@ -622,27 +631,27 @@ def _interpret_score_to_risk_level(score: int) -> str:
     else:
         return "Dangerous"
 
-async def auto_loan_limit_calculator(db: AsyncSession, agent_id: int, credit_score: int, transactions: list) -> float:
+async def auto_loan_limit_calculator(db: AsyncSession, agent_id: int, credit_score: int, transactions: list) -> Decimal:
     """
     Calculates the eligible loan limit for an agent based on their credit score and average daily volume.
     """
     # Calculate Average Daily Volume (ADV)
-    total_volume = sum(tx.amount for tx in transactions)
+    total_volume = Decimal(sum(tx.amount for tx in transactions))
     # Assume scoring period is 30 days, as per _get_agent_transactions_data
-    avg_daily_volume = total_volume / 30 if total_volume > 0 else 0
+    avg_daily_volume = total_volume / Decimal("30.00") if total_volume > 0 else Decimal("0.00")
 
-    trust_multiplier = 0.0
+    trust_multiplier = Decimal("0.00")
     if credit_score >= 85:
-        trust_multiplier = 1.5
+        trust_multiplier = Decimal("1.5")
     elif credit_score >= 70:
-        trust_multiplier = 1.0
+        trust_multiplier = Decimal("1.0")
     else: # For scores below 70, use a lower multiplier
-        trust_multiplier = 0.5
+        trust_multiplier = Decimal("0.5")
     
-    eligible_loan = (avg_daily_volume * 7) * trust_multiplier
+    eligible_loan = (avg_daily_volume * Decimal("7.00")) * trust_multiplier
     
     # Ensure it does not exceed the global maximum loan amount per agent
-    return min(eligible_loan, settings.MAX_LOAN_AMOUNT_PER_AGENT)
+    return min(eligible_loan, Decimal(str(settings.MAX_LOAN_AMOUNT_PER_AGENT)))
 
 
 async def create_loan_application(db: AsyncSession, agent_id: int, application: LoanApplicationCreate):
@@ -702,9 +711,9 @@ async def approve_loan_application(
     recommended_limit = await auto_loan_limit_calculator(db, db_application.agent_id, credit_score, recent_transactions)
     risk_level = _interpret_score_to_risk_level(credit_score)
 
-    default_fee = 3.0 if risk_level == "Very Safe" else 5.0 if risk_level == "Safe" else 8.0
-    final_amount = approved_amount if approved_amount is not None else min(db_application.amount, recommended_limit)
-    final_fee = fee_percentage if fee_percentage is not None else default_fee
+    default_fee = Decimal("3.00") if risk_level == "Very Safe" else Decimal("5.00") if risk_level == "Safe" else Decimal("8.00")
+    final_amount = Decimal(str(approved_amount)) if approved_amount is not None else min(Decimal(str(db_application.amount)), recommended_limit)
+    final_fee = Decimal(str(fee_percentage)) if fee_percentage is not None else default_fee
     final_duration = offered_repayment_duration if offered_repayment_duration is not None else db_application.repayment_duration
 
     if final_amount <= 0:
@@ -760,8 +769,8 @@ async def disburse_loan(db: AsyncSession, application_id: int):
     offered_duration = int(db_application.offered_repayment_duration or db_application.repayment_duration or 0)
     repayment_due_date = datetime.now() + timedelta(days=offered_duration)
     loan_principal = _money(db_application.approved_amount)
-    loan_fee_percentage = _money(db_application.fee_percentage)
-    loan_fee_amount = _money(loan_principal * (loan_fee_percentage / 100.0))
+    loan_fee_percentage = Decimal(str(db_application.fee_percentage or "0.00"))
+    loan_fee_amount = _money(loan_principal * (loan_fee_percentage / Decimal("100.00")))
     total_outstanding = _money(loan_principal + loan_fee_amount)
     
     db_loan = models.Loan(
@@ -773,7 +782,7 @@ async def disburse_loan(db: AsyncSession, application_id: int):
         base_fee_percentage=loan_fee_percentage,
         base_fee_amount=loan_fee_amount,
         late_fee_percentage=LATE_LOAN_FEE_PERCENTAGE,
-        late_fee_amount=0.0,
+        late_fee_amount=Decimal("0.00"),
         outstanding_balance=total_outstanding, # Principal + Fee
         repayment_due_date=repayment_due_date,
         status="active"
@@ -855,14 +864,15 @@ async def calculate_risk_score(db: AsyncSession, agent_id: int, application: Loa
     return await calculate_credit_score(db, agent_id)
 
 
-async def get_max_eligible_loan(db: AsyncSession, risk_score: int) -> float:
+async def get_max_eligible_loan(db: AsyncSession, risk_score: int) -> Decimal:
+    max_limit = Decimal(str(settings.MAX_LOAN_AMOUNT_PER_AGENT))
     if risk_score >= 85:
-        return settings.MAX_LOAN_AMOUNT_PER_AGENT
+        return max_limit
     if risk_score >= 70:
-        return settings.MAX_LOAN_AMOUNT_PER_AGENT * 0.75
+        return max_limit * Decimal("0.75")
     if risk_score >= 55:
-        return settings.MAX_LOAN_AMOUNT_PER_AGENT * 0.5
-    return settings.MAX_LOAN_AMOUNT_PER_AGENT * 0.25
+        return max_limit * Decimal("0.5")
+    return max_limit * Decimal("0.25")
 
 async def get_agent_loan_applications(db: AsyncSession, agent_id: int):
     result = await db.execute(select(models.LoanApplication).filter(models.LoanApplication.agent_id == agent_id))
@@ -885,7 +895,7 @@ async def get_loan_overview(db: AsyncSession) -> LoanOverviewResponse:
     ).scalar_one()
     
     if total_exposure is None:
-        total_exposure = 0.0
+        total_exposure = Decimal("0.00")
 
     # Placeholder for default risk % and repayment rate - these would require more complex logic and data
     default_risk_percentage = 0.0 # To be calculated based on historical defaults

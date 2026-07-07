@@ -1,7 +1,8 @@
 # backend/services/reconciliation_service.py
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from decimal import Decimal
+from typing import Optional, Tuple, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from backend.models import Wallet, Transaction, User, AuditLog
@@ -16,9 +17,9 @@ async def log_wallet_audit(
     user_id: int,
     action: str,
     transaction_id: Optional[int] = None,
-    before_balance: Optional[float] = None,
-    after_balance: Optional[float] = None,
-    amount_changed: Optional[float] = None,
+    before_balance: Optional[Decimal] = None,
+    after_balance: Optional[Decimal] = None,
+    amount_changed: Optional[Decimal] = None,
     ip_address: Optional[str] = None,
     device_fingerprint: Optional[str] = None,
     description: Optional[str] = None,
@@ -33,9 +34,9 @@ async def log_wallet_audit(
         action=action,
         transaction_id=transaction_id,
         resource_type="wallet",
-        before_balance=before_balance,
-        after_balance=after_balance,
-        amount_changed=amount_changed,
+        before_balance=float(before_balance) if before_balance is not None else None,
+        after_balance=float(after_balance) if after_balance is not None else None,
+        amount_changed=float(amount_changed) if amount_changed is not None else None,
         ip_address=ip_address,
         device_fingerprint=device_fingerprint,
         description=description,
@@ -49,7 +50,7 @@ async def log_wallet_audit(
 async def get_wallet_ledger_balance(
     db: AsyncSession,
     user_id: int,
-) -> float:
+) -> Decimal:
     """
     Calculate the wallet balance directly from the transaction ledger.
     This is the SOURCE OF TRUTH for balance verification.
@@ -62,8 +63,8 @@ async def get_wallet_ledger_balance(
             Transaction.status == "completed",
         )
     )
-    total = result.scalar() or 0.0
-    return round(float(total), 2)
+    total = result.scalar() or Decimal("0.00")
+    return Decimal(str(total)).quantize(Decimal("0.01"))
 
 
 async def verify_wallet_balance(
@@ -89,15 +90,16 @@ async def verify_wallet_balance(
     ledger_balance = await get_wallet_ledger_balance(db, user_id)
     
     # Compare
-    wallet_balance = round(float(wallet.balance or 0.0), 2)
-    is_verified = abs(wallet_balance - ledger_balance) < 0.01  # Allow for floating point rounding
+    wallet_balance = Decimal(str(wallet.balance or "0.00")).quantize(Decimal("0.01"))
+    is_verified = wallet_balance == ledger_balance
     
     return is_verified, {
         "wallet_id": wallet.id,
         "user_id": user_id,
-        "wallet_balance": wallet_balance,
-        "ledger_balance": ledger_balance,
-        "difference": round(wallet_balance - ledger_balance, 2),
+        "version": wallet.version,
+        "wallet_balance": float(wallet_balance),
+        "ledger_balance": float(ledger_balance),
+        "difference": float(wallet_balance - ledger_balance),
         "status": "verified" if is_verified else "mismatch",
         "verified_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -132,16 +134,21 @@ async def reconcile_all_wallets(
             
             if is_verified:
                 verified_count += 1
+                # Update last verified timestamp for successful audits
+                wallet_res = await db.execute(select(Wallet).filter(Wallet.user_id == user.id))
+                wallet_obj = wallet_res.scalars().first()
+                if wallet_obj:
+                    wallet_obj.last_verified_at = func.now()
             else:
                 mismatch_count += 1
-                difference = details.get("difference", 0.0)
+                difference = Decimal(str(details.get("difference", "0.00")))
                 
                 # Log mismatch to audit
                 await log_wallet_audit(
                     db,
                     user_id=user.id,
                     action="WALLET_RECONCILIATION_MISMATCH",
-                    description=f"Balance mismatch detected: wallet={details['wallet_balance']}, ledger={details['ledger_balance']}, diff={difference}",
+                    description=f"Balance mismatch detected at version {details['version']}: wallet={details['wallet_balance']}, ledger={details['ledger_balance']}, diff={difference}",
                     before_balance=details["wallet_balance"],
                     after_balance=details["ledger_balance"],
                     amount_changed=difference,
