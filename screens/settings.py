@@ -8,7 +8,7 @@ from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
 
 from api.auth import logout
-from api.client import API_URL, api_client, api_get
+from api.client import api_client
 from core.bottom_nav import BottomNavBar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
@@ -424,7 +424,7 @@ class SettingsScreen(ActionScreen):
         if not health.get("ok"):
             self._show_popup(
                 "Start Backend First",
-                f"Admin tools need the backend running at {API_URL}.\n\nTip: run start_all.ps1 from the project root.",
+                "Admin tools need the backend running first.\n\nTip: run start_all.ps1 from the project root.",
             )
             return
         app = MDApp.get_running_app()

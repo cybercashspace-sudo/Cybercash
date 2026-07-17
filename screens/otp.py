@@ -346,9 +346,6 @@ class OTPScreen(ResponsiveScreen):
             return
 
         info_message = self._extract_detail(response) or "A new OTP has been sent to your MoMo number."
-        debug_otp = str(response.get("debug_otp", "") or "").strip()
-        if debug_otp:
-            info_message = f"{info_message}\n\nTest OTP: {debug_otp}"
         self._set_feedback(info_message, "success")
         self._show_popup("OTP Resent", info_message)
         self.start_timer()

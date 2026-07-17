@@ -361,8 +361,6 @@ class RegisterScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
 
         status = str(response.get("status", "")).strip().lower() if isinstance(response, dict) else ""
-        debug_otp = str(response.get("debug_otp", "") or "").strip() if isinstance(response, dict) else ""
-        otp_hint = f"\n\nTest OTP: {debug_otp}" if debug_otp else ""
 
         if status in {"registered", "verify_required"} or (
             isinstance(response, dict) and response.get("message") and not response.get("detail")
@@ -377,13 +375,13 @@ class RegisterScreen(ResponsiveScreen):
                 otp_screen.momo_number = momo
                 self._show_popup(
                     "Registration Successful",
-                    f"Your account is ready. Tap Close to continue with email verification.{otp_hint}",
+                    "Your account is ready. Tap Close to continue with email verification.",
                     on_close=lambda: setattr(self.manager, "current", "otp") if self.manager else None,
                 )
             elif self.manager:
                 self._show_popup(
                     "Registration Successful",
-                    f"Your account is ready. Please sign in to continue and verify by email.{otp_hint}",
+                    "Your account is ready. Please sign in to continue and verify by email.",
                     on_close=lambda: setattr(self.manager, "current", "login") if self.manager else None,
                 )
             return

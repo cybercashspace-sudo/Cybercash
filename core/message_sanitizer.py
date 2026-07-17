@@ -16,6 +16,7 @@ _RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"could not validate credentials|invalid credentials", re.I), "The details you entered do not match an account. Please try again."),
     (re.compile(r"account not verified|complete otp verification|verification required", re.I), "Please verify your account with the OTP code before signing in."),
     (re.compile(r"invalid otp|otp expired|otp session expired", re.I), "That OTP is not correct or has expired. Request a new code and try again."),
+    (re.compile(r"\b(?:test|debug)\s*otp\b", re.I), GENERIC_SERVER_MESSAGE),
     (re.compile(r"number already registered|phone number already registered", re.I), "This MoMo number already has an account. Please sign in instead."),
     (re.compile(r"pending admin approval|pending approval", re.I), "Your account is pending approval. Please try again after review is complete."),
     (re.compile(r"temporarily locked|failed pin attempts", re.I), "Too many incorrect PIN attempts were entered. Please wait a few minutes and try again."),

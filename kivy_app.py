@@ -21,8 +21,6 @@ from kivymd.app import MDApp
 # Diagnostic check for cryptography shared libraries in Android environment
 try:
     import cryptography
-    from cryptography.hazmat.backends import default_backend
-    logging.info("CRYPTOGRAPHY_CHECK: Successfully loaded cryptography version %s", cryptography.__version__)
 except Exception as e:
     logging.error("CRYPTOGRAPHY_CHECK: Failed to load cryptography shared libraries: %s", e)
 
@@ -335,8 +333,8 @@ class CyberCashApp(MDApp):
                 builder.setAllowedAuthenticators(15)
                 activity.runOnUiThread(lambda: prompt.authenticate(builder.build()))
                 return
-            except Exception as e:
-                print(f"Native auth failed: {e}")
+            except Exception:
+                logging.warning("Native auth failed")
 
         # Fallback simulation
         from core.popup_manager import show_message_dialog

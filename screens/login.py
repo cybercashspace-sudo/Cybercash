@@ -389,8 +389,6 @@ class LoginScreen(ResponsiveScreen):
         self._signing_in = False
         app = MDApp.get_running_app()
         status = str(response.get("status", "")).strip().lower() if isinstance(response, dict) else ""
-        debug_otp = str(response.get("debug_otp", "") or "").strip() if isinstance(response, dict) else ""
-        otp_hint = f"\n\nTest OTP: {debug_otp}" if debug_otp else ""
 
         if status == "login_success":
             token = str(response.get("access_token", "") or "")
@@ -421,7 +419,7 @@ class LoginScreen(ResponsiveScreen):
                 otp_screen.momo_number = momo
                 self._show_popup(
                     "Verification Required",
-                    f"We sent an OTP to your number. Tap Close to continue verification.{otp_hint}",
+                    "We sent an OTP to your number. Tap Close to continue verification.",
                     on_close=lambda: setattr(self.manager, "current", "otp") if self.manager else None,
                 )
             return
