@@ -111,8 +111,18 @@ pushd "$stage_dir" >/dev/null
 p4a_parent_dir=".buildozer/android/platform"
 p4a_dir="$p4a_parent_dir/python-for-android"
 private_app_dir=".buildozer/android/app"
-p4a_ref="${P4A_REF:-v2024.01.21}"
 mkdir -p "$p4a_parent_dir"
+
+p4a_ref="${P4A_REF:-$(python3 - <<'PY'
+from configparser import ConfigParser
+from pathlib import Path
+
+spec = ConfigParser()
+spec.read(Path("buildozer.spec"), encoding="utf-8")
+print(spec.get("p4a", "p4a.branch", fallback="master"))
+PY
+)}"
+echo "Using python-for-android ref: $p4a_ref"
 
 p4a_needs_clone=1
 if git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && \

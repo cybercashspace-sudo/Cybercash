@@ -131,13 +131,24 @@ P4A_PARENT_DIR="$STAGE_DIR/.buildozer/android/platform"
 P4A_DIR="$P4A_PARENT_DIR/python-for-android"
 mkdir -p "$P4A_PARENT_DIR"
 
+p4a_ref="${P4A_REF:-$(python3 - <<'PY'
+from configparser import ConfigParser
+from pathlib import Path
+
+spec = ConfigParser()
+spec.read(Path("buildozer.spec"), encoding="utf-8")
+print(spec.get("p4a", "p4a.branch", fallback="master"))
+PY
+)}"
+echo "Using python-for-android ref: $p4a_ref"
+
 if ! git -C "$P4A_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
    ! git -C "$P4A_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
     rm -rf "$P4A_DIR"
-    echo "Pre-cloning python-for-android with retries..."
+    echo "Pre-cloning python-for-android ($p4a_ref) with retries..."
     for attempt in 1 2 3 4 5; do
         echo "python-for-android clone attempt $attempt/5"
-        if git clone --depth 1 --single-branch --branch master https://github.com/kivy/python-for-android.git "$P4A_DIR"; then
+        if git clone --depth 1 --single-branch --branch "$p4a_ref" https://github.com/kivy/python-for-android.git "$P4A_DIR"; then
             break
         fi
         rm -rf "$P4A_DIR"
