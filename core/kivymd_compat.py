@@ -65,6 +65,40 @@ def register_font_style_aliases(theme_font_styles: Mapping | dict) -> None:
             theme_font_styles[alias] = legacy_style
 
 
+def install_kivymd_text_field_compat() -> None:
+    """Map legacy KivyMD text-field modes to their Material 3 names."""
+
+    try:
+        from kivymd.uix.textfield import MDTextField
+    except Exception:
+        return
+
+    try:
+        mode_prop = MDTextField.mode
+        options = list(getattr(mode_prop, "options", ()) or ())
+        if "rectangle" not in options:
+            options.append("rectangle")
+            mode_prop.options = tuple(options)
+    except Exception:
+        return
+
+    if getattr(MDTextField, "_cybercash_text_field_compat", False):
+        return
+
+    original_on_mode = getattr(MDTextField, "on_mode", None)
+
+    def on_mode(self, instance, value):
+        if value == "rectangle":
+            self.mode = "outlined"
+            return None
+        if original_on_mode:
+            return original_on_mode(self, instance, value)
+        return None
+
+    MDTextField.on_mode = on_mode
+    MDTextField._cybercash_text_field_compat = True
+
+
 try:
     from kivymd.uix.button import MDButton, MDButtonIcon, MDButtonText
     _HAS_MODERN_BUTTON_API = True
@@ -196,3 +230,4 @@ else:
 
 
 register_legacy_button_aliases()
+install_kivymd_text_field_compat()

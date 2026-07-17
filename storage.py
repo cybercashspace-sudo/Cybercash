@@ -77,6 +77,50 @@ def clear_token():
     save_token("")
 
 
+def save_remember_me(momo: str, first_name: str = "", pin: str = ""):
+    try:
+        data = _read_secure_data()
+        data["remember_me"] = {
+            "momo": str(momo or "").strip(),
+            "first_name": str(first_name or "").strip(),
+            "pin": str(pin or "").strip(),
+        }
+        _write_secure_data(data)
+    except Exception:
+        pass
+
+
+def get_remember_me() -> dict:
+    data = _read_secure_data()
+    remembered = data.get("remember_me", {})
+    if not isinstance(remembered, dict):
+        remembered = {}
+
+    # Preserve compatibility with older session files that used top-level keys.
+    legacy = {
+        "momo": data.get("momo", ""),
+        "first_name": data.get("first_name", ""),
+        "pin": data.get("pin", ""),
+    }
+    return {
+        "momo": str(remembered.get("momo", legacy["momo"]) or "").strip(),
+        "first_name": str(remembered.get("first_name", legacy["first_name"]) or "").strip(),
+        "pin": str(remembered.get("pin", legacy["pin"]) or "").strip(),
+    }
+
+
+def clear_remember_me():
+    try:
+        data = _read_secure_data()
+        data.pop("remember_me", None)
+        data.pop("momo", None)
+        data.pop("first_name", None)
+        data.pop("pin", None)
+        _write_secure_data(data)
+    except Exception:
+        pass
+
+
 def save_privacy_mode(enabled: bool):
     try:
         data = _read_secure_data()
