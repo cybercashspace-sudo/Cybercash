@@ -165,9 +165,15 @@ def _apply_schema_patches(sync_conn) -> None:
     if "wallets" in inspector.get_table_names():
         wallet_cols = {c["name"] for c in inspector.get_columns("wallets")}
         wallet_patches = {
+            "version": "INTEGER DEFAULT 1",
+            "last_verified_at": datetime_type,
             "is_deleted": "BOOLEAN DEFAULT FALSE",
             "deleted_at": datetime_type,
             "last_synced_with_ledger": datetime_type,
+            "created_at": datetime_type,
+            "updated_at": datetime_type,
+            "is_frozen": "BOOLEAN DEFAULT FALSE",
+            "metadata_json": "VARCHAR",
         }
         for column, definition in wallet_patches.items():
             if column not in wallet_cols:
@@ -180,7 +186,16 @@ def _apply_schema_patches(sync_conn) -> None:
         tx_cols = {c["name"] for c in inspector.get_columns("transactions")}
         if "idempotency_key" not in tx_cols:
             sync_conn.execute(
-                text("ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR UNIQUE")
+                text("ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR")
+            )
+        tx_indexes = {idx["name"] for idx in inspector.get_indexes("transactions")}
+        if "uq_transactions_idempotency_key" not in tx_indexes:
+            sync_conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS "
+                    "uq_transactions_idempotency_key "
+                    "ON transactions (idempotency_key)"
+                )
             )
 
     # -------- LOAN APPLICATIONS PATCH --------

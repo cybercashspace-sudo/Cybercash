@@ -2,6 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
+from decimal import Decimal
 from typing import List, Dict, Tuple, Union, Optional
 from fastapi import Depends # New import for Depends
 from backend.database import get_db # New import for get_db
@@ -134,8 +135,8 @@ class LedgerService:
         Creates a new JournalEntry with associated LedgerEntries.
         Ensures debits == credits for double-entry.
         """
-        total_debit = 0.0
-        total_credit = 0.0
+        total_debit = Decimal("0.00")
+        total_credit = Decimal("0.00")
         
         # Create Journal Entry
         journal_entry = JournalEntry(
@@ -149,12 +150,12 @@ class LedgerService:
 
         for entry_data in ledger_entries_data:
             account = await self.get_account_by_name(entry_data["account_name"])
-            debit = entry_data.get("debit", 0.0)
-            credit = entry_data.get("credit", 0.0)
+            debit = Decimal(str(entry_data.get("debit", 0.0) or 0.0))
+            credit = Decimal(str(entry_data.get("credit", 0.0) or 0.0))
 
-            if not (debit > 0 or credit > 0):
+            if not (debit > Decimal("0.00") or credit > Decimal("0.00")):
                 raise ValueError("Ledger entry must have a positive debit or credit amount.")
-            if debit > 0 and credit > 0:
+            if debit > Decimal("0.00") and credit > Decimal("0.00"):
                 raise ValueError("Ledger entry cannot have both debit and credit.")
 
             total_debit += debit
@@ -171,10 +172,10 @@ class LedgerService:
             
             # Update account balance directly for simplicity;
             # in a high-volume system, balances might be calculated from entries at query time.
-            account.balance += (debit - credit)
+            account.balance = Decimal(str(account.balance or 0.0)) + (debit - credit)
             self.db.add(account) # Mark account as modified
 
-        if abs(total_debit - total_credit) > 1e-6: # Allow for float precision
+        if abs(total_debit - total_credit) > Decimal("0.000001"): # Allow for minor rounding differences
             logger.warning(
                 "Unbalanced journal entry '%s': debits=%s credits=%s",
                 description,

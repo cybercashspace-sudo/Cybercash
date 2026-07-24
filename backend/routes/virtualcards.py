@@ -23,6 +23,52 @@ from backend.core.config import settings
 
 router = APIRouter(prefix="/virtualcards", tags=["Virtual Cards"])
 
+
+async def _get_owned_virtual_card(db: AsyncSession, user_id: int, card_id: int) -> VirtualCard:
+    result = await db.execute(
+        select(VirtualCard).filter(
+            VirtualCard.id == card_id,
+            VirtualCard.user_id == user_id,
+        )
+    )
+    card = result.scalars().first()
+    if not card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Virtual card not found or does not belong to user",
+        )
+    return card
+
+
+async def _get_card_transactions(db: AsyncSession, user_id: int, card_id: int) -> list[Transaction]:
+    result = await db.execute(
+        select(Transaction)
+        .filter(Transaction.user_id == user_id)
+        .order_by(Transaction.timestamp.desc())
+    )
+    transactions = []
+    for tx in result.scalars().all():
+        tx_type = normalize_transaction_type(str(tx.type or ""))
+        if tx_type not in {"CARD_LOAD", "CARD_SPEND", "CARD_WITHDRAW", "VIRTUAL_CARD_ISSUANCE_FEE"}:
+            continue
+
+        metadata = {}
+        if tx.metadata_json:
+            try:
+                metadata = json.loads(tx.metadata_json)
+            except Exception:
+                metadata = {}
+
+        tx_card_id = metadata.get("card_id") or metadata.get("virtual_card_id")
+        if tx_card_id is None:
+            continue
+        if str(tx_card_id) != str(card_id):
+            continue
+
+        transactions.append(tx)
+
+    return transactions
+
 @router.post("/request", response_model=VirtualCardInDB, status_code=status.HTTP_201_CREATED)
 async def request_virtual_card(
     card_request: VirtualCardCreate,
@@ -106,6 +152,37 @@ async def list_virtual_cards_for_user(
     finally:
         await db.close()
 
+
+@router.get("/{card_id}/statement")
+async def get_virtual_card_statement(
+    card_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a PDF statement for a specific virtual card.
+    """
+    try:
+        try:
+            from screens.statement_service import StatementService
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Statement service dependency is unavailable: {exc}",
+            )
+
+        card = await _get_owned_virtual_card(db, current_user.id, card_id)
+        transactions = await _get_card_transactions(db, current_user.id, card_id)
+        statement_service = StatementService()
+        pdf_url = statement_service.generate_pdf(current_user, card, transactions)
+        return {"url": pdf_url}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate statement: {exc}")
+    finally:
+        await db.close()
+
 @router.get("/{card_id}", response_model=VirtualCardInDB)
 async def get_virtual_card_details(
     card_id: int,
@@ -132,40 +209,10 @@ async def get_virtual_card_transactions(
     Retrieve transaction history related to a specific virtual card.
     """
     try:
-        result = await db.execute(select(VirtualCard).filter(
-            VirtualCard.id == card_id,
-            VirtualCard.user_id == current_user.id
-        ))
-        card = result.scalars().first()
-        if not card:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
-
-        tx_result = await db.execute(
-            select(Transaction)
-            .filter(Transaction.user_id == current_user.id)
-            .order_by(Transaction.timestamp.desc())
-        )
-        transactions = tx_result.scalars().all()
-
+        await _get_owned_virtual_card(db, current_user.id, card_id)
+        transactions = await _get_card_transactions(db, current_user.id, card_id)
         filtered = []
         for tx in transactions:
-            tx_type = normalize_transaction_type(str(tx.type or ""))
-            if tx_type not in {"CARD_LOAD", "CARD_SPEND", "CARD_WITHDRAW", "VIRTUAL_CARD_ISSUANCE_FEE"}:
-                continue
-
-            metadata = {}
-            if tx.metadata_json:
-                try:
-                    metadata = json.loads(tx.metadata_json)
-                except Exception:
-                    metadata = {}
-
-            tx_card_id = metadata.get("card_id") or metadata.get("virtual_card_id")
-            if tx_card_id is None:
-                continue
-            if str(tx_card_id) != str(card_id):
-                continue
-
             filtered.append({
                 "id": tx.id,
                 "type": tx.type,
@@ -177,6 +224,23 @@ async def get_virtual_card_transactions(
             })
 
         return filtered
+    finally:
+        await db.close()
+
+
+@router.post("/{card_id}/replace", response_model=VirtualCardInDB)
+async def replace_virtual_card(
+    card_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    virtual_card_service: VirtualCardService = Depends(get_virtual_card_service),
+):
+    """
+    Reissue a card in place so the user keeps one live card row.
+    """
+    try:
+        await _get_owned_virtual_card(db, current_user.id, card_id)
+        return await virtual_card_service.replace_virtual_card(user_id=current_user.id, card_id=card_id)
     finally:
         await db.close()
 

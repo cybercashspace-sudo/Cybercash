@@ -89,3 +89,49 @@ def test_virtual_card_creation_charges_agent_ghs_25(client, db_session):
     assert fee_tx.amount == 25.0
     assert fee_tx.currency == "GHS"
 
+
+def test_virtual_card_request_is_idempotent_for_existing_card(client, db_session):
+    user = User(
+        email="card_fee_repeat@test.com",
+        password_hash="hash",
+        is_active=True,
+        is_verified=True,
+        status="active",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    wallet = Wallet(user_id=user.id, currency="GHS", balance=100.0)
+    db_session.add(wallet)
+    db_session.commit()
+
+    first_response = client.post(
+        "/virtualcards/request",
+        json={"currency": "USD", "type": "rechargeable", "spending_limit": 0},
+        headers=_auth_headers(user),
+    )
+    second_response = client.post(
+        "/virtualcards/request",
+        json={"currency": "USD", "type": "rechargeable", "spending_limit": 0},
+        headers=_auth_headers(user),
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+
+    first_payload = first_response.json()
+    second_payload = second_response.json()
+    assert first_payload["id"] == second_payload["id"]
+    assert first_payload["card_number"] == second_payload["card_number"]
+
+    db_session.expire_all()
+    updated_wallet = db_session.query(Wallet).filter(Wallet.user_id == user.id).first()
+    assert updated_wallet.balance == 75.0
+
+    tx_count = db_session.query(Transaction).filter(
+        Transaction.user_id == user.id,
+        Transaction.type == "VIRTUAL_CARD_ISSUANCE_FEE",
+    ).count()
+    assert tx_count == 1
+

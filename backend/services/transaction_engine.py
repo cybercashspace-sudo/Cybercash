@@ -41,6 +41,36 @@ def _money(value: Any) -> Decimal:
         return Decimal("0.00")
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+
+def _resolve_entry_type(tx_type: str, metadata: Optional[Dict[str, Any]], user_id: int) -> str:
+    metadata = metadata or {}
+    if tx_type in {
+        TransactionType.FUNDING,
+        TransactionType.AGENT_DEPOSIT,
+        TransactionType.LOAN_DISBURSE,
+        TransactionType.INVESTMENT_PAYOUT,
+        TransactionType.BTC_DEPOSIT,
+        TransactionType.CARD_WITHDRAW,
+    }:
+        return "credit"
+
+    if tx_type == TransactionType.TRANSFER:
+        direction = str(metadata.get("direction", "") or "").strip().lower()
+        if direction == "receive":
+            return "credit"
+        return "debit"
+
+    if tx_type == TransactionType.ESCROW_RELEASE:
+        recipient_id = metadata.get("recipient_id")
+        try:
+            if recipient_id is None or int(recipient_id) == int(user_id):
+                return "credit"
+        except (TypeError, ValueError):
+            pass
+        return "debit"
+
+    return "debit"
+
 class TransactionEngine:
     def __init__(self, db: AsyncSession, ledger_service: LedgerService):
         self.db = db
@@ -113,6 +143,7 @@ class TransactionEngine:
             agent_id=agent_id,
         )
         await self._validate_transaction(normalized_type, amount, wallet, agent_id, metadata)
+        entry_type = _resolve_entry_type(normalized_type, metadata, user_id)
 
         # 2. Transaction Lock (Handled by DB transaction block implicitly via async session)
         
@@ -122,6 +153,7 @@ class TransactionEngine:
             wallet_id=wallet.id,
             agent_id=agent_id,
             type=normalized_type,
+            entry_type=entry_type,
             amount=amount,
             status="pending",
             metadata_json=json.dumps(metadata or {}),

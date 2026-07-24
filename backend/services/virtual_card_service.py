@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
+from decimal import Decimal
 import random
 import hashlib # For CVV hashing
 import uuid
@@ -34,32 +35,67 @@ class VirtualCardService:
         cvv = ''.join([str(random.randint(0, 9)) for _ in range(3)])
         return card_number, expiry_date, cvv
 
+    @staticmethod
+    def _normalize_card_status(status_value: str | None) -> str:
+        status = str(status_value or "").strip().lower()
+        if status == "frozen":
+            return "blocked"
+        return status
+
+    async def get_primary_virtual_card(self, user_id: int) -> models.VirtualCard | None:
+        """
+        Return the most relevant card for the user.
+
+        We prefer active/blocked cards so the screen always shows the live card.
+        If the account only has historical rows, fall back to the newest card.
+        """
+        result = await self.db.execute(
+            select(models.VirtualCard)
+            .filter(models.VirtualCard.user_id == user_id)
+            .order_by(models.VirtualCard.created_at.desc(), models.VirtualCard.id.desc())
+        )
+        cards = list(result.scalars().all())
+        if not cards:
+            return None
+
+        for card in cards:
+            if self._normalize_card_status(card.status) in {"active", "blocked"}:
+                return card
+
+        return cards[0]
+
     async def request_virtual_card(
         self,
         user_id: int,
         card_request: VirtualCardCreate
     ) -> models.VirtualCard:
-        # Note: Issuance fee could also be moved to TransactionEngine, but keeping here for now as it involves complex card creation logic first.
+        # Idempotent issuance: if the user already has a live card, reuse it
+        # instead of charging another issuance fee or creating a duplicate row.
+        existing_card = await self.get_primary_virtual_card(user_id)
+        if existing_card:
+            return existing_card
+
         result = await self.db.execute(select(models.User).filter(models.User.id == user_id))
         user = result.scalars().first()
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+
         result = await self.db.execute(select(models.Wallet).filter(models.Wallet.user_id == user_id))
         user_wallet = result.scalars().first()
         if not user_wallet:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User does not have a primary wallet")
 
-        issuance_fee = float(settings.VIRTUAL_CARD_CREATION_FEE_GHS)
+        issuance_fee = Decimal(str(settings.VIRTUAL_CARD_CREATION_FEE_GHS))
+        wallet_balance = Decimal(str(user_wallet.balance or 0.0))
 
-        if user_wallet.balance < issuance_fee:
+        if wallet_balance < issuance_fee:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient balance. GHS {issuance_fee:,.2f} is required to create a new virtual card.",
+                detail=f"Insufficient balance. GHS {float(issuance_fee):,.2f} is required to create a new virtual card.",
             )
         
         # Deduct issuance fee
-        user_wallet.balance -= issuance_fee
+        user_wallet.balance = wallet_balance - issuance_fee
         
         card_number, expiry_date, cvv = self._generate_card_details()
         cvv_hashed = hashlib.sha256(cvv.encode()).hexdigest()
@@ -85,13 +121,14 @@ class VirtualCardService:
             user_id=user_id,
             wallet_id=user_wallet.id,
             type=TransactionType.VIRTUAL_CARD_ISSUANCE_FEE,
-            amount=issuance_fee,
+            entry_type="debit",
+            amount=float(issuance_fee),
             currency="GHS",
             status="completed",
             metadata_json=(
                 f'{{"virtual_card_id": {virtual_card.id}, '
                 f'"card_type": "{card_request.type}", '
-                f'"creation_fee_ghs": {issuance_fee}}}'
+                f'"creation_fee_ghs": {float(issuance_fee)}}}'
             ),
         )
         self.db.add(fee_transaction)
@@ -99,12 +136,12 @@ class VirtualCardService:
 
         # Create ledger entries for fee
         await self.ledger_service.create_journal_entry(
-            description=f"Virtual Card Issuance Fee for User {user_id}",
-            ledger_entries_data=[
-                {"account_name": "Customer Wallets (Liability)", "debit": issuance_fee, "credit": 0.0},
-                {"account_name": "Revenue - Card Usage Share", "debit": 0.0, "credit": issuance_fee} # Adjusted account name
-            ],
-            transaction=fee_transaction
+                description=f"Virtual Card Issuance Fee for User {user_id}",
+                ledger_entries_data=[
+                    {"account_name": "Customer Wallets (Liability)", "debit": float(issuance_fee), "credit": 0.0},
+                    {"account_name": "Revenue - Card Usage Share", "debit": 0.0, "credit": float(issuance_fee)} # Adjusted account name
+                ],
+                transaction=fee_transaction
         )
 
         await self.db.commit()
@@ -126,7 +163,10 @@ class VirtualCardService:
         virtual_card = result.scalars().first()
         if not virtual_card:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
-        
+
+        if self._normalize_card_status(virtual_card.status) != "active":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Card must be active before it can be loaded.")
+
         if virtual_card.type == "one-time" and virtual_card.balance > 0:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="One-time cards cannot be reloaded after initial funding")
 
@@ -158,7 +198,7 @@ class VirtualCardService:
         virtual_card = result.scalars().first()
         if not virtual_card:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
-        
+
         virtual_card.spending_limit = limit_request.spending_limit
         await self.db.commit()
         await self.db.refresh(virtual_card)
@@ -178,13 +218,21 @@ class VirtualCardService:
         if not virtual_card:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
 
-        virtual_card.status = status_value
+        normalized_status = self._normalize_card_status(status_value)
+        if normalized_status not in {"active", "blocked"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid virtual card status.")
+
+        virtual_card.status = normalized_status
         await self.db.commit()
         await self.db.refresh(virtual_card)
         return virtual_card
 
     async def get_user_virtual_cards(self, user_id: int) -> List[models.VirtualCard]:
-        result = await self.db.execute(select(models.VirtualCard).filter(models.VirtualCard.user_id == user_id))
+        result = await self.db.execute(
+            select(models.VirtualCard)
+            .filter(models.VirtualCard.user_id == user_id)
+            .order_by(models.VirtualCard.created_at.desc(), models.VirtualCard.id.desc())
+        )
         return result.scalars().all()
 
     async def get_virtual_card_details(self, user_id: int, card_id: int) -> models.VirtualCard:
@@ -195,6 +243,31 @@ class VirtualCardService:
         virtual_card = result.scalars().first()
         if not virtual_card:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
+        return virtual_card
+
+    async def replace_virtual_card(self, user_id: int, card_id: int) -> models.VirtualCard:
+        """
+        Reissue the existing card in place so the account keeps a single live card row.
+        """
+        result = await self.db.execute(
+            select(models.VirtualCard).filter(
+                models.VirtualCard.id == card_id,
+                models.VirtualCard.user_id == user_id
+            )
+        )
+        virtual_card = result.scalars().first()
+        if not virtual_card:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Virtual card not found or does not belong to user")
+
+        card_number, expiry_date, cvv = self._generate_card_details()
+        virtual_card.card_number = card_number
+        virtual_card.expiry_date = expiry_date
+        virtual_card.cvv_hashed = hashlib.sha256(cvv.encode()).hexdigest()
+        virtual_card.provider_card_id = f"reissue-{uuid.uuid4().hex[:24]}"
+        virtual_card.status = "active"
+
+        await self.db.commit()
+        await self.db.refresh(virtual_card)
         return virtual_card
 
 # Dependency

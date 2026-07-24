@@ -17,7 +17,7 @@ class VirtualCardUpdateLimit(BaseModel):
     spending_limit: float = Field(..., ge=0)
 
 class VirtualCardStatusUpdate(BaseModel):
-    status: Literal["active", "blocked"] = "active"
+    status: Literal["active", "blocked", "frozen"] = "active"
 
 class VirtualCardInDB(VirtualCardBase):
     model_config = ConfigDict(from_attributes=True)
