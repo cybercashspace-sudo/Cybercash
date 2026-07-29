@@ -11,18 +11,24 @@ from kivy.clock import Clock
 from kivy.logger import Logger
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
-from kivy.properties import BooleanProperty, NumericProperty, ObjectProperty, StringProperty
+from kivy.properties import BooleanProperty, ListProperty, NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.carousel import Carousel
 from kivymd.app import MDApp
+try:
+    from kivymd.uix.appbar import MDTopAppBar
+except ImportError:  # pragma: no cover - older KivyMD fallback
+    from kivymd.uix.toolbar import MDToolbar as MDTopAppBar
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDIconButton
+from kivymd.uix.button import MDIconButton, MDFabButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
+from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
 from api.client import API_URL, api_client
 from core.feedback_engine import tap_feedback
+from core.fintech_widgets import GradientMDCard
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
@@ -438,7 +444,21 @@ KV = """
                 pos: self.x + self.width * 0.38, self.y + self.height * 0.16
                 size: self.width * 0.62, self.width * 0.62
 
-        ScrollView:
+        MDTopAppBar:
+            title: "CYBER CASH"
+            anchor_title: "left"
+            elevation: 0
+            md_bg_color: app.ui_background
+            specific_text_color: app.gold
+            left_action_items: [["menu", lambda x: root.open_more_actions()]]
+            right_action_items: [["bell-outline", lambda x: root.go_to("transactions")], ["cog-outline", lambda x: root.go_to("settings")]]
+
+        MDScrollViewRefreshLayout:
+            id: refresh_layout
+            root_layout: app.root
+            refresh_callback: root.refresh_dashboard
+            spinner_color: app.gold
+            circle_color: app.ui_background
             do_scroll_x: False
             bar_width: 0
 
@@ -446,12 +466,15 @@ KV = """
                 orientation: "vertical"
                 size_hint_y: None
                 height: self.minimum_height
+                size_hint_x: None
+                width: min((self.parent.width if self.parent else root.width), dp(760))
+                pos_hint: {"center_x": 0.5}
                 padding: [dp(16 * root.layout_scale), dp(14 * root.layout_scale), dp(16 * root.layout_scale), dp(16 * root.layout_scale)]
-                spacing: dp(12 * root.layout_scale)
+                spacing: dp(11 * root.layout_scale)
 
                 MDBoxLayout:
                     size_hint_y: None
-                    height: dp(64 * root.layout_scale)
+                    height: dp(72 * root.layout_scale)
 
                     MDCard:
                         size_hint: None, None
@@ -471,15 +494,31 @@ KV = """
                             radius: [dp(20 * root.layout_scale)]
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
-                    MDLabel:
-                        text: "CYBER CASH"
-                        halign: "center"
-                        theme_text_color: "Custom"
-                        text_color: app.gold
-                        font_name: FONT_BOLD
-                        font_style: "Title"
-                        font_size: sp(24 * root.text_scale)
-                        bold: True
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: dp(1 * root.layout_scale)
+                        size_hint_y: None
+                        height: dp(42 * root.layout_scale)
+
+                        MDLabel:
+                            text: root.time_of_day_text
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: app.ui_text_secondary
+                            font_name: FONT_SEMI
+                            font_size: sp(11 * root.text_scale)
+                            size_hint_y: None
+                            height: dp(14 * root.layout_scale)
+
+                        MDLabel:
+                            text: root.greeting_text
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: app.gold
+                            font_name: FONT_BOLD
+                            font_style: "Title"
+                            font_size: sp(20 * root.text_scale)
+                            bold: True
 
                     FloatLayout:
                         size_hint: None, None
@@ -571,39 +610,63 @@ KV = """
                             pos: self.center_x - self.width * 0.28, self.y - dp(1)
                             size: self.width * 0.56, dp(3)
 
-                MDBoxLayout:
+                MDCard:
                     size_hint_y: None
-                    adaptive_height: True
-                    spacing: dp(10 * root.layout_scale)
-                    pos_hint: {"center_y": 0.5}
+                    height: dp(52 * root.layout_scale)
+                    radius: [dp(14 * root.layout_scale)]
+                    md_bg_color: app.ui_surface
+                    line_color: app.ui_glass_border
+                    elevation: 0
+                    padding: [dp(10 * root.layout_scale), dp(6 * root.layout_scale), dp(12 * root.layout_scale), dp(6 * root.layout_scale)]
 
-                    MDCard:
-                        size_hint: None, None
-                        size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                        radius: [dp(10 * root.layout_scale)]
-                        md_bg_color: [0.64, 0.49, 0.20, 0.36]
-                        elevation: 0
-                        padding: 0
+                    MDBoxLayout:
+                        spacing: dp(8 * root.layout_scale)
 
-                        MDIcon:
-                            icon: "card-account-details-outline"
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            font_size: sp(19 * root.icon_scale)
+                        MDCard:
                             size_hint: None, None
-                            size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                            size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                            radius: [dp(11 * root.layout_scale)]
+                            md_bg_color: [0.64, 0.49, 0.20, 0.42]
+                            elevation: 0
+                            padding: 0
 
-                    MDLabel:
-                        text: root.greeting_text
-                        theme_text_color: "Custom"
-                        text_color: app.ui_text_primary
-                        font_name: FONT_SEMI
-                        font_size: sp(17 * root.text_scale)
-                        valign: "middle"
-                        pos_hint: {"center_y": 0.5}
-                        shorten: True
-                        shorten_from: "right"
+                            MDIcon:
+                                icon: "card-account-details-outline"
+                                theme_text_color: "Custom"
+                                text_color: GOLD
+                                font_size: sp(19 * root.icon_scale)
+                                size_hint: None, None
+                                size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                        MDLabel:
+                            text: root.greeting_text
+                            theme_text_color: "Custom"
+                            text_color: app.ui_text_primary
+                            font_name: FONT_SEMI
+                            font_style: "Body"
+                            font_size: sp(16 * root.text_scale)
+                            valign: "middle"
+                            shorten: True
+                            shorten_from: "right"
+
+                        Widget:
+
+                        MDCard:
+                            size_hint: None, None
+                            size: dp(92 * root.layout_scale), dp(26 * root.layout_scale)
+                            radius: [dp(13 * root.layout_scale)]
+                            md_bg_color: root.account_status_bg_color
+                            elevation: 0
+
+                            MDLabel:
+                                text: root.account_status_display
+                                halign: "center"
+                                valign: "center"
+                                theme_text_color: "Custom"
+                                text_color: root.account_status_text_color
+                                font_size: sp(11.5 * root.text_scale)
+                                bold: True
 
                 MDBoxLayout:
                     orientation: "vertical"
@@ -616,13 +679,62 @@ KV = """
                         height: dp(24 * root.layout_scale)
 
                         MDLabel:
-                            text: "Portfolio"
+                            text: "Wallet Hero"
                             theme_text_color: "Custom"
                             text_color: app.gold
                             font_name: FONT_BOLD
                             font_size: sp(15 * root.text_scale)
                             bold: True
                             size_hint_x: 1
+
+                        MDCard:
+                            size_hint: None, None
+                            size: dp(36 * root.layout_scale), dp(22 * root.layout_scale)
+                            radius: [dp(7 * root.layout_scale)]
+                            md_bg_color: [0, 0, 0, 0]
+                            line_color: [0.48, 0.40, 0.26, 0.28]
+                            elevation: 0
+                            padding: 0
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: 0
+
+                                Widget:
+                                    size_hint_y: 0.34
+                                    canvas.before:
+                                        Color:
+                                            rgba: 0.86, 0.12, 0.12, 1
+                                        Rectangle:
+                                            pos: self.pos
+                                            size: self.size
+
+                                AnchorLayout:
+                                    anchor_x: "center"
+                                    anchor_y: "center"
+                                    size_hint_y: 0.32
+                                    canvas.before:
+                                        Color:
+                                            rgba: 0.95, 0.81, 0.20, 1
+                                        Rectangle:
+                                            pos: self.pos
+                                            size: self.size
+
+                                    MDIcon:
+                                        icon: "star"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.05, 0.05, 0.05, 1]
+                                        font_size: sp(10 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                                Widget:
+                                    size_hint_y: 0.34
+                                    canvas.before:
+                                        Color:
+                                            rgba: 0.12, 0.52, 0.22, 1
+                                        Rectangle:
+                                            pos: self.pos
+                                            size: self.size
 
                         MDIconButton:
                             icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
@@ -738,11 +850,11 @@ KV = """
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
-                                text: "Deposit"
+                                text: "+ Add Money"
                                 theme_text_color: "Custom"
                                 text_color: [0, 0, 0, 1]
                                 font_name: FONT_BOLD
-                                font_size: sp(17 * root.text_scale)
+                                font_size: sp(16 * root.text_scale)
                                 valign: "middle"
                                 pos_hint: {"center_y": 0.5}
                                 bold: True
@@ -800,159 +912,264 @@ KV = """
                     adaptive_height: True
 
                     MDLabel:
-                        text: "Actions"
+                        text: "Quick Actions"
                         theme_text_color: "Custom"
                         text_color: app.gold
                         font_name: FONT_BOLD
                         font_size: sp(20 * root.text_scale)
 
                     MDTextButton:
-                        text: "All"
+                        text: "More"
                         theme_text_color: "Custom"
                         text_color: app.gold
                         font_name: FONT_SEMI
                         font_size: sp(15 * root.text_scale)
-                        on_release: root.go_to("settings")
+                        on_release: root.open_more_actions()
 
                 MDGridLayout:
-                    cols: root.quick_action_cols
+                    cols: 3 if root.width < dp(700) else 6
                     adaptive_height: True
-                    row_default_height: dp(112 * root.layout_scale)
+                    row_default_height: dp(114 * root.layout_scale)
                     row_force_default: True
                     spacing: dp(10 * root.layout_scale)
 
                     MDCard:
-                        radius: [dp(16 * root.layout_scale)]
-                        md_bg_color: [0.09, 0.16, 0.15, 0.84]
-                        line_color: [0.32, 0.49, 0.42, 0.42]
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
                         elevation: 0
-                        padding: [dp(4 * root.layout_scale)] * 4
+                        padding: [dp(8 * root.layout_scale)] * 4
                         on_release: root.go_to("p2p_transfer")
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
                             adaptive_height: True
-                            pos_hint: {"center_y": 0.5}
-                            spacing: 0
 
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "center"
                                 size_hint_y: None
-                                height: dp(42 * root.layout_scale)
-                                MDIconButton:
-                                    icon: "send"
-                                    user_font_size: str(31 * root.icon_scale) + "sp"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: [0.55, 0.84, 0.66, 1]
-                                    on_release: root.go_to("p2p_transfer")
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.18, 0.31, 0.27, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "send"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.60, 0.88, 0.72, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
-                                text: "Send"
+                                text: "Send Money"
                                 halign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 font_name: FONT_SEMI
-                                font_size: sp(12.5 * root.text_scale)
-                                valign: "middle"
+                                font_size: sp(12 * root.text_scale)
 
                     MDCard:
-                        radius: [dp(16 * root.layout_scale)]
-                        md_bg_color: [0.10, 0.17, 0.15, 0.84]
-                        line_color: [0.35, 0.50, 0.42, 0.42]
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.35, 0.50, 0.42, 0.38]
                         elevation: 0
-                        padding: [dp(4 * root.layout_scale)] * 4
-                        on_release: root.go_to("investments")
+                        padding: [dp(8 * root.layout_scale)] * 4
+                        on_release: root.go_to("airtime")
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
                             adaptive_height: True
-                            pos_hint: {"center_y": 0.5}
-                            spacing: 0
 
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "center"
                                 size_hint_y: None
-                                height: dp(42 * root.layout_scale)
-                                MDIconButton:
-                                    icon: "finance"
-                                    user_font_size: str(31 * root.icon_scale) + "sp"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: [0.91, 0.75, 0.44, 1]
-                                    on_release: root.go_to("investments")
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.20, 0.30, 0.18, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "cellphone"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.95, 0.80, 0.47, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
-                                text: "Invest"
+                                text: "Buy Airtime"
                                 halign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 font_name: FONT_SEMI
-                                font_size: sp(12.5 * root.text_scale)
+                                font_size: sp(12 * root.text_scale)
 
                     MDCard:
-                        radius: [dp(16 * root.layout_scale)]
-                        md_bg_color: [0.10, 0.16, 0.14, 0.84]
-                        line_color: [0.34, 0.48, 0.40, 0.38]
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.33, 0.48, 0.40, 0.38]
                         elevation: 0
-                        padding: [dp(4 * root.layout_scale)] * 4
-                        on_release: root.go_to("loans")
+                        padding: [dp(8 * root.layout_scale)] * 4
+                        on_release: root.go_to("data_bundle")
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
                             adaptive_height: True
-                            pos_hint: {"center_y": 0.5}
-                            spacing: 0
 
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "center"
                                 size_hint_y: None
-                                height: dp(42 * root.layout_scale)
-                                MDIconButton:
-                                    icon: "shield-check-outline"
-                                    user_font_size: str(31 * root.icon_scale) + "sp"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: [0.83, 0.92, 0.60, 1]
-                                    on_release: root.go_to("loans")
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.20, 0.18, 0.12, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "sim"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.95, 0.80, 0.47, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
-                                text: "Loan"
+                                text: "Buy Data"
                                 halign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 font_name: FONT_SEMI
-                                font_size: sp(12.5 * root.text_scale)
+                                font_size: sp(12 * root.text_scale)
 
                     MDCard:
-                        radius: [dp(16 * root.layout_scale)]
-                        md_bg_color: [0.16, 0.14, 0.10, 0.84]
-                        line_color: [0.53, 0.41, 0.23, 0.40]
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.42, 0.40, 0.26, 0.38]
                         elevation: 0
-                        padding: [dp(4 * root.layout_scale)] * 4
+                        padding: [dp(8 * root.layout_scale)] * 4
+                        on_release: root.go_to("pay_bills")
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
+                            adaptive_height: True
+
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.24, 0.20, 0.10, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "receipt-text-outline"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.95, 0.80, 0.47, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                            MDLabel:
+                                text: "Pay Bills"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.37, 0.38, 0.24, 0.38]
+                        elevation: 0
+                        padding: [dp(8 * root.layout_scale)] * 4
+                        on_release: root.go_to("btc")
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
+                            adaptive_height: True
+
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+                                size_hint_y: None
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.24, 0.18, 0.08, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "bitcoin"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.97, 0.68, 0.15, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                            MDLabel:
+                                text: "Crypto"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(24 * root.layout_scale)]
+                        md_bg_color: [0.10, 0.13, 0.17, 0.92]
+                        line_color: [0.40, 0.34, 0.22, 0.38]
+                        elevation: 0
+                        padding: [dp(8 * root.layout_scale)] * 4
                         on_release: root.open_more_actions()
 
                         MDBoxLayout:
                             orientation: "vertical"
+                            spacing: dp(6 * root.layout_scale)
                             adaptive_height: True
-                            pos_hint: {"center_y": 0.5}
-                            spacing: 0
 
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "center"
                                 size_hint_y: None
-                                height: dp(42 * root.layout_scale)
-                                MDIconButton:
-                                    icon: "view-grid"
-                                    user_font_size: str(31 * root.icon_scale) + "sp"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                    theme_text_color: "Custom"
-                                    text_color: [0.90, 0.75, 0.43, 1]
-                                    on_release: root.open_more_actions()
+                                height: dp(52 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint: None, None
+                                    size: dp(58 * root.layout_scale), dp(58 * root.layout_scale)
+                                    radius: [dp(29 * root.layout_scale)]
+                                    md_bg_color: [0.25, 0.20, 0.11, 0.96]
+                                    elevation: 0
+
+                                    MDIcon:
+                                        icon: "view-grid"
+                                        theme_text_color: "Custom"
+                                        text_color: [0.95, 0.80, 0.47, 1]
+                                        font_size: sp(24 * root.icon_scale)
+                                        pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                             MDLabel:
                                 text: "More"
@@ -960,25 +1177,674 @@ KV = """
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 font_name: FONT_SEMI
-                                font_size: sp(12.5 * root.text_scale)
+                                font_size: sp(12 * root.text_scale)
 
                 MDBoxLayout:
                     adaptive_height: True
 
                     MDLabel:
-                        text: "Recent Activity"
+                        text: "Promotions"
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                        font_name: FONT_BOLD
+                        font_size: sp(20 * root.text_scale)
+
+                    MDTextButton:
+                        text: "Join Today"
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                        font_name: FONT_SEMI
+                        font_size: sp(15 * root.text_scale)
+                        on_release: root.open_promo_cta("FIRST 50 USERS", "Get free GH¢20. Sponsored by Cyber World Store.")
+
+                GradientMDCard:
+                    size_hint_y: None
+                    height: dp(176 * root.layout_scale)
+                    radius: [dp(24 * root.layout_scale)]
+                    gradient_start: [0.12, 0.10, 0.07, 1]
+                    gradient_end: [0.04, 0.06, 0.09, 1]
+                    border_color: [0.94, 0.79, 0.46, 0.18]
+                    border_width: dp(1)
+                    padding: [dp(14 * root.layout_scale), dp(14 * root.layout_scale), dp(14 * root.layout_scale), dp(12 * root.layout_scale)]
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: dp(10 * root.layout_scale)
+
+                        Carousel:
+                            id: promo_carousel
+                            direction: "right"
+                            loop: True
+                            anim_move_duration: 0.25
+                            on_index: root.promo_index = self.index
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: dp(4 * root.layout_scale)
+                                padding: [dp(4 * root.layout_scale), 0, dp(4 * root.layout_scale), 0]
+                                MDLabel:
+                                    text: "🎁 FIRST 50 USERS"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_BOLD
+                                    font_size: sp(14 * root.text_scale)
+                                    bold: True
+                                MDLabel:
+                                    text: "GET FREE GH¢20"
+                                    theme_text_color: "Custom"
+                                    text_color: TEXT_MAIN
+                                    font_name: FONT_BOLD
+                                    font_size: sp(26 * root.text_scale)
+                                    bold: True
+                                MDLabel:
+                                    text: "Sponsored by Cyber World Store"
+                                    theme_text_color: "Custom"
+                                    text_color: app.ui_text_secondary
+                                    font_name: FONT_SEMI
+                                    font_size: sp(12 * root.text_scale)
+                                Widget:
+                                MDTextButton:
+                                    text: "Join Today"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_SEMI
+                                    on_release: root.open_promo_cta("First 50 Users", "Join now to claim the GH¢20 launch bonus while it lasts.")
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: dp(4 * root.layout_scale)
+                                padding: [dp(4 * root.layout_scale), 0, dp(4 * root.layout_scale), 0]
+                                MDLabel:
+                                    text: "Limited launch offer"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_BOLD
+                                    font_size: sp(14 * root.text_scale)
+                                MDLabel:
+                                    text: "Join the queue, finish your profile, and unlock premium wallet tools."
+                                    theme_text_color: "Custom"
+                                    text_color: TEXT_MAIN
+                                    font_name: FONT_BOLD
+                                    font_size: sp(23 * root.text_scale)
+                                    bold: True
+                                MDLabel:
+                                    text: "Cyber World Store is sponsoring the first wave."
+                                    theme_text_color: "Custom"
+                                    text_color: app.ui_text_secondary
+                                    font_name: FONT_SEMI
+                                    font_size: sp(12 * root.text_scale)
+                                Widget:
+                                MDTextButton:
+                                    text: "See Details"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_SEMI
+                                    on_release: root.open_more_actions()
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: dp(4 * root.layout_scale)
+                                padding: [dp(4 * root.layout_scale), 0, dp(4 * root.layout_scale), 0]
+                                MDLabel:
+                                    text: "Auto scrolls every 5 seconds"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_BOLD
+                                    font_size: sp(14 * root.text_scale)
+                                MDLabel:
+                                    text: "Stay close to the dashboard for live offers, wallet alerts, and new rewards."
+                                    theme_text_color: "Custom"
+                                    text_color: TEXT_MAIN
+                                    font_name: FONT_BOLD
+                                    font_size: sp(23 * root.text_scale)
+                                    bold: True
+                                MDLabel:
+                                    text: "Sponsored by Cyber World Store"
+                                    theme_text_color: "Custom"
+                                    text_color: app.ui_text_secondary
+                                    font_name: FONT_SEMI
+                                    font_size: sp(12 * root.text_scale)
+                                Widget:
+                                MDTextButton:
+                                    text: "Open Offers"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_name: FONT_SEMI
+                                    on_release: root.open_more_actions()
+
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(10 * root.layout_scale)
+                            spacing: dp(6 * root.layout_scale)
+                            size_hint_x: None
+                            width: dp(44 * root.layout_scale)
+                            pos_hint: {"center_x": 0.5}
+
+                            Widget:
+                                size_hint: None, None
+                                size: dp(8 * root.layout_scale), dp(8 * root.layout_scale)
+                                canvas.before:
+                                    Color:
+                                        rgba: app.gold if root.promo_index == 0 else app.ui_text_secondary
+                                    RoundedRectangle:
+                                        pos: self.pos
+                                        size: self.size
+                                        radius: [dp(4 * root.layout_scale)]
+
+                            Widget:
+                                size_hint: None, None
+                                size: dp(8 * root.layout_scale), dp(8 * root.layout_scale)
+                                canvas.before:
+                                    Color:
+                                        rgba: app.gold if root.promo_index == 1 else app.ui_text_secondary
+                                    RoundedRectangle:
+                                        pos: self.pos
+                                        size: self.size
+                                        radius: [dp(4 * root.layout_scale)]
+
+                            Widget:
+                                size_hint: None, None
+                                size: dp(8 * root.layout_scale), dp(8 * root.layout_scale)
+                                canvas.before:
+                                    Color:
+                                        rgba: app.gold if root.promo_index == 2 else app.ui_text_secondary
+                                    RoundedRectangle:
+                                        pos: self.pos
+                                        size: self.size
+                                        radius: [dp(4 * root.layout_scale)]
+
+                MDBoxLayout:
+                    adaptive_height: True
+
+                    MDLabel:
+                        text: "Services"
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                        font_name: FONT_BOLD
+                        font_size: sp(20 * root.text_scale)
+
+                    MDTextButton:
+                        text: "Full List"
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                        font_name: FONT_SEMI
+                        font_size: sp(15 * root.text_scale)
+                        on_release: root.open_more_actions()
+
+                MDGridLayout:
+                    cols: 2 if root.width < dp(560) else 5
+                    adaptive_height: True
+                    row_default_height: dp(96 * root.layout_scale)
+                    row_force_default: True
+                    spacing: dp(10 * root.layout_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("p2p_transfer")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "swap-horizontal"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Transfer"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.32, 0.49, 0.42, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("withdraw")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "cash-minus"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Withdraw"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("virtual_card")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "credit-card-outline"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Virtual Card"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("airtime_2_cash")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "cash-fast"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Airtime2Cash"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(11.5 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("investments")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "bank-outline"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Savings"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("investments")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "chart-line"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Investment"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("loans")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "hand-coin"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Loans"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("escrow")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "shield-account-outline"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "Insurance"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.open_promo_cta("QR Pay", "QR Pay is coming soon. Use Send Money or Virtual Card for now.")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "qrcode-scan"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "QR Pay"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                    MDCard:
+                        radius: [dp(18 * root.layout_scale)]
+                        md_bg_color: [0.09, 0.13, 0.17, 0.92]
+                        line_color: [0.30, 0.48, 0.40, 0.38]
+                        elevation: 0
+                        padding: [dp(10 * root.layout_scale)] * 4
+                        on_release: root.go_to("transactions")
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(4 * root.layout_scale)
+                            MDIcon:
+                                icon: "history"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_size: sp(22 * root.icon_scale)
+                                size_hint_y: None
+                                height: dp(26 * root.layout_scale)
+                            MDLabel:
+                                text: "History"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_SEMI
+                                font_size: sp(12 * root.text_scale)
+
+                GradientMDCard:
+                    size_hint_y: None
+                    height: dp(170 * root.layout_scale)
+                    radius: [dp(22 * root.layout_scale)]
+                    gradient_start: [0.07, 0.10, 0.14, 1]
+                    gradient_end: [0.04, 0.05, 0.07, 1]
+                    border_color: [0.95, 0.80, 0.47, 0.16]
+                    border_width: dp(1)
+                    padding: [dp(14 * root.layout_scale), dp(14 * root.layout_scale), dp(14 * root.layout_scale), dp(14 * root.layout_scale)]
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: dp(8 * root.layout_scale)
+
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(36 * root.layout_scale)
+
+                            MDLabel:
+                                text: "Live Market"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_name: FONT_BOLD
+                                font_size: sp(18 * root.text_scale)
+
+                            MDCard:
+                                size_hint: None, None
+                                size: dp(92 * root.layout_scale), dp(26 * root.layout_scale)
+                                radius: [dp(13 * root.layout_scale)]
+                                md_bg_color: root.market_status_color
+                                elevation: 0
+
+                                MDLabel:
+                                    text: root.market_status_text
+                                    halign: "center"
+                                    valign: "center"
+                                    theme_text_color: "Custom"
+                                    text_color: 1, 1, 1, 1
+                                    font_size: sp(10.5 * root.text_scale)
+                                    bold: True
+
+                            MDIconButton:
+                                icon: "refresh"
+                                user_font_size: str(20 * root.icon_scale) + "sp"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                on_release: root.refresh_market_data()
+
+                        MDGridLayout:
+                            cols: 2
+                            adaptive_height: True
+                            spacing: dp(10 * root.layout_scale)
+
+                            MDCard:
+                                radius: [dp(18 * root.layout_scale)]
+                                md_bg_color: [0.09, 0.11, 0.14, 0.88]
+                                line_color: [0.30, 0.48, 0.40, 0.30]
+                                elevation: 0
+                                padding: [dp(12 * root.layout_scale)] * 4
+                                MDBoxLayout:
+                                    orientation: "vertical"
+                                    spacing: dp(4 * root.layout_scale)
+                                    MDLabel:
+                                        text: root.market_btc_display
+                                        theme_text_color: "Custom"
+                                        text_color: app.gold
+                                        font_name: FONT_BOLD
+                                        font_size: sp(22 * root.text_scale)
+                                    MDLabel:
+                                        text: root.market_change_display
+                                        theme_text_color: "Custom"
+                                        text_color: root.market_change_color
+                                        font_name: FONT_SEMI
+                                        font_size: sp(12 * root.text_scale)
+                                    MDLabel:
+                                        text: root.market_updated_text
+                                        theme_text_color: "Custom"
+                                        text_color: app.ui_text_secondary
+                                        font_size: sp(11 * root.text_scale)
+
+                            MDCard:
+                                radius: [dp(18 * root.layout_scale)]
+                                md_bg_color: [0.09, 0.11, 0.14, 0.88]
+                                line_color: [0.30, 0.48, 0.40, 0.30]
+                                elevation: 0
+                                padding: [dp(12 * root.layout_scale)] * 4
+                                MDBoxLayout:
+                                    orientation: "vertical"
+                                    spacing: dp(4 * root.layout_scale)
+                                    MDLabel:
+                                        text: root.market_fx_display
+                                        theme_text_color: "Custom"
+                                        text_color: app.gold
+                                        font_name: FONT_BOLD
+                                        font_size: sp(22 * root.text_scale)
+                                    MDLabel:
+                                        text: "Auto-updates from the live feed."
+                                        theme_text_color: "Custom"
+                                        text_color: app.ui_text_secondary
+                                        font_size: sp(11 * root.text_scale)
+                                    MDLabel:
+                                        text: "Swipe the hero card for the full market view."
+                                        theme_text_color: "Custom"
+                                        text_color: app.ui_text_secondary
+                                        font_size: sp(11 * root.text_scale)
+
+                GradientMDCard:
+                    size_hint_y: None
+                    height: dp(132 * root.layout_scale)
+                    radius: [dp(22 * root.layout_scale)]
+                    gradient_start: [0.14, 0.10, 0.07, 1]
+                    gradient_end: [0.05, 0.07, 0.10, 1]
+                    border_color: [0.94, 0.79, 0.46, 0.15]
+                    border_width: dp(1)
+                    padding: [dp(12 * root.layout_scale), dp(12 * root.layout_scale), dp(12 * root.layout_scale), dp(12 * root.layout_scale)]
+                    on_release: root.open_promo_cta("GHANA CUP FINAL", "Predict & Win is a limited-time campaign. Join the conversation and stay ready.")
+
+                    MDBoxLayout:
+                        spacing: dp(10 * root.layout_scale)
+                        AnchorLayout:
+                            anchor_x: "center"
+                            anchor_y: "center"
+                            size_hint_x: None
+                            width: dp(54 * root.layout_scale)
+                            MDCard:
+                                size_hint: None, None
+                                size: dp(54 * root.layout_scale), dp(54 * root.layout_scale)
+                                radius: [dp(27 * root.layout_scale)]
+                                md_bg_color: [0.25, 0.20, 0.11, 0.96]
+                                elevation: 0
+                                MDIcon:
+                                    icon: "trophy"
+                                    theme_text_color: "Custom"
+                                    text_color: app.gold
+                                    font_size: sp(26 * root.icon_scale)
+                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(2 * root.layout_scale)
+                            adaptive_height: True
+
+                            MDLabel:
+                                text: "GHANA CUP FINAL"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                font_name: FONT_BOLD
+                                font_size: sp(14 * root.text_scale)
+                            MDLabel:
+                                text: "Predict & Win"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+                                font_name: FONT_BOLD
+                                font_size: sp(20 * root.text_scale)
+                            MDLabel:
+                                text: "Sponsored by Cyber World Store"
+                                theme_text_color: "Custom"
+                                text_color: app.ui_text_secondary
+                                font_name: FONT_SEMI
+                                font_size: sp(11.5 * root.text_scale)
+
+                        Widget:
+
+                        MDTextButton:
+                            text: "Join Now"
+                            theme_text_color: "Custom"
+                            text_color: app.gold
+                            font_name: FONT_SEMI
+                            font_size: sp(14 * root.text_scale)
+                            on_release: root.open_promo_cta("GHANA CUP FINAL", "Predict & Win is open to the community. Join now for promo details.")
+
+                MDBoxLayout:
+                    adaptive_height: True
+
+                    MDLabel:
+                        text: "Recent Transactions"
                         theme_text_color: "Custom"
                         text_color: app.ui_text_primary
                         font_name: FONT_BOLD
                         font_size: sp(20 * root.text_scale)
 
-                    MDTextButton:
-                        text: "All"
-                        theme_text_color: "Custom"
-                        text_color: app.gold
-                        font_name: FONT_SEMI
-                        font_size: sp(15 * root.text_scale)
-                        on_release: root.go_to("transactions")
+                    MDBoxLayout:
+                        size_hint_x: None
+                        width: dp(118 * root.layout_scale)
+                        spacing: dp(2 * root.layout_scale)
+                        adaptive_height: True
+
+                        MDIconButton:
+                            icon: "magnify"
+                            user_font_size: str(20 * root.icon_scale) + "sp"
+                            theme_text_color: "Custom"
+                            text_color: app.ui_text_secondary
+                            on_release: root.go_to("transactions")
+
+                        MDIconButton:
+                            icon: "filter-variant"
+                            user_font_size: str(20 * root.icon_scale) + "sp"
+                            theme_text_color: "Custom"
+                            text_color: app.ui_text_secondary
+                            on_release: root.open_more_actions()
+
+                        MDTextButton:
+                            text: "See All"
+                            theme_text_color: "Custom"
+                            text_color: app.gold
+                            font_name: FONT_SEMI
+                            font_size: sp(14 * root.text_scale)
+                            on_release: root.go_to("transactions")
+
+                MDLabel:
+                    text: "Today"
+                    theme_text_color: "Custom"
+                    text_color: app.ui_text_secondary
+                    font_name: FONT_SEMI
+                    font_size: sp(12 * root.text_scale)
+                    size_hint_y: None
+                    height: dp(18 * root.layout_scale)
 
                 MDBoxLayout:
                     id: recent_container
@@ -986,47 +1852,20 @@ KV = """
                     adaptive_height: True
                     spacing: dp(10 * root.layout_scale)
 
-                MDBoxLayout:
-                    size_hint_y: None
-                    height: dp(14 * root.layout_scale)
-                    spacing: dp(8 * root.layout_scale)
-                    size_hint_x: None
-                    width: dp(92 * root.layout_scale)
-                    pos_hint: {"center_x": 0.5}
-
-                    Widget:
-                        canvas.before:
-                            Color:
-                                rgba: GOLD
-                            RoundedRectangle:
-                                pos: self.x + dp(2), self.center_y - dp(2)
-                                size: self.width - dp(4), dp(4)
-                                radius: [dp(2)]
-
-                    Widget:
-                        canvas.before:
-                            Color:
-                                rgba: 0.45, 0.42, 0.34, 0.56
-                            RoundedRectangle:
-                                pos: self.x + dp(2), self.center_y - dp(2)
-                                size: self.width - dp(4), dp(4)
-                                radius: [dp(2)]
-
-                    Widget:
-                        canvas.before:
-                            Color:
-                                rgba: 0.45, 0.42, 0.34, 0.56
-                            RoundedRectangle:
-                                pos: self.x + dp(2), self.center_y - dp(2)
-                                size: self.width - dp(4), dp(4)
-                                radius: [dp(2)]
-
                 Widget:
                     size_hint_y: None
-                    height: dp(8 * root.layout_scale)
+                    height: dp(14 * root.layout_scale)
+
+        MDFabButton:
+            icon: "help-circle-outline"
+            md_bg_color: app.gold
+            size_hint: None, None
+            size: dp(56 * root.layout_scale), dp(56 * root.layout_scale)
+            pos_hint: {"right": 0.96, "y": 0.12}
+            on_release: root.open_dashboard_help()
 
         BottomNavBar:
-            nav_variant: "default"
+            nav_variant: "dashboard"
             active_target: "home"
             layout_scale: root.layout_scale
             text_scale: root.text_scale
@@ -1040,17 +1879,32 @@ KV = """
 class HomeScreen(ResponsiveScreen):
     avatar_source = StringProperty("")
     background_source = StringProperty("")
-    greeting_text = StringProperty("Hello")
+    greeting_text = StringProperty("Welcome back")
+    time_of_day_text = StringProperty("Good evening")
     notification_count_text = StringProperty("0")
     notification_badge_visible = BooleanProperty(False)
     portfolio_index = NumericProperty(0)
+    promo_index = NumericProperty(0)
     theme_toggle_icon = StringProperty("weather-night")
     wallet_balance_amount = NumericProperty(0.0)
     wallet_balance_loaded = BooleanProperty(False)
     balance_placeholder = StringProperty("Syncing...")
     balance_hidden = BooleanProperty(False)
     balance_display = StringProperty("Syncing...")
+    available_balance_display = StringProperty("Syncing...")
+    bonus_balance_display = StringProperty("GHS 0.00")
     balance_status = StringProperty("Waiting for live wallet")
+    account_status_display = StringProperty("SYNC")
+    account_status_bg_color = ListProperty([0.12, 0.14, 0.18, 0.95])
+    account_status_text_color = ListProperty([0.86, 0.88, 0.90, 1])
+    market_btc_display = StringProperty("BTC $0.00")
+    market_fx_display = StringProperty("USD/GHS 0.00")
+    market_change_display = StringProperty("+0.0% 24h")
+    market_change_color = ListProperty([0.54, 0.82, 0.67, 1])
+    market_change_icon = StringProperty("trending-up")
+    market_status_text = StringProperty("MARKET LIVE")
+    market_status_color = ListProperty([0.54, 0.82, 0.67, 1])
+    market_updated_text = StringProperty("Updating...")
     is_agent_active = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
     agent_action_hint = StringProperty(f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}")
@@ -1066,18 +1920,33 @@ class HomeScreen(ResponsiveScreen):
         self._last_agent_reference = ""
         self._portfolio_carousel_ready = False
         self._portfolio_cards: dict[str, dict[str, object]] = {}
+        self._recent_rows_pending: list[dict] | None = None
+        self._home_kv_ready = False
+        self._promo_scroll_event = None
+        self._market_refresh_event = None
+        self._dashboard_refresh_event = None
+        self._market_loading = False
+        self._market_load_seq = 0
+        self._market_snapshot: dict | None = None
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
+        self._home_kv_ready = True
         Clock.schedule_once(lambda _dt: self._prime_premium_ui(), 0)
+        self._ensure_dashboard_timers()
+        if self._recent_rows_pending is not None:
+            Clock.schedule_once(lambda _dt: self._render_recent_activity(self._recent_rows_pending or []), 0)
 
     def on_pre_enter(self):
         self._sync_theme_toggle_icon()
         self._build_portfolio_carousel(force=False)
+        self._ensure_dashboard_timers()
         self.load_home_data()
+        self.refresh_market_data(silent=True)
 
     def on_leave(self, *_args):
         self._agent_verify_sequence += 1
+        self._cancel_dashboard_timers()
         self.close_more_actions()
 
     @staticmethod
@@ -1107,17 +1976,33 @@ class HomeScreen(ResponsiveScreen):
             return ""
         return first[:24]
 
+    @staticmethod
+    def _time_of_day_prefix() -> str:
+        hour = datetime.now().hour
+        if hour < 12:
+            return "Good morning"
+        if hour < 17:
+            return "Good afternoon"
+        return "Good evening"
+
     def _set_greeting(self, name: str = "") -> None:
         first_name = self._safe_first_name(name)
-        self.greeting_text = f"Hello, {first_name}" if first_name else "Hello"
+        self.time_of_day_text = self._time_of_day_prefix()
+        self.greeting_text = f"Welcome back, {first_name}" if first_name else "Welcome back"
 
     def _update_balance_display(self) -> None:
         if self.balance_hidden:
             self.balance_display = "GHS ****.**"
+            self.available_balance_display = "GHS ****.**"
+            self.bonus_balance_display = "GHS ****.**"
         elif not self.wallet_balance_loaded:
             self.balance_display = self.balance_placeholder or "Syncing..."
+            self.available_balance_display = self.balance_placeholder or "Syncing..."
+            self.bonus_balance_display = "GHS 0.00"
         else:
             self.balance_display = f"GHS {float(self.wallet_balance_amount or 0.0):,.2f}"
+            self.available_balance_display = self.balance_display
+            self.bonus_balance_display = "GHS 0.00"
 
     def _set_agent_action_state(self, is_active: bool) -> None:
         self.is_agent_active = bool(is_active)
@@ -1127,6 +2012,11 @@ class HomeScreen(ResponsiveScreen):
         else:
             self.agent_action_label = "Become Agent"
             self.agent_action_hint = f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}"
+
+    def _set_account_status(self, label: str, bg_color: list[float], text_color: list[float]) -> None:
+        self.account_status_display = str(label or "").strip() or "SYNC"
+        self.account_status_bg_color = list(bg_color or [0.12, 0.14, 0.18, 0.95])
+        self.account_status_text_color = list(text_color or [0.86, 0.88, 0.90, 1])
 
     def toggle_balance(self) -> None:
         tap_feedback()
@@ -1150,6 +2040,157 @@ class HomeScreen(ResponsiveScreen):
         self._sync_theme_toggle_icon()
         self._build_portfolio_carousel(force=True)
         self._refresh_portfolio_values()
+
+    def _ensure_dashboard_timers(self) -> None:
+        if self._promo_scroll_event is None:
+            self._promo_scroll_event = Clock.schedule_interval(lambda _dt: self._advance_promo_carousel(), 5)
+        if self._market_refresh_event is None:
+            self._market_refresh_event = Clock.schedule_interval(lambda _dt: self.refresh_market_data(silent=True), 60)
+
+    def _cancel_dashboard_timers(self) -> None:
+        for attr_name in ("_promo_scroll_event", "_market_refresh_event", "_dashboard_refresh_event"):
+            event = getattr(self, attr_name, None)
+            if event is not None:
+                try:
+                    event.cancel()
+                except Exception:
+                    pass
+            setattr(self, attr_name, None)
+
+    def _advance_promo_carousel(self, *_args) -> bool:
+        carousel = self.ids.get("promo_carousel")
+        slides = getattr(carousel, "slides", None)
+        if carousel is None or not slides or len(slides) < 2:
+            return True
+        try:
+            carousel.load_next(mode="next")
+        except Exception:
+            pass
+        return True
+
+    def refresh_market_data(self, silent: bool = False) -> None:
+        if self._market_loading:
+            return
+        self._market_loading = True
+        self._market_load_seq += 1
+        seq = self._market_load_seq
+        if not silent:
+            self.market_status_text = "Refreshing..."
+        threading.Thread(target=self._load_market_worker, args=(seq,), daemon=True).start()
+
+    def refresh_dashboard(self) -> None:
+        self.balance_status = "Refreshing..."
+        self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
+        self.load_home_data()
+        self.refresh_market_data(silent=False)
+
+        if self._dashboard_refresh_event is not None:
+            try:
+                self._dashboard_refresh_event.cancel()
+            except Exception:
+                pass
+
+        self._dashboard_refresh_event = Clock.schedule_once(self._finish_dashboard_refresh, 1.25)
+
+    def _finish_dashboard_refresh(self, *_args) -> None:
+        refresh_layout = self.ids.get("refresh_layout")
+        if refresh_layout is not None:
+            try:
+                refresh_layout.refresh_done()
+            except Exception:
+                pass
+        self._dashboard_refresh_event = None
+
+    def _load_market_worker(self, seq: int) -> None:
+        payload = self._fetch_market_snapshot()
+        Clock.schedule_once(lambda _dt: self._apply_market_data(seq, payload), 0)
+
+    def _fetch_market_snapshot(self) -> dict:
+        try:
+            result = api_client.get("/crypto/market/btc")
+            status_code = int(result.get("status_code", 0) or 0)
+            payload = result.get("data", {})
+            if status_code < 400 and isinstance(payload, dict) and payload.get("last_price_usdt") is not None:
+                return payload
+        except Exception:
+            pass
+
+        try:
+            response = requests.get("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", timeout=8)
+            response.raise_for_status()
+            market = response.json()
+            last_price = float(market.get("lastPrice") or market.get("price") or 0.0)
+            return {
+                "symbol": "BTCUSDT",
+                "network": "Bitcoin",
+                "min_deposit_btc": 0.0001,
+                "withdrawal_fee_btc": 0.00005,
+                "last_price_usdt": last_price,
+                "price_change_percent_24h": float(market.get("priceChangePercent") or 0.0),
+                "high_price_usdt": float(market.get("highPrice") or 0.0),
+                "low_price_usdt": float(market.get("lowPrice") or 0.0),
+                "volume_btc": float(market.get("volume") or 0.0),
+                "usd_to_ghs_rate": 12.0,
+                "estimated_ghs_per_btc": last_price * 12.0,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "binance",
+            }
+        except Exception as exc:
+            return {"error": sanitize_backend_message(exc, fallback="Unable to load BTC market data.")}
+
+    def _apply_market_data(self, seq: int, payload: dict) -> None:
+        if seq != int(getattr(self, "_market_load_seq", 0)):
+            return
+        self._market_loading = False
+
+        market_ok = isinstance(payload, dict) and not payload.get("error") and payload.get("last_price_usdt") is not None
+        if market_ok:
+            last_price = float(payload.get("last_price_usdt") or 0.0)
+            change_percent = float(payload.get("price_change_percent_24h") or 0.0)
+            usd_to_ghs_rate = float(payload.get("usd_to_ghs_rate") or 0.0)
+            estimated_ghs_per_btc = float(payload.get("estimated_ghs_per_btc") or (last_price * usd_to_ghs_rate))
+            updated_at = str(payload.get("updated_at") or "")
+
+            self.market_btc_display = f"BTC ${last_price:,.0f}"
+            self.market_fx_display = f"USD/GHS {usd_to_ghs_rate:,.2f}" if usd_to_ghs_rate else "USD/GHS 0.00"
+            self.market_change_display = f"{change_percent:+.1f}% 24h"
+            self.market_change_color = [0.54, 0.82, 0.67, 1] if change_percent >= 0 else [0.96, 0.47, 0.42, 1]
+            self.market_change_icon = "trending-up" if change_percent >= 0 else "trending-down"
+            self.market_status_text = "MARKET LIVE"
+            self.market_status_color = [0.54, 0.82, 0.67, 1]
+            self.market_updated_text = f"Updated {self._friendly_time(updated_at)}" if updated_at else "Updated recently"
+            self.balance_status = self.balance_status or f"Estimated GHS {estimated_ghs_per_btc:,.2f}"
+        else:
+            self.market_btc_display = "BTC $0.00"
+            self.market_fx_display = "USD/GHS 0.00"
+            self.market_change_display = "+0.0% 24h"
+            self.market_change_color = [0.74, 0.76, 0.80, 1]
+            self.market_change_icon = "trending-up"
+            self.market_status_text = "MARKET UNAVAILABLE"
+            self.market_status_color = [0.94, 0.79, 0.46, 1]
+            self.market_updated_text = "Price feed unavailable."
+
+        self._market_snapshot = payload
+        self._refresh_portfolio_values()
+
+    def open_dashboard_help(self) -> None:
+        show_message_dialog(
+            self,
+            title="Dashboard Tips",
+            message=(
+                "Tap the wallet balance to hide or show it, swipe the hero card for live wallet and market views, "
+                "use the quick actions for your most common tasks, and open More for the full service list."
+            ),
+            close_label="Close",
+        )
+
+    def open_promo_cta(self, title: str, message: str) -> None:
+        show_message_dialog(
+            self,
+            title=str(title or "Promotion").strip() or "Promotion",
+            message=str(message or "Details will be available soon.").strip(),
+            close_label="Close",
+        )
 
     def _sync_theme_toggle_icon(self) -> None:
         app = MDApp.get_running_app()
@@ -1182,7 +2223,7 @@ class HomeScreen(ResponsiveScreen):
             return
         self.portfolio_index = new_index
         tap_feedback(sound=False)
-        key_map = {0: "wallet", 1: "btc", 2: "virtual_card"}
+        key_map = {0: "wallet", 1: "virtual_card", 2: "market"}
         card_info = self._portfolio_cards.get(key_map.get(new_index, ""))
         if card_info:
             self._pulse_widget(card_info.get("card"))
@@ -1194,51 +2235,48 @@ class HomeScreen(ResponsiveScreen):
         btc = list(getattr(app, "btc", [0.97, 0.68, 0.15, 1]))
         text_primary = list(getattr(app, "ui_text_primary", [0.96, 0.96, 0.98, 1]))
         text_secondary = list(getattr(app, "ui_text_secondary", [0.74, 0.76, 0.80, 1]))
-        theme_mode = str(getattr(app, "theme_mode", "Dark") or "Dark")
-        light_mode = theme_mode.lower() == "light"
-        value_surface = self.balance_status or "Waiting for live wallet"
         return [
             {
                 "key": "wallet",
-                "title": "Wallet Vault",
+                "title": "Wallet Balance",
                 "value": self.balance_display,
-                "subtitle": "Move money fast.",
-                "caption": "Tap to open Wallet",
+                "subtitle": f"Available: {self.available_balance_display}",
+                "caption": "Virtual Visa Card →",
                 "icon": "wallet-outline",
                 "accent": gold,
-                "accent_bg": [gold[0], gold[1], gold[2], 0.20 if not light_mode else 0.16],
+                "accent_bg": [gold[0], gold[1], gold[2], 0.20],
                 "target": lambda: self.go_to("wallet"),
                 "value_color": gold,
                 "caption_color": text_secondary,
-                "hint": value_surface,
-            },
-            {
-                "key": "btc",
-                "title": "BTC Desk",
-                "value": "0.0000 BTC",
-                "subtitle": "Track crypto fast.",
-                "caption": "Tap to open BTC",
-                "icon": "bitcoin",
-                "accent": btc,
-                "accent_bg": [btc[0], btc[1], btc[2], 0.18 if not light_mode else 0.14],
-                "target": lambda: self.go_to("btc"),
-                "value_color": btc,
-                "caption_color": text_secondary,
-                "hint": "Fast crypto access",
+                "hint": f"Bonus: {self.bonus_balance_display}",
             },
             {
                 "key": "virtual_card",
-                "title": "Virtual Card",
-                "value": "Instant Spend Mode",
+                "title": "Virtual Visa Card",
+                "value": "Tap to spend",
                 "subtitle": "Cards and controls.",
-                "caption": "Tap to open Cards",
+                "caption": "Open Cards →",
                 "icon": "credit-card-outline",
                 "accent": emerald,
-                "accent_bg": [emerald[0], emerald[1], emerald[2], 0.18 if not light_mode else 0.14],
+                "accent_bg": [emerald[0], emerald[1], emerald[2], 0.18],
                 "target": lambda: self.go_to("virtual_card"),
                 "value_color": emerald,
                 "caption_color": text_secondary,
-                "hint": "Swipe to the next card",
+                "hint": "Add money or withdraw",
+            },
+            {
+                "key": "market",
+                "title": "Market Pulse",
+                "value": self.market_btc_display,
+                "subtitle": "Live BTC + FX",
+                "caption": self.market_change_display,
+                "icon": "chart-line",
+                "accent": btc,
+                "accent_bg": [btc[0], btc[1], btc[2], 0.18],
+                "target": lambda: self.go_to("btc"),
+                "value_color": btc,
+                "caption_color": self.market_change_color,
+                "hint": self.market_fx_display,
             },
         ]
 
@@ -1385,7 +2423,20 @@ class HomeScreen(ResponsiveScreen):
                 wallet_label.text = self.balance_display
             hint_label = wallet.get("hint_label")
             if hint_label is not None:
-                hint_label.text = self.balance_status or "Swipe premium cards"
+                hint_label.text = f"Bonus: {self.bonus_balance_display}"
+
+        market = self._portfolio_cards.get("market")
+        if market:
+            market_label = market.get("value_label")
+            if market_label is not None:
+                market_label.text = self.market_btc_display
+            market_hint = market.get("hint_label")
+            if market_hint is not None:
+                market_hint.text = self.market_fx_display
+            market_caption = market.get("caption_label")
+            if market_caption is not None:
+                market_caption.text = self.market_change_display
+                market_caption.text_color = self.market_change_color
 
     @staticmethod
     def _format_amount(amount: float) -> str:
@@ -1562,7 +2613,14 @@ class HomeScreen(ResponsiveScreen):
         return card
 
     def _render_recent_activity(self, rows: list[dict]) -> None:
-        container = self.ids.recent_container
+        container = self.ids.get("recent_container")
+        if container is None:
+            if not getattr(self, "_recent_activity_retry_scheduled", False):
+                self._recent_activity_retry_scheduled = True
+                Logger.warning("CyberCashHome: recent_container is not ready; retrying recent activity render")
+                Clock.schedule_once(lambda _dt: self._render_recent_activity(rows), 0)
+            return
+        self._recent_activity_retry_scheduled = False
         container.clear_widgets()
 
         if not rows:
@@ -1576,6 +2634,7 @@ class HomeScreen(ResponsiveScreen):
         self._set_greeting(greeting_name)
         self._set_balance_unavailable("Sign in", "Sign in to view live wallet")
         self._set_agent_action_state(False)
+        self._set_account_status("SIGN IN", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
         self.notification_count_text = "0"
         self.notification_badge_visible = False
         self._render_recent_activity([])
@@ -1727,12 +2786,22 @@ class HomeScreen(ResponsiveScreen):
                 self.balance_status = error_text or "Live balance shown; sync pending"
             else:
                 self._set_balance_unavailable("Sync unavailable", error_text or "Balance sync unavailable")
+                self._set_account_status(
+                    "OFFLINE" if error_text else "SYNC",
+                    [0.22, 0.16, 0.11, 0.95] if error_text else [0.12, 0.14, 0.18, 0.95],
+                    [0.98, 0.88, 0.68, 1] if error_text else [0.86, 0.88, 0.90, 1],
+                )
         else:
             self.wallet_balance_loaded = True
             self.balance_placeholder = ""
             self.wallet_balance_amount = float(balance)
             self._update_balance_display()
             self.balance_status = ("Verified balance ✓" if is_verified else "Live balance") if not error_text else error_text
+            self._set_account_status(
+                "VERIFIED" if is_verified else "LIVE",
+                [0.18, 0.31, 0.22, 0.95] if is_verified else [0.14, 0.22, 0.17, 0.95],
+                [0.70, 0.92, 0.78, 1] if is_verified else [0.86, 0.90, 0.88, 1],
+            )
 
         self._set_agent_action_state(is_agent_active)
         self._render_recent_activity(recent_rows or [])
@@ -1754,6 +2823,7 @@ class HomeScreen(ResponsiveScreen):
             return
 
         self._is_loading = True
+        self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
         if not self.wallet_balance_loaded:
             self.balance_placeholder = "Syncing..."
             self._update_balance_display()
@@ -2083,3 +3153,6 @@ class MoreActionsContent(MDBoxLayout):
     def trigger_action(self, screen_name: str) -> None:
         if self.controller:
             self.controller.handle_more_action(str(screen_name or ""))
+
+
+Builder.load_string(KV)
