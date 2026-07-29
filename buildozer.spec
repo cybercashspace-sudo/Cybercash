@@ -30,5 +30,5 @@ warn_on_root = 0
 python_version = 3
 
 [p4a]
-p4a.branch = master
-p4a.extra_args = --optimized-python-wasm=0
+p4a.branch = develop
+p4a.extra_args =
