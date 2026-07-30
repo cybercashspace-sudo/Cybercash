@@ -15,14 +15,9 @@ os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 from kivy.clock import Clock
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivy.uix.screenmanager import ScreenManager, FadeTransition
-from kivy.utils import platform
 from kivymd.app import MDApp
 
-# Diagnostic check for cryptography shared libraries in Android environment
-try:
-    import cryptography
-except Exception as e:
-    logging.error("CRYPTOGRAPHY_CHECK: Failed to load cryptography shared libraries: %s", e)
+from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
 

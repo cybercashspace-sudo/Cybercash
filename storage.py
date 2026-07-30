@@ -2,10 +2,12 @@ import os
 import base64
 import json
 import time
-from kivy.utils import platform
 from kivy.app import App
-from cryptography.fernet import Fernet
-import hashlib
+
+try:
+    from cryptography.fernet import Fernet
+except Exception:
+    Fernet = None
 
 TOKEN_EXPIRY_SKEW_SECONDS = 30
 KEY_FILE = ".storage.key"
@@ -20,6 +22,9 @@ def _session_store_path() -> str:
 
 
 def _get_encryption_key() -> bytes:
+    if Fernet is None:
+        return b""
+
     path = _session_store_path()
     key_path = os.path.join(os.path.dirname(path), KEY_FILE)
     
@@ -35,7 +40,34 @@ def _get_encryption_key() -> bytes:
     return new_key
 
 
+def _read_plain_data() -> dict:
+    path = _session_store_path()
+    if not os.path.exists(path):
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_plain_data(data: dict):
+    path = _session_store_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
 def _read_secure_data() -> dict:
+    if Fernet is None:
+        return _read_plain_data()
+
     path = _session_store_path()
     if not os.path.exists(path):
         return {}
@@ -47,10 +79,14 @@ def _read_secure_data() -> dict:
         decrypted_data = fernet.decrypt(encrypted_data)
         return json.loads(decrypted_data.decode("utf-8"))
     except Exception:
-        return {}
+        return _read_plain_data()
 
 
 def _write_secure_data(data: dict):
+    if Fernet is None:
+        _write_plain_data(data)
+        return
+
     path = _session_store_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     
