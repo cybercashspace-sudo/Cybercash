@@ -303,7 +303,7 @@ KV = """
                                 MDTextField:
                                     id: deposit_amount
                                     hint_text: "Amount in GHS (e.g. 15.50)"
-                                    mode: "rectangle"
+                                    mode: "outlined"
                                     input_filter: "float"
                                     on_text: root.update_deposit_preview(self.text)
 
@@ -530,7 +530,7 @@ KV = """
                                 MDTextField:
                                     id: transfer_recipient
                                     hint_text: "Agent number, e.g. 0241234567"
-                                    mode: "rectangle"
+                                    mode: "outlined"
 
                                 MDLabel:
                                     text: "Only active agent numbers are supported."
@@ -549,7 +549,7 @@ KV = """
                                 MDTextField:
                                     id: transfer_amount
                                     hint_text: "Withdrawal amount"
-                                    mode: "rectangle"
+                                    mode: "outlined"
                                     input_filter: "float"
                                     on_text: root.update_withdraw_preview(self.text)
 

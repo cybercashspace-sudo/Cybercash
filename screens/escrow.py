@@ -184,7 +184,7 @@ KV = """
                         MDTextField:
                             id: recipient_wallet_id
                             hint_text: "Recipient MoMo number"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Use the verified Ghana MoMo number of the person who should receive the escrow funds."
@@ -196,7 +196,7 @@ KV = """
                         MDTextField:
                             id: escrow_amount
                             hint_text: "Escrow amount in GHS"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
 
                         MDLabel:
@@ -209,7 +209,7 @@ KV = """
                         MDTextField:
                             id: escrow_description
                             hint_text: "Deal note or delivery summary"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Example: iPhone 13 delivery after inspection."
@@ -262,7 +262,7 @@ KV = """
                         MDTextField:
                             id: release_deal_id
                             hint_text: "Deal ID to release"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "int"
 
                         MDLabel:

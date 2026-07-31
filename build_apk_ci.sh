@@ -51,6 +51,12 @@ for path in "${copy_paths[@]}"; do
   fi
 done
 
+# Trim backend-only helpers from the Android staging tree.
+rm -f \
+  "$app_src_dir/screens/virtual_card.py" \
+  "$app_src_dir/screens/statement_service.py" \
+  "$app_src_dir/utils/security.py"
+
 if [ ! -f "$app_src_dir/main.py" ]; then
   if [ -f "$app_src_dir/kivy_app.py" ]; then
     echo "Auto-generating main.py shim for kivy_app.py..."

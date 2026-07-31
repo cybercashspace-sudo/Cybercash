@@ -7,6 +7,7 @@ from kivy.utils import platform
 from kivymd.app import MDApp
 
 from api.auth import access_account, lookup_registered_name
+from api.client import api_client
 from core.message_sanitizer import extract_backend_message
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
@@ -128,7 +129,7 @@ KV = """
                         MDTextField:
                             id: momo_input
                             hint_text: "MoMo number"
-                            mode: "rectangle"
+                            mode: "outlined"
                             icon_right: "phone"
                             line_color_focus: GOLD
                             on_text: root.on_momo_input(self.text)
@@ -143,7 +144,7 @@ KV = """
                         MDTextField:
                             id: first_name_input
                             hint_text: "First name"
-                            mode: "rectangle"
+                            mode: "outlined"
                             icon_right: "account-outline"
                             line_color_focus: GOLD
 
@@ -157,7 +158,7 @@ KV = """
                         MDTextField:
                             id: pin_input
                             hint_text: "4-digit PIN"
-                            mode: "rectangle"
+                            mode: "outlined"
                             icon_right: "shield-lock-outline"
                             line_color_focus: GOLD
                             password: True
@@ -438,6 +439,8 @@ class LoginScreen(ResponsiveScreen):
 
     def _fetch_user_admin_status(self):
         app = MDApp.get_running_app()
+        if not app:
+            return
         headers = {"Authorization": f"Bearer {app.access_token}"}
         ok, payload = api_client.get("/auth/me", headers=headers)
         if ok and isinstance(payload, dict):

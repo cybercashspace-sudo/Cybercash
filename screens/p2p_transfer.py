@@ -140,7 +140,7 @@ KV = """
                         MDTextField:
                             id: recipient_input
                             hint_text: "Recipient number, e.g. 0241234567"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Amount to Send"
@@ -152,7 +152,7 @@ KV = """
                         MDTextField:
                             id: amount_input
                             hint_text: "Amount to send"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
                             on_text: root.update_transfer_preview(self.text)
 

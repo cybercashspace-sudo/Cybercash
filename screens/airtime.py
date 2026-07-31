@@ -75,7 +75,7 @@ KV = """
                         MDTextField:
                             id: phone_input
                             hint_text: "Phone number, e.g. 0241234567"
-                            mode: "rectangle"
+                            mode: "outlined"
                             on_text: root.on_phone_change(self.text)
 
                         MDLabel:
@@ -159,7 +159,7 @@ KV = """
                         MDTextField:
                             id: network_input
                             hint_text: "Selected network (auto)"
-                            mode: "rectangle"
+                            mode: "outlined"
                             on_text: root.on_manual_network(self.text)
 
                         MDLabel:
@@ -171,7 +171,7 @@ KV = """
                         MDTextField:
                             id: amount_input
                             hint_text: "Amount in GHS"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
 
                         MDLabel:

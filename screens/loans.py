@@ -260,7 +260,7 @@ KV = """
                         MDTextField:
                             id: apply_amount
                             hint_text: "Loan amount, e.g. 250"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
                             on_text: root.update_amount_preview(self.text)
 
@@ -355,7 +355,7 @@ KV = """
                         MDTextField:
                             id: apply_purpose
                             hint_text: "Purpose, e.g. stock or school fees"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Tell us how you plan to use the loan (optional)."
@@ -414,7 +414,7 @@ KV = """
                         MDTextField:
                             id: repay_loan_id
                             hint_text: "Loan ID"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "int"
 
                         MDLabel:
@@ -427,7 +427,7 @@ KV = """
                         MDTextField:
                             id: repay_amount
                             hint_text: "Repayment amount"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
 
                         MDLabel:

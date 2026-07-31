@@ -81,7 +81,7 @@ KV = """
                         MDTextField:
                             id: biller_input
                             hint_text: "e.g. ECG, GWCL, DSTV"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Account or meter number"
@@ -92,7 +92,7 @@ KV = """
                         MDTextField:
                             id: account_input
                             hint_text: "Account or meter number"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: "Amount"
@@ -103,7 +103,7 @@ KV = """
                         MDTextField:
                             id: amount_input
                             hint_text: "Amount in GHS"
-                            mode: "rectangle"
+                            mode: "outlined"
                             input_filter: "float"
 
                         MDLabel:
@@ -115,7 +115,7 @@ KV = """
                         MDTextField:
                             id: reference_input
                             hint_text: "Reference or note"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDFillRoundFlatIconButton:
                             text: "Submit Bill Payment"

@@ -86,7 +86,7 @@ KV = """
                         MDTextField:
                             id: phone_input
                             hint_text: "Phone number, e.g. 0241234567"
-                            mode: "rectangle"
+                            mode: "outlined"
                             on_text: root.on_phone_change(self.text)
 
                         MDLabel:
@@ -170,7 +170,7 @@ KV = """
                         MDTextField:
                             id: network_input
                             hint_text: "Selected network (auto)"
-                            mode: "rectangle"
+                            mode: "outlined"
                             on_text: root.on_manual_network(self.text)
 
                         MDLabel:
@@ -182,7 +182,7 @@ KV = """
                         MDTextField:
                             id: bundle_input
                             hint_text: "Bundle code, e.g. 1GB"
-                            mode: "rectangle"
+                            mode: "outlined"
 
                         MDLabel:
                             text: root.bundle_helper_text

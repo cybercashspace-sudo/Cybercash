@@ -30,6 +30,13 @@ class BottomNavBar(MDCard):
             {"target": "escrow", "icon": "shield-lock-outline", "label": "Escrow"},
             {"target": "settings", "icon": "menu", "label": "Menu"},
         ],
+        "dashboard": [
+            {"target": "home", "icon": "home", "label": "Home"},
+            {"target": "wallet", "icon": "wallet-outline", "label": "Wallet"},
+            {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
+            {"target": "investments", "icon": "chart-line", "label": "Finance"},
+            {"target": "settings", "icon": "account-circle-outline", "label": "Profile"},
+        ],
         "admin": [
             {"target": "admin_dashboard", "icon": "home", "label": "Home"},
             {"target": "admin_revenue", "icon": "chart-line", "label": "Revenue"},
@@ -96,8 +103,9 @@ class BottomNavBar(MDCard):
         self.padding = [dp(8 * layout_scale)] * 4
         self.md_bg_color = list(self.bar_color)
 
-        grid = GridLayout(cols=4, spacing=0)
-        for item in self._items():
+        items = self._items()
+        grid = GridLayout(cols=max(1, len(items)), spacing=0)
+        for item in items:
             is_active = item["target"] == self.active_target
             text_color = self.active_color if is_active else self.inactive_color
 

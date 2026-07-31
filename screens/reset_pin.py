@@ -32,7 +32,7 @@ KV = """
         MDTextField:
             id: momo_input
             hint_text: "MoMo Number"
-            mode: "rectangle"
+            mode: "outlined"
 
         MDRaisedButton:
             text: root.timer_text
@@ -43,7 +43,7 @@ KV = """
         MDTextField:
             id: otp_input
             hint_text: "OTP from SMS"
-            mode: "rectangle"
+            mode: "outlined"
             opacity: 1 if root.otp_sent else 0
 
         MDBoxLayout:
@@ -55,7 +55,7 @@ KV = """
             MDTextField:
                 id: new_pin_input
                 hint_text: "New 4-digit PIN"
-                mode: "rectangle"
+                mode: "outlined"
                 password: True
                 max_text_length: 4
 

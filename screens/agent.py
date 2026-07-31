@@ -1704,7 +1704,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="0241234567",
             helper_text="Use the phone number linked to the customer wallet.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
         )
         form_body.add_widget(phone_field)
         form_body.add_widget(
@@ -1720,7 +1720,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="Amount in GHS",
             helper_text=f"A {TOPUP_FEE_RATE * 100:.0f}% fee is deducted automatically.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
             input_filter="float",
         )
         form_body.add_widget(amount_field)
@@ -1975,7 +1975,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="0241234567",
             helper_text="Use the registered customer number.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
         )
         form_body.add_widget(phone_field)
         form_body.add_widget(
@@ -1991,7 +1991,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="MTN, Telecel, or AirtelTigo",
             helper_text="Leave blank to auto-detect from the number.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
         )
         form_body.add_widget(network_field)
         form_body.add_widget(
@@ -2007,7 +2007,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="Amount in GHS",
             helper_text="Enter the airtime value to sell.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
             input_filter="float",
         )
         form_body.add_widget(amount_field)
@@ -2275,7 +2275,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="0241234567",
             helper_text="Use the phone number linked to the customer wallet.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
         )
         form_body.add_widget(customer_phone_field)
         form_body.add_widget(
@@ -2291,7 +2291,7 @@ class AgentScreen(ResponsiveScreen):
             hint_text="Amount in GHS",
             helper_text=f"A {WITHDRAWAL_FEE_RATE * 100:.0f}% fee is added automatically.",
             helper_text_mode="on_focus",
-            mode="rectangle",
+            mode="outlined",
             input_filter="float",
         )
         form_body.add_widget(amount_field)
