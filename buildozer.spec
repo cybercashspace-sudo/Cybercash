@@ -30,5 +30,5 @@ warn_on_root = 0
 python_version = 3
 
 [p4a]
-p4a.branch = master
+p4a.branch = v2024.01.21
 #p4a.extra_args =

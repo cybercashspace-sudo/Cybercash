@@ -159,6 +159,47 @@ if [ "$p4a_needs_clone" -eq 1 ]; then
   done
 fi
 
+patch_sdl2_image_recipe() {
+  python3 - "$p4a_dir" <<'PY'
+from pathlib import Path
+import sys
+
+recipe = Path(sys.argv[1]) / "pythonforandroid" / "recipes" / "sdl2_image" / "__init__.py"
+lines = recipe.read_text(encoding="utf-8").splitlines()
+updated = []
+skip_prebuild = False
+
+for line in lines:
+    if line.strip() == "patches = ['enable-webp.patch']":
+        updated.append("    patches = []")
+        continue
+
+    if line.startswith("    def prebuild_arch(self, arch):"):
+        updated.extend(
+            [
+                "    def prebuild_arch(self, arch):",
+                "        # WebP is disabled to avoid the optional external download step.",
+                "        super().prebuild_arch(arch)",
+                "",
+            ]
+        )
+        skip_prebuild = True
+        continue
+
+    if skip_prebuild:
+        if line.startswith("recipe = LibSDL2Image()"):
+            skip_prebuild = False
+            updated.append(line)
+        continue
+
+    updated.append(line)
+
+recipe.write_text("\n".join(updated) + "\n", encoding="utf-8")
+PY
+}
+
+patch_sdl2_image_recipe
+
 seed_private_app_dir() {
   rm -rf "$private_app_dir"
   mkdir -p "$private_app_dir"

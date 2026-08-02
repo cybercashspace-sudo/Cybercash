@@ -122,7 +122,7 @@ KV = """
                         MDTextField:
                             id: invest_amount
                             hint_text: "Amount to invest"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "float"
                             on_text: root.update_projection(self.text)
 
@@ -233,7 +233,7 @@ KV = """
                         MDTextField:
                             id: payout_id
                             hint_text: "Investment ID"
-                            mode: "outlined"
+                            mode: "rectangle"
                             input_filter: "int"
 
                         MDGridLayout:
