@@ -125,7 +125,12 @@ from pathlib import Path
 
 spec = ConfigParser()
 spec.read(Path("buildozer.spec"), encoding="utf-8")
-print(spec.get("p4a", "p4a.branch", fallback="master"))
+for section in ("app", "p4a"):
+    if spec.has_option(section, "p4a.branch"):
+        print(spec.get(section, "p4a.branch"))
+        break
+else:
+    print("master")
 PY
 )}"
 echo "Using python-for-android ref: $p4a_ref"
@@ -158,6 +163,9 @@ if [ "$p4a_needs_clone" -eq 1 ]; then
     sleep $((attempt * 10))
   done
 fi
+
+# Normalize the checkout to a real local branch so Buildozer keeps the patched recipe.
+git -C "$p4a_dir" checkout -B "$p4a_ref"
 
 patch_sdl2_image_recipe() {
   python3 - "$p4a_dir" <<'PY'

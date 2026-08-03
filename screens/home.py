@@ -14,6 +14,7 @@ from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.carousel import Carousel
+from kivy.uix.floatlayout import FloatLayout
 from kivymd.app import MDApp
 try:
     from kivymd.uix.appbar import MDTopAppBar
@@ -1879,6 +1880,7 @@ KV = """
 class HomeScreen(ResponsiveScreen):
     avatar_source = StringProperty("")
     background_source = StringProperty("")
+    brand_logo_source = StringProperty("")
     greeting_text = StringProperty("Welcome back")
     time_of_day_text = StringProperty("Good evening")
     notification_count_text = StringProperty("0")
@@ -1892,7 +1894,7 @@ class HomeScreen(ResponsiveScreen):
     balance_hidden = BooleanProperty(False)
     balance_display = StringProperty("Syncing...")
     available_balance_display = StringProperty("Syncing...")
-    bonus_balance_display = StringProperty("GHS 0.00")
+    bonus_balance_display = StringProperty("GH¢ 0.00")
     balance_status = StringProperty("Waiting for live wallet")
     account_status_display = StringProperty("SYNC")
     account_status_bg_color = ListProperty([0.12, 0.14, 0.18, 0.95])
@@ -1907,13 +1909,14 @@ class HomeScreen(ResponsiveScreen):
     market_updated_text = StringProperty("Updating...")
     is_agent_active = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
-    agent_action_hint = StringProperty(f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}")
+    agent_action_hint = StringProperty(f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}")
     _is_loading = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
         self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
+        self.brand_logo_source = self._resolve_asset_source("assets/cybercash_logo.png", "assets/cybercash_icon.png")
         self._update_balance_display()
         self._more_actions_popup = None
         self._agent_verify_sequence = 0
@@ -1952,9 +1955,8 @@ class HomeScreen(ResponsiveScreen):
     @staticmethod
     def _resolve_avatar_source() -> str:
         return HomeScreen._resolve_asset_source(
-            "assets/cybercash_logo.png",
-            "assets/cybercash_icon.png",
             "assets/avatar.png",
+            "assets/profile.png",
             "kivy_frontend/assets/avatar.png",
             "kivy_frontend/assets/avatars/0249945389.png",
         )
@@ -1992,17 +1994,17 @@ class HomeScreen(ResponsiveScreen):
 
     def _update_balance_display(self) -> None:
         if self.balance_hidden:
-            self.balance_display = "GHS ****.**"
-            self.available_balance_display = "GHS ****.**"
-            self.bonus_balance_display = "GHS ****.**"
+            self.balance_display = "GH¢ ****.**"
+            self.available_balance_display = "GH¢ ****.**"
+            self.bonus_balance_display = "GH¢ ****.**"
         elif not self.wallet_balance_loaded:
             self.balance_display = self.balance_placeholder or "Syncing..."
             self.available_balance_display = self.balance_placeholder or "Syncing..."
-            self.bonus_balance_display = "GHS 0.00"
+            self.bonus_balance_display = "GH¢ 0.00"
         else:
-            self.balance_display = f"GHS {float(self.wallet_balance_amount or 0.0):,.2f}"
+            self.balance_display = f"GH¢ {float(self.wallet_balance_amount or 0.0):,.2f}"
             self.available_balance_display = self.balance_display
-            self.bonus_balance_display = "GHS 0.00"
+            self.bonus_balance_display = "GH¢ 0.00"
 
     def _set_agent_action_state(self, is_active: bool) -> None:
         self.is_agent_active = bool(is_active)
@@ -2011,7 +2013,7 @@ class HomeScreen(ResponsiveScreen):
             self.agent_action_hint = "Open Agent Dashboard"
         else:
             self.agent_action_label = "Become Agent"
-            self.agent_action_hint = f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}"
+            self.agent_action_hint = f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}"
 
     def _set_account_status(self, label: str, bg_color: list[float], text_color: list[float]) -> None:
         self.account_status_display = str(label or "").strip() or "SYNC"
@@ -2023,8 +2025,8 @@ class HomeScreen(ResponsiveScreen):
         self.balance_hidden = not self.balance_hidden
         self._update_balance_display()
         self._refresh_portfolio_values()
-        wallet_card = (self._portfolio_cards.get("wallet") or {}).get("card")
-        self._pulse_widget(wallet_card)
+        hero_card = self.ids.get("hero_card") or (self._portfolio_cards.get("wallet") or {}).get("card")
+        self._pulse_widget(hero_card)
 
     def toggle_theme(self) -> None:
         tap_feedback()
@@ -2476,7 +2478,18 @@ class HomeScreen(ResponsiveScreen):
         if tx_type == "transfer":
             direction = str(metadata.get("direction", "") or "").strip().lower()
             amount = float(tx.get("amount", 0.0) or 0.0)
-            return "Transfer Received" if direction == "receive" or amount >= 0 else "Funds Transfer"
+            if direction == "receive" or amount >= 0:
+                return "Money Received"
+            recipient_name = str(
+                metadata.get("recipient_name")
+                or metadata.get("beneficiary_name")
+                or metadata.get("counterparty_name")
+                or metadata.get("name")
+                or ""
+            ).strip()
+            if recipient_name:
+                return f"Transfer to {self._safe_first_name(recipient_name) or recipient_name}"
+            return "Money Sent"
 
         mapping = {
             "agent_deposit": "Deposit from Agent",
@@ -2526,23 +2539,61 @@ class HomeScreen(ResponsiveScreen):
 
     def _build_recent_item(self, tx: dict) -> MDCard:
         amount = float(tx.get("amount", 0.0) or 0.0)
-        positive = amount >= 0
+        metadata = self._parse_metadata(tx)
+        tx_type = str(tx.get("type", "") or "").strip().lower()
+        direction = str(metadata.get("direction", "") or "").strip().lower()
+        positive = amount >= 0 or direction == "receive"
         sign = "+" if positive else "-"
         layout_scale = float(self.layout_scale or 1.0)
         text_scale = float(self.text_scale or 1.0)
         icon_scale = float(self.icon_scale or 1.0)
-        icon_name = "arrow-top-right" if positive else "arrow-bottom-right"
-        icon_color = POSITIVE_COLOR if positive else NEGATIVE_COLOR
-        icon_bg = [0.22, 0.34, 0.24, 0.96] if positive else [0.33, 0.18, 0.15, 0.96]
-        icon_line = [0.50, 0.74, 0.57, 0.34] if positive else [0.86, 0.47, 0.39, 0.28]
+        if tx_type == "transfer":
+            if positive:
+                icon_name = "arrow-down"
+                icon_color = [0.45, 0.89, 0.58, 1]
+                icon_bg = [0.12, 0.33, 0.19, 0.96]
+                icon_line = [0.36, 0.69, 0.45, 0.34]
+            else:
+                icon_name = "wallet-outline"
+                icon_color = [0.36, 0.56, 1.0, 1]
+                icon_bg = [0.10, 0.21, 0.42, 0.96]
+                icon_line = [0.28, 0.48, 0.88, 0.30]
+        elif tx_type in {"airtime", "data", "pay_bill", "bill", "bills", "utility"}:
+            icon_name = "arrow-top-right"
+            icon_color = [0.98, 0.74, 0.15, 1]
+            icon_bg = [0.30, 0.20, 0.08, 0.96]
+            icon_line = [0.86, 0.65, 0.18, 0.30]
+        else:
+            icon_name = "arrow-down"
+            icon_color = POSITIVE_COLOR if positive else NEGATIVE_COLOR
+            icon_bg = [0.22, 0.34, 0.24, 0.96] if positive else [0.33, 0.18, 0.15, 0.96]
+            icon_line = [0.50, 0.74, 0.57, 0.34] if positive else [0.86, 0.47, 0.39, 0.28]
+        raw_subtitle = str(
+            tx.get("subtitle")
+            or metadata.get("subtitle")
+            or metadata.get("description")
+            or metadata.get("counterparty_name")
+            or metadata.get("beneficiary_name")
+            or metadata.get("recipient_name")
+            or metadata.get("network")
+            or ""
+        ).strip()
+        if tx_type == "transfer" and positive and raw_subtitle and not raw_subtitle.lower().startswith("from"):
+            subtitle_text = f"From: {raw_subtitle}"
+        elif tx_type == "transfer" and not positive and raw_subtitle and not raw_subtitle.lower().startswith("to"):
+            subtitle_text = f"To: {raw_subtitle}"
+        elif tx_type == "transfer" and not raw_subtitle:
+            subtitle_text = "Mobile Money"
+        else:
+            subtitle_text = raw_subtitle or ("Mobile Money" if tx_type == "transfer" else "Recent activity")
 
         card = MDCard(
             size_hint_y=None,
-            height=dp(84 * layout_scale),
-            radius=[dp(16 * layout_scale)],
-            md_bg_color=TX_CARD_BG,
-            padding=[dp(10 * layout_scale), dp(10 * layout_scale), dp(12 * layout_scale), dp(10 * layout_scale)],
-            line_color=[0.22, 0.24, 0.28, 0.60],
+            height=dp(88 * layout_scale),
+            radius=[dp(18 * layout_scale)],
+            md_bg_color=[0.08, 0.08, 0.09, 0.94],
+            padding=[dp(12 * layout_scale), dp(10 * layout_scale), dp(12 * layout_scale), dp(10 * layout_scale)],
+            line_color=[0.32, 0.32, 0.36, 0.70],
             elevation=0,
         )
 
@@ -2585,7 +2636,34 @@ class HomeScreen(ResponsiveScreen):
         )
         text_col.add_widget(
             MDLabel(
+                text=subtitle_text,
+                font_name=FONT_REGULAR,
+                font_size=sp(11 * text_scale),
+                theme_text_color="Custom",
+                text_color=[0.72, 0.72, 0.74, 1],
+                shorten=True,
+                shorten_from="right",
+            )
+        )
+
+        amount_stack = MDBoxLayout(orientation="vertical", spacing=dp(1 * layout_scale), size_hint_x=None, width=dp(132 * layout_scale))
+        amount_stack.add_widget(
+            MDLabel(
+                text=f"{sign} GH¢ {self._format_amount(abs(amount))}",
+                halign="right",
+                valign="center",
+                font_name=FONT_SEMIBOLD,
+                font_size=sp(15 * text_scale),
+                bold=True,
+                theme_text_color="Custom",
+                text_color=icon_color,
+            )
+        )
+        amount_stack.add_widget(
+            MDLabel(
                 text=self._friendly_time(str(tx.get("timestamp", "") or "")),
+                halign="right",
+                valign="center",
                 font_name=FONT_REGULAR,
                 font_size=sp(11 * text_scale),
                 theme_text_color="Custom",
@@ -2593,22 +2671,19 @@ class HomeScreen(ResponsiveScreen):
             )
         )
 
-        amount_label = MDLabel(
-            text=f"{sign} GHS {self._format_amount(abs(amount))}",
-            size_hint_x=None,
-            width=dp(128 * layout_scale),
-            halign="right",
-            valign="center",
-            font_name=FONT_SEMIBOLD,
-            font_size=sp(15 * text_scale),
-            bold=True,
+        menu_button = MDIconButton(
+            icon="dots-vertical",
+            size_hint=(None, None),
+            size=(dp(28 * layout_scale), dp(28 * layout_scale)),
             theme_text_color="Custom",
-            text_color=icon_color,
+            text_color=[0.74, 0.74, 0.78, 1],
+            user_font_size=f"{18 * icon_scale:.1f}sp",
         )
 
         row.add_widget(icon_wrap)
         row.add_widget(text_col)
-        row.add_widget(amount_label)
+        row.add_widget(amount_stack)
+        row.add_widget(menu_button)
         card.add_widget(row)
         return card
 
@@ -2627,7 +2702,7 @@ class HomeScreen(ResponsiveScreen):
             container.add_widget(self._build_empty_recent_item())
             return
 
-        for tx in rows[:2]:
+        for tx in rows[:3]:
             container.add_widget(self._build_recent_item(tx))
 
     def _apply_signed_out_state(self, greeting_name: str = "") -> None:
@@ -2805,6 +2880,9 @@ class HomeScreen(ResponsiveScreen):
 
         self._set_agent_action_state(is_agent_active)
         self._render_recent_activity(recent_rows or [])
+        recent_count = len(recent_rows or [])
+        self.notification_badge_visible = recent_count > 0
+        self.notification_count_text = str(min(9, recent_count)) if recent_count > 0 else "0"
         self._refresh_portfolio_values()
 
     def load_home_data(self) -> None:
@@ -2898,11 +2976,11 @@ class HomeScreen(ResponsiveScreen):
             self,
             title="Become Agent",
             message=(
-                f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.2f} to become an agent. "
-                f"After payment, we activate your Agent Dashboard and add GHS {AGENT_STARTUP_LOAN_GHS:,.2f} startup float."
+                f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.2f} to become an agent. "
+                f"After payment, we activate your Agent Dashboard and add GH¢ {AGENT_STARTUP_LOAN_GHS:,.2f} startup float."
             ),
             on_confirm=self._initiate_agent_registration,
-            confirm_label=f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}",
+            confirm_label=f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}",
             cancel_label="Cancel",
         )
 
@@ -2951,8 +3029,8 @@ class HomeScreen(ResponsiveScreen):
         friendly_message = (
             message
             or (
-                f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.2f} with Paystack. "
-                f"We'll activate your Agent Dashboard and add GHS {AGENT_STARTUP_LOAN_GHS:,.2f} startup float after payment."
+                f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.2f} with Paystack. "
+                f"We'll activate your Agent Dashboard and add GH¢ {AGENT_STARTUP_LOAN_GHS:,.2f} startup float after payment."
             )
         )
         show_message_dialog(
@@ -3038,7 +3116,7 @@ class HomeScreen(ResponsiveScreen):
             self,
             title="Agent Activated",
             message=(
-                f"Payment confirmed.\nGHS {AGENT_STARTUP_LOAN_GHS:,.2f} startup float credited."
+                f"Payment confirmed.\nGH¢ {AGENT_STARTUP_LOAN_GHS:,.2f} startup float credited."
             ),
             close_label="Open Dashboard",
             on_close=lambda: self.go_to("agent"),
@@ -3148,11 +3226,11 @@ class MoreActionsContent(MDBoxLayout):
     icon_scale = NumericProperty(1.0)
     compact_mode = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
-    agent_fee_hint = StringProperty(f"Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.0f}")
+    agent_fee_hint = StringProperty(f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}")
 
     def trigger_action(self, screen_name: str) -> None:
         if self.controller:
             self.controller.handle_more_action(str(screen_name or ""))
 
 
-Builder.load_string(KV)
+Builder.load_file(os.path.join(os.path.dirname(__file__), "home_dashboard.kv"))

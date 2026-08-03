@@ -11,6 +11,8 @@ source.exclude_dirs = .buildozer,.buildozer-venv,.git,.github,.kivy_runtime,.ven
 source.exclude_patterns = .env,.env.*,backend/.env,**/.env,**/.env.*,*.log,*.pdb,*.dll,*.exe,*.pyc,*.db,*.env,*.key,package-lock.json,package.json,user_data.json,session.json,start_test.txt,README*,LICENSE*,CYBERCASH_FULL_APP.zip,test_*.py,*_test.py,*/test_*.py,*/tests/*,*/__pycache__/*,__pycache__/*,screens/virtual_card.py,screens/statement_service.py,utils/security.py
 version = 1.0.0
 requirements = python3,kivy,kivymd==1.2.0,requests,python-dotenv,pyjnius
+p4a.url = https://github.com/kivy/python-for-android.git
+p4a.branch = v2024.01.21
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,VIBRATE,USE_BIOMETRIC,USE_FINGERPRINT
