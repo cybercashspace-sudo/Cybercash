@@ -1935,17 +1935,16 @@ class HomeScreen(ResponsiveScreen):
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
         self._home_kv_ready = True
-        Clock.schedule_once(lambda _dt: self._prime_premium_ui(), 0)
+        Clock.schedule_once(lambda _dt: self._prime_premium_ui(), 0.05)
         self._ensure_dashboard_timers()
         if self._recent_rows_pending is not None:
-            Clock.schedule_once(lambda _dt: self._render_recent_activity(self._recent_rows_pending or []), 0)
+            Clock.schedule_once(lambda _dt: self._render_recent_activity(self._recent_rows_pending or []), 0.05)
 
     def on_pre_enter(self):
         self._sync_theme_toggle_icon()
-        self._build_portfolio_carousel(force=False)
-        self._ensure_dashboard_timers()
-        self.load_home_data()
-        self.refresh_market_data(silent=True)
+        Clock.schedule_once(lambda _dt: self._ensure_dashboard_timers(), 0.02)
+        Clock.schedule_once(lambda _dt: self.load_home_data(), 0.05)
+        Clock.schedule_once(lambda _dt: self.refresh_market_data(silent=True), 0.15)
 
     def on_leave(self, *_args):
         self._agent_verify_sequence += 1

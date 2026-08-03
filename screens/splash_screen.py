@@ -8,7 +8,7 @@ from kivymd.app import MDApp
 
 from core.responsive_screen import ResponsiveScreen
 
-STARTUP_ROUTE_DELAY_SECONDS = 0.05
+STARTUP_ROUTE_DELAY_SECONDS = 0.20
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -259,7 +259,12 @@ class SplashScreen(ResponsiveScreen):
         self._dot_count = 0
         self.status_text = f"{self._status_frames[0]}..."
         self._pulse_event = Clock.schedule_interval(self._animate_status, 0.4)
-        self._next_event = Clock.schedule_once(self._complete_startup, STARTUP_ROUTE_DELAY_SECONDS)
+        app = MDApp.get_running_app()
+        request_startup_route = getattr(app, "request_startup_route", None)
+        if request_startup_route:
+            request_startup_route()
+        else:
+            self._next_event = Clock.schedule_once(self._complete_startup, STARTUP_ROUTE_DELAY_SECONDS)
 
     def on_leave(self, *_args):
         self._cancel_events()
@@ -280,11 +285,21 @@ class SplashScreen(ResponsiveScreen):
         self.status_text = f"{self._status_frames[self._status_index]}{dots}"
 
     def _complete_startup(self, *_args) -> None:
-        self._cancel_events()
         app = MDApp.get_running_app()
         complete_startup = getattr(app, "complete_startup", None)
         if complete_startup:
-            complete_startup()
+            if complete_startup():
+                self._cancel_events()
+                return
+            request_startup_route = getattr(app, "request_startup_route", None)
+            if request_startup_route:
+                request_startup_route(delay=STARTUP_ROUTE_DELAY_SECONDS * 2)
+                return
+            self.status_text = "Retrying secure session..."
+            self._next_event = Clock.schedule_once(
+                self._complete_startup,
+                min(STARTUP_ROUTE_DELAY_SECONDS * 2, 1.0),
+            )
             return
         if self.manager and self.manager.has_screen("login"):
             self.manager.current = "login"

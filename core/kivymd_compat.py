@@ -66,7 +66,7 @@ def register_font_style_aliases(theme_font_styles: Mapping | dict) -> None:
 
 
 def install_kivymd_text_field_compat() -> None:
-    """Map legacy KivyMD text-field modes to their Material 3 names."""
+    """Bridge text-field mode differences across KivyMD versions."""
 
     try:
         from kivymd.uix.textfield import MDTextField
@@ -76,9 +76,20 @@ def install_kivymd_text_field_compat() -> None:
     try:
         mode_prop = MDTextField.mode
         options = list(getattr(mode_prop, "options", ()) or ())
-        if "rectangle" not in options:
-            options.append("rectangle")
-            mode_prop.options = tuple(options)
+    except Exception:
+        return
+
+    has_rectangle = "rectangle" in options
+    has_outlined = "outlined" in options
+
+    # Older KivyMD builds already support the legacy rectangle mode used by the app.
+    # Only install a compatibility shim when the installed build has moved to outlined-only.
+    if has_rectangle or not has_outlined:
+        return
+
+    try:
+        options.append("rectangle")
+        mode_prop.options = tuple(options)
     except Exception:
         return
 
@@ -88,7 +99,9 @@ def install_kivymd_text_field_compat() -> None:
     original_on_mode = getattr(MDTextField, "on_mode", None)
 
     def on_mode(self, instance, value):
-        if value == "rectangle":
+        if value == "rectangle" and has_rectangle:
+            return original_on_mode(self, instance, value) if original_on_mode else None
+        if value == "rectangle" and has_outlined:
             self.mode = "outlined"
             return None
         if original_on_mode:

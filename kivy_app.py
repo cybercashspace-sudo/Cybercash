@@ -128,6 +128,9 @@ class CyberCashApp(MDApp):
 
     _warmup_started = False
     _loading_screen_name = ""
+    _startup_complete = False
+    _startup_attempts = 0
+    _startup_request_event = None
 
     def apply_theme_palette(self, palette: dict) -> None:
         self.theme_mode = str(palette.get("mode", "Dark"))
@@ -162,6 +165,33 @@ class CyberCashApp(MDApp):
             api_client.warmup()
         except Exception:
             pass
+
+    def on_start(self) -> None:
+        # Kick off startup routing only after the first frame has been scheduled.
+        self.request_startup_route()
+
+    def request_startup_route(self, delay: float = 0.20) -> None:
+        if self._startup_complete:
+            return
+        if self._startup_request_event is not None:
+            return
+        self._startup_request_event = Clock.schedule_once(self._run_startup_route, delay)
+
+    def _run_startup_route(self, *_args) -> None:
+        self._startup_request_event = None
+        if self._startup_complete:
+            return
+        if self.complete_startup():
+            return
+
+        self._startup_attempts += 1
+        if self._startup_attempts < 4:
+            retry_delay = min(0.25 * self._startup_attempts + 0.20, 1.0)
+        else:
+            if self._startup_attempts == 4:
+                logging.error("Startup routing still failing after %s attempts.", self._startup_attempts)
+            retry_delay = 1.0
+        self.request_startup_route(delay=retry_delay)
 
     @staticmethod
     def _screen_exists(sm: ScreenManager, screen_name: str) -> bool:
@@ -343,13 +373,18 @@ class CyberCashApp(MDApp):
         if self.access_token:
             self.go_to_screen("home", fallback="login")
 
-    def complete_startup(self, *_args) -> None:
+    def complete_startup(self, *_args) -> bool:
         sm = getattr(self, "root", None)
         if not sm:
-            return
+            return False
 
         target = "home" if self.access_token else "login"
-        self.go_to_screen(target, fallback="login")
+        if not self.go_to_screen(target, fallback="login"):
+            logging.warning("Startup route to %s is not ready yet; retrying.", target)
+            return False
+
+        self._startup_complete = True
+        self._startup_attempts = 0
 
         if not self._warmup_started:
             self._warmup_started = True
@@ -357,6 +392,7 @@ class CyberCashApp(MDApp):
                 lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
                 0.35,
             )
+        return True
 
     def build(self):
         self.theme_cls.theme_style = "Dark"
@@ -377,6 +413,9 @@ class CyberCashApp(MDApp):
         self.success = list(CyberTheme.SUCCESS)
         self.error = list(CyberTheme.ERROR)
         self.btc = list(CyberTheme.BTC)
+        self._startup_complete = False
+        self._startup_attempts = 0
+        self._startup_request_event = None
 
         # Load and apply initial Privacy Mode state
         self.privacy_mode = get_privacy_mode()

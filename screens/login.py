@@ -245,10 +245,12 @@ class LoginScreen(ResponsiveScreen):
         momo = data.get("momo", "")
         first_name = data.get("first_name", "")
         pin = data.get("pin", "")
-        if momo:
-            self.ids.momo_input.text = momo
-        if first_name:
-            self.ids.first_name_input.text = first_name
+        momo_input = self.ids.get("momo_input")
+        if momo and momo_input is not None:
+            momo_input.text = momo
+        first_name_input = self.ids.get("first_name_input")
+        if first_name and first_name_input is not None:
+            first_name_input.text = first_name
         self.biometric_ready = bool(momo and pin)
 
     def _go_home(self):
