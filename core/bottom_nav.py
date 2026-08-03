@@ -33,8 +33,8 @@ class BottomNavBar(MDCard):
         ],
         "dashboard": [
             {"target": "home", "icon": "home", "label": "Home"},
-            {"target": "transactions", "icon": "format-list-bulleted", "label": "Transactions"},
-            {"target": "wallet", "icon": "shield-outline", "label": "Wallet", "special": True},
+            {"target": "wallet", "icon": "wallet-outline", "label": "Wallet"},
+            {"target": "pay_bills", "icon": "qrcode-scan", "label": "Scan & Pay", "special": True},
             {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "settings", "icon": "account-circle-outline", "label": "Profile"},
         ],
@@ -100,7 +100,7 @@ class BottomNavBar(MDCard):
         icon_scale = float(self.icon_scale or 1.0)
 
         is_dashboard = self.nav_variant == "dashboard"
-        self.height = dp((106 if is_dashboard else 92) * layout_scale)
+        self.height = dp((112 if is_dashboard else 92) * layout_scale)
         self.radius = [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
         self.padding = [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
         self.md_bg_color = list(self.bar_color)
@@ -118,9 +118,9 @@ class BottomNavBar(MDCard):
             if item.get("special"):
                 card = MDCard(
                     size_hint=(None, None),
-                    size=(dp(84 * layout_scale), dp(84 * layout_scale)),
-                    radius=[dp(42 * layout_scale)],
-                    md_bg_color=[0.07, 0.07, 0.08, 0.98],
+                    size=(dp(92 * layout_scale), dp(92 * layout_scale)),
+                    radius=[dp(46 * layout_scale)],
+                    md_bg_color=[0.05, 0.05, 0.06, 0.98],
                     line_color=self.active_color if is_active else [0.40, 0.40, 0.42, 0.55],
                     elevation=0,
                     pos_hint={"center_x": 0.5},
@@ -128,22 +128,23 @@ class BottomNavBar(MDCard):
                 )
                 art = FloatLayout()
                 art.add_widget(
-                    MDIconButton(
-                        icon="shield-outline",
-                        user_font_size=f"{35 * icon_scale:.1f}sp",
-                        pos_hint={"center_x": 0.5, "center_y": 0.55},
-                        theme_text_color="Custom",
-                        text_color=text_color,
-                        disabled=True,
+                    MDCard(
+                        size_hint=(None, None),
+                        size=(dp(68 * layout_scale), dp(68 * layout_scale)),
+                        radius=[dp(34 * layout_scale)],
+                        md_bg_color=[0.08, 0.08, 0.09, 0.98],
+                        line_color=[0.95, 0.74, 0.12, 0.88],
+                        elevation=0,
+                        pos_hint={"center_x": 0.5, "center_y": 0.58},
                     )
                 )
                 art.add_widget(
                     MDIconButton(
-                        icon="currency-usd",
-                        user_font_size=f"{18 * icon_scale:.1f}sp",
-                        pos_hint={"center_x": 0.5, "center_y": 0.46},
+                        icon="qrcode-scan",
+                        user_font_size=f"{32 * icon_scale:.1f}sp",
+                        pos_hint={"center_x": 0.5, "center_y": 0.58},
                         theme_text_color="Custom",
-                        text_color=text_color,
+                        text_color=self.active_color,
                         disabled=True,
                     )
                 )
@@ -155,7 +156,7 @@ class BottomNavBar(MDCard):
                         halign="center",
                         theme_text_color="Custom",
                         text_color=text_color,
-                        font_size=f"{10.5 * text_scale:.1f}sp",
+                        font_size=f"{10.0 * text_scale:.1f}sp",
                     )
                 )
                 return container

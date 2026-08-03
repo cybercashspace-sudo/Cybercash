@@ -23,7 +23,7 @@ from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
-from api.client import API_URL, api_client
+from api.client import API_URL, FAST_TIMEOUT, api_client
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
@@ -1880,6 +1880,7 @@ class HomeScreen(ResponsiveScreen):
     avatar_source = StringProperty("")
     background_source = StringProperty("")
     brand_logo_source = StringProperty("")
+    hero_art_source = StringProperty("")
     greeting_text = StringProperty("Welcome back")
     time_of_day_text = StringProperty("Good evening")
     notification_count_text = StringProperty("0")
@@ -1916,6 +1917,7 @@ class HomeScreen(ResponsiveScreen):
         self.avatar_source = self._resolve_avatar_source()
         self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
         self.brand_logo_source = self._resolve_asset_source("assets/cybercash_logo.png", "assets/cybercash_icon.png")
+        self.hero_art_source = self._resolve_asset_source("assets/cybercash_icon.png", "assets/cybercash_logo.png")
         self._update_balance_display()
         self._more_actions_popup = None
         self._agent_verify_sequence = 0
@@ -2750,17 +2752,21 @@ class HomeScreen(ResponsiveScreen):
 
     @staticmethod
     def _api_get(path: str, headers: dict, params: dict | None = None) -> tuple[int, object]:
-        result = api_client.get(path, params=params, headers=headers)
+        result = api_client.request("GET", path, params=params, headers=headers, timeout=FAST_TIMEOUT)
         return int(result.get("status_code", 0) or 0), result.get("data", {})
 
     def _load_home_worker(self, token: str) -> None:
         headers = {"Authorization": f"Bearer {token}"}
-        greeting_name = ""
+        app = MDApp.get_running_app()
+        greeting_name = str(getattr(app, "user_name", "") or "").strip()
+        if greeting_name == "Cyber Cash User":
+            greeting_name = ""
         balance = None
         is_verified = False
         recent_rows = []
         error_text = ""
         is_agent_active = False
+        is_admin = bool(getattr(app, "is_admin", False)) if app else False
         reset_token = False
 
         try:
@@ -2769,9 +2775,13 @@ class HomeScreen(ResponsiveScreen):
                 Logger.info("CyberCashAuth: auth gate rejected saved session; returning to login")
                 reset_token = True
             if me_status < 400 and isinstance(me_payload, dict):
-                greeting_name = self._extract_first_name(me_payload)
+                greeting_name = self._extract_first_name(me_payload) or greeting_name
+                is_admin = bool(
+                    me_payload.get("is_admin")
+                    or str(me_payload.get("role", "") or "").strip().lower() in {"admin", "super_admin"}
+                )
         except Exception:
-            greeting_name = ""
+            pass
 
         if not reset_token:
             try:
@@ -2827,7 +2837,8 @@ class HomeScreen(ResponsiveScreen):
                 error_text=error_text,
                 is_agent_active=is_agent_active,
                 reset_token=reset_token,
-                is_verified=is_verified
+                is_verified=is_verified,
+                is_admin=is_admin,
             )
         )
 
@@ -2839,13 +2850,16 @@ class HomeScreen(ResponsiveScreen):
         error_text: str = "",
         is_agent_active: bool = False,
         reset_token: bool = False,
-        is_verified: bool = False
+        is_verified: bool = False,
+        is_admin: bool | None = None,
     ) -> None:
         self._is_loading = False
         if reset_token:
             app = MDApp.get_running_app()
             app.access_token = ""
             app.pending_momo = ""
+            app.user_name = "Cyber Cash User"
+            app.is_admin = False
             save_token("")
             self._apply_signed_out_state()
             if self.manager and self.manager.has_screen("login"):
@@ -2853,6 +2867,14 @@ class HomeScreen(ResponsiveScreen):
             return
         if greeting_name:
             self._set_greeting(greeting_name)
+            app = MDApp.get_running_app()
+            if app:
+                app.user_name = greeting_name
+
+        if is_admin is not None:
+            app = MDApp.get_running_app()
+            if app:
+                app.is_admin = bool(is_admin)
 
         if balance is None:
             if self.wallet_balance_loaded:
@@ -2889,10 +2911,12 @@ class HomeScreen(ResponsiveScreen):
 
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
+        cached_name = str(getattr(app, "user_name", "") or "").strip()
         pending_name = str(getattr(app, "pending_momo", "") or "").strip()
+        display_name = cached_name if cached_name and cached_name != "Cyber Cash User" else pending_name
 
-        if pending_name and not pending_name.isdigit():
-            self._set_greeting(pending_name)
+        if display_name and not display_name.isdigit():
+            self._set_greeting(display_name)
 
         if not token:
             self._apply_signed_out_state(pending_name if not pending_name.isdigit() else "")
