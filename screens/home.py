@@ -16,10 +16,6 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.carousel import Carousel
 from kivy.uix.floatlayout import FloatLayout
 from kivymd.app import MDApp
-try:
-    from kivymd.uix.appbar import MDTopAppBar
-except ImportError:  # pragma: no cover - older KivyMD fallback
-    from kivymd.uix.toolbar import MDToolbar as MDTopAppBar
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton, MDFabButton
 from kivymd.uix.card import MDCard
@@ -34,7 +30,10 @@ from core.message_sanitizer import extract_backend_message, sanitize_backend_mes
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
+from core.kivymd_compat import resolve_kivymd_top_app_bar
 from storage import save_token
+
+MDTopAppBar = resolve_kivymd_top_app_bar()
 
 FONT_REGULAR = "Roboto"
 FONT_SEMIBOLD = "Roboto"

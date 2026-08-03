@@ -14,14 +14,12 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.textfield import MDTextField
 
-try:
-    from kivymd.uix.appbar import MDTopAppBar
-except ImportError:  # pragma: no cover - older KivyMD fallback
-    from kivymd.uix.toolbar import MDToolbar as MDTopAppBar
-
 from core.bottom_nav import BottomNavBar
+from core.kivymd_compat import resolve_kivymd_top_app_bar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
+
+MDTopAppBar = resolve_kivymd_top_app_bar()
 
 
 KV = """

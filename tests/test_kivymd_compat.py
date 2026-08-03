@@ -115,6 +115,25 @@ class TestKivymdCompat(unittest.TestCase):
             ("rectangle", "round", "fill", "line"),
         )
 
+    def test_top_app_bar_resolves_from_toolbar_submodule_when_appbar_missing(self):
+        _install_stubs(("outlined", "round", "fill", "line"))
+
+        toolbar_pkg = types.ModuleType("kivymd.uix.toolbar")
+        toolbar_pkg.__path__ = []
+        sys.modules["kivymd.uix.toolbar"] = toolbar_pkg
+        toolbar_submodule = types.ModuleType("kivymd.uix.toolbar.toolbar")
+        sys.modules["kivymd.uix.toolbar.toolbar"] = toolbar_submodule
+
+        class MDToolbar:
+            pass
+
+        toolbar_submodule.MDToolbar = MDToolbar
+
+        compat = importlib.import_module("core.kivymd_compat")
+        importlib.reload(compat)
+
+        self.assertIs(compat.resolve_kivymd_top_app_bar(), MDToolbar)
+
 
 if __name__ == "__main__":
     unittest.main()

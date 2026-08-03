@@ -444,7 +444,15 @@ class LoginScreen(ResponsiveScreen):
         if not app:
             return
         headers = {"Authorization": f"Bearer {app.access_token}"}
-        ok, payload = api_client.get("/auth/me", headers=headers)
+        result = api_client.get("/auth/me", headers=headers)
+        if isinstance(result, tuple) and len(result) == 2:
+            ok, payload = result
+        elif isinstance(result, dict):
+            ok = bool(result.get("ok"))
+            payload = result.get("data")
+        else:
+            return
+
         if ok and isinstance(payload, dict):
             is_admin = bool(payload.get("is_admin"))
             Clock.schedule_once(lambda dt: setattr(app, "is_admin", is_admin))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from typing import Mapping
 
 from kivy.clock import Clock
@@ -110,6 +111,29 @@ def install_kivymd_text_field_compat() -> None:
 
     MDTextField.on_mode = on_mode
     MDTextField._cybercash_text_field_compat = True
+
+
+def resolve_kivymd_top_app_bar():
+    """Return the top app bar widget class for the installed KivyMD build."""
+
+    candidates = (
+        ("kivymd.uix.appbar", "MDTopAppBar"),
+        ("kivymd.uix.toolbar.toolbar", "MDTopAppBar"),
+        ("kivymd.uix.toolbar.toolbar", "MDToolbar"),
+        ("kivymd.uix.toolbar", "MDTopAppBar"),
+        ("kivymd.uix.toolbar", "MDToolbar"),
+    )
+
+    for module_name, attr_name in candidates:
+        try:
+            module = import_module(module_name)
+            widget = getattr(module, attr_name)
+        except Exception:
+            continue
+        if widget is not None:
+            return widget
+
+    raise ImportError("Unable to resolve a KivyMD top app bar widget for this build.")
 
 
 try:
