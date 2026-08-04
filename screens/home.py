@@ -17,7 +17,7 @@ from kivy.uix.carousel import Carousel
 from kivy.uix.floatlayout import FloatLayout
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDIconButton, MDFabButton
+from kivymd.uix.button import MDIconButton, MDFloatingActionButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDIcon, MDLabel
@@ -34,6 +34,10 @@ from core.kivymd_compat import resolve_kivymd_top_app_bar
 from storage import save_token
 
 MDTopAppBar = resolve_kivymd_top_app_bar()
+
+
+class MDFabButton(MDFloatingActionButton):
+    pass
 
 FONT_REGULAR = "Roboto"
 FONT_SEMIBOLD = "Roboto"
@@ -1913,12 +1917,6 @@ class HomeScreen(ResponsiveScreen):
     _is_loading = False
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.avatar_source = self._resolve_avatar_source()
-        self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
-        self.brand_logo_source = self._resolve_asset_source("assets/cybercash_logo.png", "assets/cybercash_icon.png")
-        self.hero_art_source = self._resolve_asset_source("assets/cybercash_icon.png", "assets/cybercash_logo.png")
-        self._update_balance_display()
         self._more_actions_popup = None
         self._agent_verify_sequence = 0
         self._last_agent_reference = ""
@@ -1932,6 +1930,12 @@ class HomeScreen(ResponsiveScreen):
         self._market_loading = False
         self._market_load_seq = 0
         self._market_snapshot: dict | None = None
+        super().__init__(**kwargs)
+        self.avatar_source = self._resolve_avatar_source()
+        self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
+        self.brand_logo_source = self._resolve_asset_source("assets/cybercash_logo.png", "assets/cybercash_icon.png")
+        self.hero_art_source = self._resolve_asset_source("assets/cybercash_icon.png", "assets/cybercash_logo.png")
+        self._update_balance_display()
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
@@ -3253,6 +3257,6 @@ class MoreActionsContent(MDBoxLayout):
     def trigger_action(self, screen_name: str) -> None:
         if self.controller:
             self.controller.handle_more_action(str(screen_name or ""))
-
-
-Builder.load_file(os.path.join(os.path.dirname(__file__), "home_dashboard.kv"))
+kv_path = os.path.join(os.path.dirname(__file__), "home_dashboard.kv")
+with open(kv_path, "r", encoding="utf-8-sig") as kv_file:
+    Builder.load_string(kv_file.read(), filename=kv_path)

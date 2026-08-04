@@ -201,7 +201,7 @@
             line_color: [0.38, 0.38, 0.42, 0.45]
             elevation: 0
             padding: [dp(12 * root.layout_scale)] * 4
-            on_release: root.open_more_actions()
+            on_release: root.trigger_action("home")
 
             MDBoxLayout:
                 orientation: "vertical"
@@ -215,21 +215,21 @@
                     elevation: 0
 
                     MDIcon:
-                        icon: "dots-grid"
+                        icon: "close"
                         theme_text_color: "Custom"
                         text_color: GOLD
                         user_font_size: str(22 * root.icon_scale) + "sp"
                         pos_hint: {"center_x": 0.5, "center_y": 0.5}
 
                 MDLabel:
-                    text: "More"
+                    text: "Close"
                     theme_text_color: "Custom"
                     text_color: TEXT_MAIN
                     font_name: FONT_SEMI
                     font_size: sp(14 * root.text_scale)
 
                 MDLabel:
-                    text: "All services"
+                    text: "Dismiss panel"
                     theme_text_color: "Custom"
                     text_color: TEXT_SUB
                     font_name: FONT_REG

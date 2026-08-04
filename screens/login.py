@@ -4,7 +4,6 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, NumericProperty, StringProperty
-from kivy.uix.behaviors import ButtonBehavior
 from kivymd.app import MDApp
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
@@ -23,7 +22,7 @@ DEFAULT_NAME_HINT_TEXT = "We will confirm your saved profile name automatically 
 DEFAULT_FEEDBACK_TEXT = ""
 
 
-class AuthPrimaryButton(ButtonBehavior, MDCard):
+class AuthPrimaryButton(MDCard):
     label_text = StringProperty("Login")
     badge_icon = StringProperty("arrow-right")
     layout_scale = NumericProperty(1.0)
@@ -50,6 +49,7 @@ KV = """
     size_hint_y: None
     height: dp(58 * root.layout_scale)
     radius: [dp(20 * root.layout_scale)]
+    ripple_behavior: True
     md_bg_color: GOLD_SOFT
     line_color: [0.99, 0.88, 0.45, 0.30]
     elevation: 0
