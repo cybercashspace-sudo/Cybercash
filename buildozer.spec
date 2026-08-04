@@ -10,7 +10,7 @@ source.include_exts = py,kv,json,png,jpg,jpeg,atlas,ttf,otf,mp4
 source.exclude_dirs = .buildozer,.buildozer-venv,.git,.github,.kivy_runtime,.venv,.pytest_cache,.qodo,.vscode,.ci-android-src,ci_android_src,build,dist,android_build,node_modules,venv,Lib,Scripts,DLLs,include,libs,Tools,tcl,share,backend,frontend,kivy_frontend,admin-panel,Admin_Dashboard,BoG_Submission_Pack,Compliance_Policies,Doc,postgres_local,public,cyber_cash,tests,__pycache__
 source.exclude_patterns = .env,.env.*,backend/.env,**/.env,**/.env.*,*.log,*.pdb,*.dll,*.exe,*.pyc,*.db,*.env,*.key,package-lock.json,package.json,user_data.json,session.json,start_test.txt,README*,LICENSE*,CYBERCASH_FULL_APP.zip,test_*.py,*_test.py,*/test_*.py,*/tests/*,*/__pycache__/*,__pycache__/*,screens/virtual_card.py,screens/statement_service.py,utils/security.py
 version = 1.0.0
-requirements = python3,kivy,kivymd==1.2.0,requests,python-dotenv,pyjnius
+requirements = python3,kivy,kivymd==1.2.0,requests,charset-normalizer,Pillow,python-dotenv,pyjnius
 p4a.url = https://github.com/kivy/python-for-android.git
 p4a.branch = v2024.01.21
 orientation = portrait
