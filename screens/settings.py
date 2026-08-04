@@ -12,7 +12,6 @@ from api.client import api_client
 from core.bottom_nav import BottomNavBar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
-from storage import save_token, clear_token
 
 from kivymd.uix.card import MDCard
 KV = """
@@ -453,18 +452,7 @@ class SettingsScreen(ActionScreen):
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
         response = logout(token)
-        app.access_token = ""
-        app.pending_momo = ""
-        # Clear any pending wallet/deposit state so we don't accidentally resume
-        # a pending deposit or create duplicate state after signing out.
-        try:
-            app.pending_wallet_action = ""
-            app.pending_deposit_amount = ""
-            app.pending_deposit_autostart = False
-            app.wallet_entry_action = ""
-        except Exception:
-            pass
-        clear_token()
+        app.reset_session_state(clear_wallet_state=True)
 
         detail = ""
         if isinstance(response, dict):

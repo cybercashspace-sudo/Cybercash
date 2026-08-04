@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -157,6 +158,7 @@ class APIClient:
             self.base_urls = resolve_api_urls()
             self.base_url = self.base_urls[0]
         self.session = requests.Session()
+        self._request_lock = threading.RLock()
         self._install_retries()
 
     def _install_retries(self) -> None:
@@ -238,14 +240,15 @@ class APIClient:
 
         for index, base_url in enumerate(ordered_base_urls):
             try:
-                response = self.session.request(
-                    method=method.upper(),
-                    url=f"{base_url}{path}",
-                    json=payload,
-                    params=params,
-                    headers=request_headers,
-                    timeout=_coerce_timeout(timeout),
-                )
+                with self._request_lock:
+                    response = self.session.request(
+                        method=method.upper(),
+                        url=f"{base_url}{path}",
+                        json=payload,
+                        params=params,
+                        headers=request_headers,
+                        timeout=_coerce_timeout(timeout),
+                    )
                 data = self._safe_json(response)
                 result = {
                     "ok": response.status_code < 400,
@@ -296,14 +299,20 @@ class APIClient:
     def post(self, path: str, payload: dict, headers: dict | None = None, timeout=DEFAULT_TIMEOUT):
         return self.request("POST", path, payload=payload, headers=headers, timeout=timeout)["data"]
 
-    def get(self, path: str, params: dict | None = None, headers: dict | None = None):
-        return self.request("GET", path, params=params, headers=headers)
+    def get(
+        self,
+        path: str,
+        params: dict | None = None,
+        headers: dict | None = None,
+        timeout=DEFAULT_TIMEOUT,
+    ):
+        return self.request("GET", path, params=params, headers=headers, timeout=timeout)
 
-    def put(self, path: str, payload: dict, headers: dict | None = None):
-        return self.request("PUT", path, payload=payload, headers=headers)
+    def put(self, path: str, payload: dict, headers: dict | None = None, timeout=DEFAULT_TIMEOUT):
+        return self.request("PUT", path, payload=payload, headers=headers, timeout=timeout)
 
-    def patch(self, path: str, payload: dict, headers: dict | None = None):
-        return self.request("PATCH", path, payload=payload, headers=headers)
+    def patch(self, path: str, payload: dict, headers: dict | None = None, timeout=DEFAULT_TIMEOUT):
+        return self.request("PATCH", path, payload=payload, headers=headers, timeout=timeout)
 
 
 api_client = APIClient()

@@ -51,3 +51,24 @@ def resend_otp(momo: str):
     return api_client.post("/auth/resend-otp", {
         "momo_number": momo
     })
+
+
+def request_reset_pin_otp(momo: str):
+    return api_client.request(
+        "POST",
+        "/auth/reset-pin/request-otp",
+        payload={"momo_number": momo},
+        timeout=FAST_TIMEOUT,
+    )
+
+
+def reset_pin(momo: str, otp: str, new_pin: str):
+    return api_client.request(
+        "POST",
+        "/auth/reset-pin",
+        payload={
+            "momo_number": momo,
+            "otp": otp,
+            "new_pin": new_pin,
+        },
+    )

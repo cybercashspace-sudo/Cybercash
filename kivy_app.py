@@ -35,7 +35,7 @@ from screens.splash import SplashScreen
 from storage import (
     get_token,
     get_remember_me,
-    save_token,
+    clear_token,
     get_privacy_mode,
     save_privacy_mode,
 )
@@ -305,9 +305,25 @@ class CyberCashApp(MDApp):
                 )
 
     def _lock_app_to_login(self, message="Session Locked"):
-        self.access_token = ""
-        save_token("")
+        self.reset_session_state(clear_wallet_state=False)
         self.go_to_screen("login")
+
+    def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
+        self.access_token = ""
+        self.pending_momo = ""
+        self.user_name = "Cyber Cash User"
+        self.is_admin = False
+        clear_token()
+        if not clear_wallet_state:
+            return
+
+        try:
+            self.pending_wallet_action = ""
+            self.pending_deposit_amount = ""
+            self.pending_deposit_autostart = False
+            self.wallet_entry_action = ""
+        except Exception:
+            pass
 
     def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None):
         """Central biometric service for Login and App Lock."""
