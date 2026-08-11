@@ -1,0 +1,257 @@
+#:import InvestmentCard features.investment.investment_card.InvestmentCard
+
+<InvestmentCard>:
+    size_hint_y: None
+    height: "88dp"
+    radius: [22, 22, 22, 22]
+    elevation: 6
+    md_bg_color: 0.10, 0.10, 0.10, 1
+    padding: "14dp"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        spacing: "12dp"
+
+        MDBoxLayout:
+            orientation: "vertical"
+            spacing: "2dp"
+
+            MDLabel:
+                text: root.title
+                bold: True
+                font_size: "16sp"
+
+            MDLabel:
+                text: root.subtitle
+                theme_text_color: "Secondary"
+                font_size: "12sp"
+
+            MDLabel:
+                text: root.detail
+                theme_text_color: "Hint"
+                font_size: "11sp"
+
+        Widget:
+
+        MDLabel:
+            text: root.status_text
+            theme_text_color: "Custom"
+            text_color: 1, 0.76, 0.12, 1
+            bold: True
+            font_size: "12sp"
+            halign: "right"
+
+<InvestmentScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Investments"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "160dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 8
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Active Investment"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: active_amount
+                            text: "GH₵ 0.00"
+                            font_size: "32sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                        MDLabel:
+                            id: active_plan
+                            text: "Plan: --"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: active_earned
+                            text: "Earned GH₵ 0.00"
+                            theme_text_color: "Hint"
+                            font_size: "12sp"
+
+                        MDLabel:
+                            id: active_status
+                            text: "No active investment"
+                            theme_text_color: "Secondary"
+                            font_size: "12sp"
+
+                        ProgressBar:
+                            id: investment_progress
+                            max: 100
+                            value: 0
+
+                        MDLabel:
+                            id: maturity_label
+                            text: "Maturity not available"
+                            theme_text_color: "Hint"
+                            font_size: "11sp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "260dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Apply For Loan"
+                            opacity: 0
+
+                        MDTextField:
+                            id: amount
+                            hint_text: "Amount (GH₵)"
+                            input_filter: "float"
+                            on_text: root.on_amount_text(self.text)
+
+                        MDTextField:
+                            id: purpose
+                            hint_text: "Purpose (Optional)"
+
+                        MDLabel:
+                            id: selected_plan_label
+                            text: "120 Days"
+                            bold: True
+                            font_size: "14sp"
+
+                        MDLabel:
+                            id: selected_plan_hint
+                            text: "Choose a plan to preview returns."
+                            theme_text_color: "Hint"
+                            font_size: "12sp"
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "12dp"
+
+                            MDLabel:
+                                text: "Daily Earnings"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: daily_earning
+                                text: "GH₵ 0.00"
+                                bold: True
+                                halign: "right"
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "12dp"
+
+                            MDLabel:
+                                text: "Estimated Earnings"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: total_earning
+                                text: "GH₵ 0.00"
+                                bold: True
+                                halign: "right"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "330dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Choose Plan"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: plan_list
+                            viewclass: "InvestmentCard"
+                            size_hint_y: None
+                            height: "240dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "90dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+
+                MDRaisedButton:
+                    text: "START INVESTMENT"
+                    md_bg_color: 1, 0.76, 0.12, 1
+                    text_color: 0, 0, 0, 1
+                    on_release: root.start_investment()
+
+                MDCard:
+                    size_hint_y: None
+                    height: "280dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Investment History"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: history_list
+                            viewclass: "InvestmentCard"
+                            size_hint_y: None
+                            height: "210dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "90dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+

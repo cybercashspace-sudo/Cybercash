@@ -1,0 +1,119 @@
+#:import TransactionCard features.transactions.transaction_card.TransactionCard
+
+<CommissionScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Commission"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+            MDRaisedButton:
+                text: "Withdraw Commission"
+                md_bg_color: 1, 0.76, 0.12, 1
+                text_color: 0, 0, 0, 1
+                on_release: root.withdraw_commission()
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "160dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 8
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "8dp"
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "10dp"
+
+                            MDLabel:
+                                text: "Today"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: commission_today
+                                text: "GH₵ 0.00"
+                                bold: True
+                                halign: "right"
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "10dp"
+
+                            MDLabel:
+                                text: "This Week"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: commission_week
+                                text: "GH₵ 0.00"
+                                bold: True
+                                halign: "right"
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "10dp"
+
+                            MDLabel:
+                                text: "Total Earned"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: commission_total
+                                text: "GH₵ 0.00"
+                                bold: True
+                                halign: "right"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "360dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Commission History"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: commission_history
+                            viewclass: "TransactionCard"
+                            size_hint_y: None
+                            height: "290dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "88dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+

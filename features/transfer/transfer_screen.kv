@@ -1,0 +1,105 @@
+#:import dp kivy.metrics.dp
+#:import theme theme
+#:import GlassCard widgets.GlassCard
+#:import AuthButton features.auth.widgets.auth_button.AuthButton
+
+<TransferScreen>:
+    MDFloatLayout:
+        canvas.before:
+            Color:
+                rgba: theme.BACKGROUND
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        ScrollView:
+            do_scroll_x: False
+            bar_width: 0
+
+            MDBoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(20), dp(24), dp(20), dp(28)
+                spacing: dp(16)
+
+                MDBoxLayout:
+                    id: title_block
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(6)
+
+                    MDLabel:
+                        text: "Transfer Money"
+                        font_size: "28sp"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: theme.TEXT_PRIMARY
+
+                    MDLabel:
+                        text: "Send funds securely to another wallet"
+                        theme_text_color: "Hint"
+
+                GlassCard:
+                    id: recipient_card
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: dp(18)
+                    spacing: dp(14)
+
+                    MDLabel:
+                        text: "Recipient"
+                        theme_text_color: "Hint"
+
+                    MDTextField:
+                        id: recipient
+                        hint_text: "Phone / Email / Wallet ID"
+                        mode: "outlined"
+                        helper_text: "Search for the recipient"
+                        helper_text_mode: "on_focus"
+                        on_text_validate: root.lookup_recipient()
+
+                    MDLabel:
+                        text: root.recipient_preview
+                        theme_text_color: "Custom"
+                        text_color: theme.PRIMARY
+                        font_size: "13sp"
+
+                GlassCard:
+                    id: transfer_card
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: dp(18)
+                    spacing: dp(14)
+
+                    MDTextField:
+                        id: amount
+                        hint_text: "Amount (GHS)"
+                        mode: "outlined"
+                        input_filter: "float"
+                        helper_text: "Enter the transfer amount"
+                        helper_text_mode: "on_focus"
+
+                    MDTextField:
+                        id: description
+                        hint_text: "Description"
+                        mode: "outlined"
+                        helper_text: "Optional note"
+                        helper_text_mode: "on_focus"
+
+                    MDTextField:
+                        id: pin
+                        hint_text: "Confirm PIN"
+                        mode: "outlined"
+                        password: True
+                        input_filter: "int"
+                        helper_text: "Enter your 4-digit PIN"
+                        helper_text_mode: "on_focus"
+
+                AuthButton:
+                    id: send_button
+                    text: "SEND"
+                    busy_text: "PROCESSING..."
+                    on_release: root.submit_transfer()

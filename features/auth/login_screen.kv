@@ -1,0 +1,176 @@
+#:import dp kivy.metrics.dp
+#:import theme theme
+#:import GlassCard widgets.GlassCard
+#:import AuthHeader features.auth.widgets.auth_header.AuthHeader
+#:import AuthField features.auth.widgets.auth_field.AuthField
+#:import AuthButton features.auth.widgets.auth_button.AuthButton
+
+<AuthHeader>:
+    orientation: "horizontal"
+    adaptive_height: True
+    spacing: dp(12)
+
+    MDIcon:
+        icon: root.icon
+        theme_icon_color: "Custom"
+        icon_color: theme.PRIMARY
+        font_size: "30sp"
+        size_hint: None, None
+        size: dp(36), dp(36)
+
+    MDBoxLayout:
+        orientation: "vertical"
+        adaptive_height: True
+        spacing: dp(2)
+
+        MDLabel:
+            text: root.title
+            font_size: "18sp"
+            bold: True
+            theme_text_color: "Custom"
+            text_color: theme.TEXT_PRIMARY
+
+        MDLabel:
+            text: root.subtitle
+            font_size: "12sp"
+            theme_text_color: "Hint"
+
+<LoginScreen>:
+    MDFloatLayout:
+        canvas.before:
+            Color:
+                rgba: theme.BACKGROUND
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+            Color:
+                rgba: 1, 0.76, 0.12, 0.06
+            Ellipse:
+                size: dp(300), dp(300)
+                pos: self.width - dp(220), self.height - dp(180)
+
+        ScrollView:
+            do_scroll_x: False
+            bar_width: 0
+
+            MDBoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(20), dp(24), dp(20), dp(28)
+                spacing: dp(16)
+
+                Widget:
+                    size_hint_y: None
+                    height: dp(18)
+
+                MDBoxLayout:
+                    id: brand_block
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+
+                    MDIcon:
+                        icon: "shield-crown"
+                        theme_icon_color: "Custom"
+                        icon_color: theme.PRIMARY
+                        halign: "center"
+                        font_size: "56sp"
+
+                    MDLabel:
+                        text: "CYBER CASH"
+                        halign: "center"
+                        bold: True
+                        font_size: "30sp"
+                        theme_text_color: "Custom"
+                        text_color: theme.TEXT_PRIMARY
+
+                    MDLabel:
+                        text: "Secure access to your wallet"
+                        halign: "center"
+                        theme_text_color: "Hint"
+
+                GlassCard:
+                    id: login_card
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: dp(20)
+                    spacing: dp(14)
+
+                    AuthHeader:
+                        title: "Welcome Back"
+                        subtitle: "Sign in to continue"
+                        icon: "login"
+
+                    MDBoxLayout:
+                        id: field_stack
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(12)
+
+                        AuthField:
+                            id: identifier
+                            hint_text: "Email or Phone"
+                            icon_left: "account"
+                            helper_text: "Use the number or email on your account"
+                            helper_text_mode: "on_focus"
+
+                        MDRelativeLayout:
+                            size_hint_y: None
+                            height: dp(66)
+
+                            AuthField:
+                                id: password
+                                hint_text: "Password"
+                                password: True
+                                icon_left: "lock"
+                                helper_text: "Enter your PIN or password"
+                                helper_text_mode: "on_focus"
+
+                            MDIconButton:
+                                id: password_toggle
+                                icon: "eye"
+                                pos_hint: {"right": 1, "center_y": .5}
+                                on_release: root.toggle_password()
+
+                    MDBoxLayout:
+                        id: action_stack
+                        size_hint_y: None
+                        height: dp(40)
+                        spacing: dp(8)
+
+                        MDTextButton:
+                            text: "Forgot PIN?"
+                            on_release: root.forgot_pin()
+
+                        Widget:
+
+                        MDTextButton:
+                            text: "Create account"
+                            on_release: root.signup()
+
+                    AuthButton:
+                        id: login_button
+                        text: "LOGIN"
+                        busy_text: "SIGNING IN..."
+                        on_release: root.login_user()
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(44)
+                        spacing: dp(10)
+
+                        MDLabel:
+                            text: "Continue with"
+                            theme_text_color: "Hint"
+                            halign: "left"
+
+                        Widget:
+
+                        MDIconButton:
+                            icon: "fingerprint"
+                            theme_icon_color: "Custom"
+                            icon_color: theme.PRIMARY
+                            on_release: root.biometric_login()

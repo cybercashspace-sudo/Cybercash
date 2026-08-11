@@ -1,0 +1,140 @@
+#:import DataPackageCard features.airtime_data.data_screen.DataPackageCard
+
+<DataScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Data Bundle"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "104dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 8
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Wallet Balance"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: balance_label
+                            text: "GHS 0.00"
+                            font_size: "30sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                MDCard:
+                    size_hint_y: None
+                    height: "190dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "12dp"
+
+                        MDTextField:
+                            id: phone
+                            hint_text: "Phone Number"
+                            on_text: root.on_phone_text(self.text)
+
+                        MDTextField:
+                            id: network
+                            hint_text: "Detected Network"
+                            text: "Unknown"
+                            readonly: True
+
+                        Widget:
+
+                        MDRaisedButton:
+                            text: "Load Packages"
+                            md_bg_color: 0.16, 0.16, 0.16, 1
+                            on_release: root.load_packages(root.ids.network.text)
+
+                MDCard:
+                    size_hint_y: None
+                    height: "290dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Choose Package"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: package_list
+                            viewclass: "DataPackageCard"
+                            size_hint_y: None
+                            height: "210dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "82dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "108dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Selected Package"
+                            theme_text_color: "Secondary"
+
+                        MDLabel:
+                            id: selected_package_label
+                            text: "No package selected"
+                            bold: True
+
+                MDRaisedButton:
+                    text: "PURCHASE"
+                    md_bg_color: 1, 0.76, 0.12, 1
+                    text_color: 0, 0, 0, 1
+                    on_release: root.submit_purchase()

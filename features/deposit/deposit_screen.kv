@@ -1,0 +1,93 @@
+#:import dp kivy.metrics.dp
+#:import theme theme
+#:import GlassCard widgets.GlassCard
+#:import AuthButton features.auth.widgets.auth_button.AuthButton
+
+<DepositScreen>:
+    MDFloatLayout:
+        canvas.before:
+            Color:
+                rgba: theme.BACKGROUND
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        ScrollView:
+            do_scroll_x: False
+            bar_width: 0
+
+            MDBoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(20), dp(24), dp(20), dp(28)
+                spacing: dp(16)
+
+                MDBoxLayout:
+                    id: title_block
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(6)
+
+                    MDLabel:
+                        text: "Add Funds"
+                        font_size: "28sp"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: theme.TEXT_PRIMARY
+
+                    MDLabel:
+                        text: "Top up your wallet securely"
+                        theme_text_color: "Hint"
+
+                GlassCard:
+                    id: amount_card
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: dp(18)
+                    spacing: dp(14)
+
+                    MDLabel:
+                        text: "Amount"
+                        theme_text_color: "Hint"
+
+                    MDTextField:
+                        id: amount
+                        hint_text: "GHS 0.00"
+                        mode: "outlined"
+                        input_filter: "float"
+                        helper_text: "Enter the amount to deposit"
+                        helper_text_mode: "on_focus"
+
+                GlassCard:
+                    id: method_card
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height
+                    padding: dp(18)
+                    spacing: dp(14)
+
+                    MDLabel:
+                        text: "Payment Method"
+                        theme_text_color: "Hint"
+
+                    MDSegmentedButton:
+                        id: method_picker
+                        size_hint_y: None
+                        height: dp(48)
+
+                        MDSegmentedButtonItem:
+                            text: "Paystack"
+                            active: True
+                            on_release: root.set_method("paystack")
+
+                        MDSegmentedButtonItem:
+                            text: "Mobile Money"
+                            on_release: root.set_method("mobile_money")
+
+                AuthButton:
+                    id: continue_button
+                    text: "CONTINUE"
+                    busy_text: "PROCESSING..."
+                    on_release: root.submit_deposit()

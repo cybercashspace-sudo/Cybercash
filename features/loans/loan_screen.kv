@@ -1,0 +1,185 @@
+#:import TransactionCard features.transactions.transaction_card.TransactionCard
+
+<LoanScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "My Loan"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+            MDRaisedButton:
+                text: "Repayment History"
+                md_bg_color: 0.16, 0.16, 0.16, 1
+                on_release: root.go_to_repayments()
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "170dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 8
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Available Credit"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: available_credit
+                            text: "GH₵ 0.00"
+                            font_size: "32sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                        MDLabel:
+                            text: "Current Loan"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: current_loan
+                            text: "GH₵ 0.00"
+                            font_size: "28sp"
+                            bold: True
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "8dp"
+
+                            MDLabel:
+                                text: "Status:"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: loan_status
+                                text: "Pending"
+                                bold: True
+
+                        MDBoxLayout:
+                            adaptive_height: True
+                            spacing: "8dp"
+
+                            MDLabel:
+                                text: "Next Payment:"
+                                theme_text_color: "Secondary"
+
+                            MDLabel:
+                                id: next_payment
+                                text: "Not available"
+                                bold: True
+
+                MDCard:
+                    size_hint_y: None
+                    height: "260dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Apply For Loan"
+                            bold: True
+                            font_size: "18sp"
+
+                        MDTextField:
+                            id: amount
+                            hint_text: "Amount (GH₵)"
+                            input_filter: "float"
+
+                        MDTextField:
+                            id: purpose
+                            hint_text: "Purpose (Optional)"
+
+                        MDLabel:
+                            id: duration_label
+                            text: "60 Days"
+                            bold: True
+                            font_size: "14sp"
+
+                        MDGridLayout:
+                            cols: 3
+                            adaptive_height: True
+                            spacing: "10dp"
+
+                            MDRaisedButton:
+                                text: "30 Days"
+                                md_bg_color: 0.16, 0.16, 0.16, 1
+                                on_release: root.select_duration(30)
+
+                            MDRaisedButton:
+                                text: "60 Days"
+                                md_bg_color: 1, 0.76, 0.12, 1
+                                text_color: 0, 0, 0, 1
+                                on_release: root.select_duration(60)
+
+                            MDRaisedButton:
+                                text: "90 Days"
+                                md_bg_color: 0.16, 0.16, 0.16, 1
+                                on_release: root.select_duration(90)
+
+                        MDRaisedButton:
+                            text: "SUBMIT APPLICATION"
+                            md_bg_color: 1, 0.76, 0.12, 1
+                            text_color: 0, 0, 0, 1
+                            on_release: root.submit_application()
+
+                MDCard:
+                    size_hint_y: None
+                    height: "320dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Repayment History"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: repayment_list
+                            viewclass: "TransactionCard"
+                            size_hint_y: None
+                            height: "250dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "88dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+

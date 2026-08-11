@@ -5,6 +5,7 @@ import threading
 import requests
 from requests.adapters import HTTPAdapter
 
+from core.session import session
 from core.message_sanitizer import sanitize_backend_message
 
 try:
@@ -222,7 +223,10 @@ class APIClient:
         failover: bool = True,
     ) -> dict:
         last_result = None
-        request_headers = headers or {}
+        request_headers = dict(headers or {})
+        request_headers.setdefault("Content-Type", "application/json")
+        if session.authenticated() and not self._has_auth_header(request_headers):
+            request_headers["Authorization"] = f"Bearer {session.token}"
         has_auth_header = self._has_auth_header(request_headers)
         transport_error_seen = False
         is_paystack_path = _is_payment_reference_path(path)

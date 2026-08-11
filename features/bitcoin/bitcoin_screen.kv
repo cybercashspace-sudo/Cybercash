@@ -1,0 +1,161 @@
+#:import TransactionCard features.transactions.transaction_card.TransactionCard
+
+<BitcoinScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+            spacing: "12dp"
+
+            MDLabel:
+                text: "Bitcoin Wallet"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+            MDIconButton:
+                icon: "refresh"
+                theme_icon_color: "Custom"
+                icon_color: 1, 0.76, 0.12, 1
+                on_release: root.load_dashboard()
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "180dp"
+                    radius: [26, 26, 26, 26]
+                    elevation: 10
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "18dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Bitcoin Balance"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: wallet_balance
+                            text: "₿ 0.000000"
+                            font_size: "34sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                        MDLabel:
+                            id: wallet_usd
+                            text: "≈ GH₵ 0.00"
+                            theme_text_color: "Secondary"
+                            font_size: "14sp"
+
+                        Widget:
+
+                        MDLabel:
+                            id: wallet_status
+                            text: "Active"
+                            theme_text_color: "Secondary"
+                            font_size: "12sp"
+
+                        MDLabel:
+                            id: wallet_address
+                            text: "Not available"
+                            theme_text_color: "Hint"
+                            font_size: "11sp"
+                            shorten: True
+                            shorten_from: "right"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "120dp"
+                    radius: [22, 22, 22, 22]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "18dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "8dp"
+
+                        MDLabel:
+                            text: "Current BTC Price"
+                            theme_text_color: "Secondary"
+                            font_size: "13sp"
+
+                        MDLabel:
+                            id: btc_price
+                            text: "$0.00"
+                            font_size: "26sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                        MDLabel:
+                            text: "Live market refresh is enabled"
+                            theme_text_color: "Hint"
+                            font_size: "12sp"
+
+                MDGridLayout:
+                    cols: 2
+                    adaptive_height: True
+                    spacing: "12dp"
+
+                    MDRaisedButton:
+                        text: "Buy BTC"
+                        md_bg_color: 1, 0.76, 0.12, 1
+                        text_color: 0, 0, 0, 1
+                        on_release: root.buy_btc()
+
+                    MDRaisedButton:
+                        text: "Sell BTC"
+                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        on_release: root.sell_btc()
+
+                    MDRaisedButton:
+                        text: "Deposit"
+                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        on_release: root.deposit_btc()
+
+                    MDRaisedButton:
+                        text: "Withdraw"
+                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        on_release: root.withdraw_btc()
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: "10dp"
+
+                    MDLabel:
+                        text: "Recent BTC Transactions"
+                        bold: True
+                        font_size: "18sp"
+
+                    RecycleView:
+                        id: transaction_list
+                        viewclass: "TransactionCard"
+                        size_hint_y: None
+                        height: "320dp"
+
+                        RecycleBoxLayout:
+                            default_size: None, "88dp"
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height
+                            orientation: "vertical"
+

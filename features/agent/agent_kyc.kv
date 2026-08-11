@@ -1,0 +1,64 @@
+<AgentKycScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Agent KYC"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "360dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "12dp"
+
+                        MDTextField:
+                            id: full_name
+                            hint_text: "Full Name"
+
+                        MDTextField:
+                            id: phone
+                            hint_text: "Phone Number"
+
+                        MDTextField:
+                            id: id_number
+                            hint_text: "Ghana Card / ID Number"
+
+                        MDTextField:
+                            id: document_ref
+                            hint_text: "Document Ref / Upload ID"
+
+                        MDTextField:
+                            id: selfie_ref
+                            hint_text: "Selfie Ref / Face Match"
+
+                        MDRaisedButton:
+                            text: "SUBMIT VERIFICATION"
+                            md_bg_color: 1, 0.76, 0.12, 1
+                            text_color: 0, 0, 0, 1
+                            on_release: root.submit_kyc()
+

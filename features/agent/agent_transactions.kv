@@ -1,0 +1,59 @@
+#:import TransactionCard features.transactions.transaction_card.TransactionCard
+
+<AgentTransactionsScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Agent Transactions"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "360dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Recent Agent Activity"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: transaction_list
+                            viewclass: "TransactionCard"
+                            size_hint_y: None
+                            height: "290dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "88dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+

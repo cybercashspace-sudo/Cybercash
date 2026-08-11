@@ -1,0 +1,88 @@
+#:import TransactionCard features.transactions.transaction_card.TransactionCard
+
+<RepaymentScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        md_bg_color: 0.03, 0.03, 0.03, 1
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "72dp"
+            padding: "18dp", "12dp"
+
+            MDLabel:
+                text: "Repayments"
+                bold: True
+                font_size: "22sp"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+
+            Widget:
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                spacing: "16dp"
+                padding: "16dp"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "120dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 8
+                    md_bg_color: 0.08, 0.08, 0.08, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "6dp"
+
+                        MDLabel:
+                            text: "Amount Due"
+                            theme_text_color: "Secondary"
+
+                        MDLabel:
+                            id: amount_due
+                            text: "GH₵ 0.00"
+                            font_size: "30sp"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: 1, 0.76, 0.12, 1
+
+                        MDLabel:
+                            id: due_date
+                            text: "Not available"
+                            theme_text_color: "Hint"
+
+                MDCard:
+                    size_hint_y: None
+                    height: "380dp"
+                    radius: [24, 24, 24, 24]
+                    elevation: 6
+                    md_bg_color: 0.09, 0.09, 0.09, 1
+                    padding: "16dp"
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: "10dp"
+
+                        MDLabel:
+                            text: "Repayment Records"
+                            bold: True
+                            font_size: "18sp"
+
+                        RecycleView:
+                            id: repayment_list
+                            viewclass: "TransactionCard"
+                            size_hint_y: None
+                            height: "300dp"
+
+                            RecycleGridLayout:
+                                cols: 1
+                                default_size: None, "88dp"
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                spacing: "10dp"
+

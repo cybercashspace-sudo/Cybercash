@@ -24,8 +24,12 @@ from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
 from api.client import API_URL, FAST_TIMEOUT, api_client
+from animations.home_animations import HomeAnimations
+from components.transaction_card import TransactionCard
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
+from core.dashboard_cache import load_dashboard_cache, save_dashboard_cache
+from core.dashboard_state import DashboardState
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog

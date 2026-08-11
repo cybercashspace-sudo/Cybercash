@@ -2,6 +2,7 @@ import os
 import threading
 import logging
 from importlib import import_module
+from pathlib import Path
 
 # Performance Tuning for Low-End Devices
 from kivy.config import Config
@@ -13,13 +14,17 @@ os.environ.setdefault("SDL_JOYSTICK_HIDAPI", "0")
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
+from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
-from kivy.uix.screenmanager import ScreenManager, FadeTransition
+from kivy.uix.screenmanager import ScreenManager, NoTransition
 from kivymd.app import MDApp
 
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
+from components.transitions import smooth_switch_screen
+from core.session import session
+from core.event_bus import EventBus
 
 install_silent_touch()
 
@@ -28,6 +33,8 @@ from core.kivymd_compat import (
     register_font_style_aliases,
 )
 from core.theme_manager import ThemeManager
+from core.app_state import AppState
+from features.notifications.notification_manager import notification_manager
 
 install_kivymd_font_style_compat()
 
@@ -50,26 +57,28 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 SCREEN_SPECS = {
-    "login": ("screens.login", "LoginScreen"),
+    "login": ("features.auth.login_screen", "LoginScreen"),
     "register": ("screens.register", "RegisterScreen"),
     "otp": ("screens.otp", "OTPScreen"),
     "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
     "home": ("screens.home", "HomeScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
-    "deposit": ("screens.wallet", "DepositScreen"),
-    "withdraw": ("screens.wallet", "WithdrawScreen"),
-    "p2p_transfer": ("screens.p2p_transfer", "P2PTransferScreen"),
+    "deposit": ("features.deposit.deposit_screen", "DepositScreen"),
+    "withdraw": ("features.withdrawal.withdrawal_screen", "WithdrawalScreen"),
+    "airtime": ("features.airtime_data.airtime_screen", "AirtimeScreen"),
+    "data_bundle": ("features.airtime_data.data_screen", "DataScreen"),
+    "p2p_transfer": ("features.transfer.transfer_screen", "TransferScreen"),
     "agent": ("screens.agent", "AgentScreen"),
-    "airtime": ("screens.airtime", "AirtimeScreen"),
-    "data_bundle": ("screens.data_bundle", "DataBundleScreen"),
     "airtime_2_cash": ("screens.airtime_cash", "AirtimeCashScreen"),
     "loans": ("screens.loans", "LoanScreen"),
     "investments": ("screens.investments", "InvestmentScreen"),
     "escrow": ("screens.escrow", "EscrowScreen"),
     "virtual_card": ("screens.cards", "VirtualCardScreen"),
-    "btc": ("screens.btc", "BTCScreen"),
+    "btc": ("features.bitcoin.bitcoin_screen", "BitcoinScreen"),
+    "bitcoin": ("features.bitcoin.bitcoin_screen", "BitcoinScreen"),
     "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
-    "transactions": ("screens.transactions", "TransactionScreen"),
+    "transactions": ("features.transactions.transaction_screen", "TransactionScreen"),
+    "notifications": ("features.notifications.notification_screen", "NotificationScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
     "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
@@ -248,10 +257,19 @@ class CyberCashApp(MDApp):
 
         sm = getattr(self, "root", None)
         if sm and self.ensure_screen(target):
-            sm.current = target
+            previous = str(getattr(sm, "previous_screen", "") or "").strip()
+            if target in {"deposit", "withdraw", "p2p_transfer"}:
+                style = "slide_right"
+            elif target == previous:
+                style = "slide_left"
+            elif target == "login":
+                style = "fade"
+            else:
+                style = "fade_up"
+            smooth_switch_screen(sm, target, style=style)
             return True
         if sm and fallback and self.ensure_screen(fallback):
-            sm.current = fallback
+            smooth_switch_screen(sm, fallback, style="fade")
             return True
         return False
 
@@ -313,7 +331,11 @@ class CyberCashApp(MDApp):
         self.pending_momo = ""
         self.user_name = "Cyber Cash User"
         self.is_admin = False
-        clear_token()
+        try:
+            session.save("")
+            session.set_user(None)
+        except Exception:
+            clear_token()
         if not clear_wallet_state:
             return
 
@@ -415,8 +437,13 @@ class CyberCashApp(MDApp):
         register_font_style_aliases(self.theme_cls.font_styles)
         # This KivyMD build errors on "Amber"; the app's gold styling comes from CyberTheme.
         self.theme_cls.primary_palette = "Green"
+        self.app_state = AppState()
+        self.session_manager = session
+        self.event_bus = EventBus()
+        self.notification_manager = notification_manager
         self.pending_momo = ""
-        self.access_token = get_token().strip()
+        snapshot = self.session_manager.restore()
+        self.access_token = snapshot.access_token
         self.wallet_entry_action = ""
         self.pending_wallet_action = ""
         self.pending_deposit_amount = ""
@@ -434,13 +461,17 @@ class CyberCashApp(MDApp):
         self._startup_request_event = None
 
         # Load and apply initial Privacy Mode state
-        self.privacy_mode = get_privacy_mode()
+        self.privacy_mode = snapshot.privacy_mode
         self.set_privacy_mode(self.privacy_mode)
 
         self.theme_manager = ThemeManager(self)
         self.theme_manager.apply(self.theme_mode, animate=False)
 
-        sm = AppScreenManager(transition=FadeTransition(duration=0.15))
+        login_kv = Path(__file__).resolve().parent / "features" / "auth" / "login_screen.kv"
+        if login_kv.exists():
+            Builder.load_file(str(login_kv))
+
+        sm = AppScreenManager(transition=NoTransition())
         sm.add_widget(SplashScreen(name="splash"))
         sm.current = "splash"
 
