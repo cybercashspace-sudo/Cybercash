@@ -35,6 +35,10 @@ from core.kivymd_compat import (
 )
 from core.theme_manager import ThemeManager
 from core.app_state import AppState
+from core.network import NetworkManager
+from features.home.home_controller import HomeController
+from features.notifications.notification_controller import NotificationController
+from api.client import FAST_TIMEOUT, api_client
 
 install_kivymd_font_style_compat()
 
@@ -285,7 +289,12 @@ class CyberCashApp(MDApp):
         for screen_name in screen_names:
             self.ensure_screen(screen_name)
 
-    def go_to_screen(self, screen_name: str, fallback: str = "login") -> bool:
+    def go_to_screen(
+        self,
+        screen_name: str,
+        fallback: str = "login",
+        transition_style: str | None = None,
+    ) -> bool:
         target = str(screen_name or "").strip()
 
         # Centralized Role-Based Access Control (RBAC)
@@ -296,10 +305,16 @@ class CyberCashApp(MDApp):
         sm = getattr(self, "root", None)
         if sm and self.ensure_screen(target):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
-            return navigate(sm, target, previous=previous, fallback=fallback)
+            return navigate(
+                sm,
+                target,
+                previous=previous,
+                fallback=fallback,
+                transition_style=transition_style,
+            )
         if sm and fallback and self.ensure_screen(fallback):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
-            return navigate(sm, fallback, previous=previous, fallback="")
+            return navigate(sm, fallback, previous=previous, fallback="", transition_style="fade")
         logger.warning("Navigation failed: target=%s fallback=%s", target, fallback)
         return False
 
@@ -357,6 +372,8 @@ class CyberCashApp(MDApp):
         self.go_to_screen("login")
 
     def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
+        self.stop_background_services()
+        self._last_connectivity_state = None
         self.access_token = ""
         self.pending_momo = ""
         self.user_name = "Cyber Cash User"
@@ -366,6 +383,19 @@ class CyberCashApp(MDApp):
             session.set_user(None)
         except Exception:
             clear_token()
+        try:
+            notification_manager.clear()
+        except Exception:
+            pass
+        app_state = getattr(self, "app_state", None)
+        if isinstance(app_state, AppState):
+            app_state.reset()
+        dashboard_controller = getattr(self, "dashboard_controller", None)
+        if dashboard_controller is not None:
+            try:
+                dashboard_controller.state.reset()
+            except Exception:
+                pass
         if not clear_wallet_state:
             return
 
@@ -460,7 +490,221 @@ class CyberCashApp(MDApp):
                 lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
                 0.35,
             )
+        if self.access_token:
+            self.start_background_services()
         return True
+
+    def _ensure_background_runtime(self) -> None:
+        if not hasattr(self, "_background_events"):
+            self._background_events = {}
+        if not hasattr(self, "_background_busy"):
+            self._background_busy = set()
+        if not hasattr(self, "_background_lock"):
+            self._background_lock = threading.RLock()
+        if not hasattr(self, "_last_connectivity_state"):
+            self._last_connectivity_state = None
+        if not hasattr(self, "network_manager"):
+            self.network_manager = NetworkManager()
+        if not hasattr(self, "notification_controller"):
+            self.notification_controller = NotificationController()
+
+    def _bind_global_event_handlers(self) -> None:
+        if getattr(self, "_global_event_handlers_bound", False):
+            return
+        bus = getattr(self, "event_bus", None)
+        subscribe = getattr(bus, "subscribe", None)
+        if not callable(subscribe):
+            return
+        subscribe("WalletUpdated", self._handle_wallet_event)
+        subscribe("TransactionCreated", self._handle_transaction_event)
+        subscribe("NotificationCreated", self._handle_notification_event)
+        subscribe("NotificationsUpdated", self._handle_notifications_event)
+        self._global_event_handlers_bound = True
+
+    def _merge_dashboard_event(self, event_name: str, payload=None) -> None:
+        controller = getattr(self, "dashboard_controller", None)
+        if controller is None:
+            return
+        app_state = getattr(self, "app_state", None)
+        if isinstance(app_state, AppState):
+            try:
+                snapshot = dict(getattr(app_state, "dashboard", {}) or {})
+                if snapshot:
+                    controller.state.apply(
+                        snapshot,
+                        source=snapshot.get("source"),
+                        online=snapshot.get("online"),
+                        loading=snapshot.get("loading"),
+                    )
+            except Exception:
+                pass
+        try:
+            controller.merge_event_update(event_name, payload)
+        except Exception:
+            logger.exception("Failed to merge dashboard event: %s", event_name)
+
+    def _handle_wallet_event(self, payload=None) -> None:
+        self._merge_dashboard_event("WalletUpdated", payload)
+
+    def _handle_transaction_event(self, payload=None) -> None:
+        self._merge_dashboard_event("TransactionCreated", payload)
+
+    def _handle_notification_event(self, payload=None) -> None:
+        self._merge_dashboard_event("NotificationCreated", payload)
+
+    def _handle_notifications_event(self, payload=None) -> None:
+        self._merge_dashboard_event("NotificationsUpdated", payload)
+
+    def _cancel_background_service(self, name: str) -> None:
+        event = getattr(self, "_background_events", {}).pop(name, None)
+        if event is not None:
+            try:
+                event.cancel()
+            except Exception:
+                pass
+
+    def stop_background_services(self) -> None:
+        self._ensure_background_runtime()
+        for name in list(getattr(self, "_background_events", {}).keys()):
+            self._cancel_background_service(name)
+        with self._background_lock:
+            self._background_busy.clear()
+
+    def _schedule_background_service(self, name: str, worker, *, interval: float, initial_delay: float = 0.0) -> None:
+        self._ensure_background_runtime()
+        self._cancel_background_service(name)
+
+        def launch(*_args):
+            if not str(getattr(self, "access_token", "") or "").strip():
+                return
+            with self._background_lock:
+                if name in self._background_busy:
+                    return
+                self._background_busy.add(name)
+
+            def _run():
+                try:
+                    worker()
+                except Exception:
+                    logger.exception("Background task failed: %s", name)
+                finally:
+                    with self._background_lock:
+                        self._background_busy.discard(name)
+
+            threading.Thread(target=_run, daemon=True).start()
+
+        if initial_delay >= 0:
+            Clock.schedule_once(lambda _dt: launch(), initial_delay)
+        self._background_events[name] = Clock.schedule_interval(lambda _dt: launch(), interval)
+
+    def start_background_services(self) -> None:
+        self._ensure_background_runtime()
+        if not str(getattr(self, "access_token", "") or "").strip():
+            return
+        self._schedule_background_service("connectivity", self._probe_connectivity_worker, interval=45.0, initial_delay=5.0)
+        self._schedule_background_service("notifications", self._sync_notifications_worker, interval=60.0, initial_delay=10.0)
+        self._schedule_background_service("session", self._refresh_session_worker, interval=300.0, initial_delay=20.0)
+
+    def _apply_connectivity_state(self, online: bool, error: str = "") -> None:
+        self._ensure_background_runtime()
+        previous = self._last_connectivity_state
+        self._last_connectivity_state = bool(online)
+        self.app_state.set_online(online)
+        if previous is None or previous == bool(online):
+            return
+        if online:
+            logger.info("Connectivity restored")
+        else:
+            logger.warning("Network Timeout")
+        try:
+            self.event_bus.publish("ConnectivityChanged", {"online": bool(online), "error": str(error or "")})
+        except Exception:
+            pass
+
+    def _probe_connectivity_worker(self) -> None:
+        self._ensure_background_runtime()
+        online = False
+        error = ""
+        try:
+            online = bool(self.network_manager.probe())
+            error = str(self.network_manager.last_error or "")
+        except Exception as exc:
+            online = False
+            error = str(exc or "")
+        Clock.schedule_once(lambda _dt, o=online, e=error: self._apply_connectivity_state(o, e))
+
+    def _sync_notifications_worker(self) -> None:
+        self._ensure_background_runtime()
+        if not str(getattr(self, "access_token", "") or "").strip():
+            return
+        try:
+            items = self.notification_controller.load_notifications()
+        except Exception as exc:
+            logger.warning("Notification sync failed: %s", exc)
+            try:
+                items = self.notification_controller.load_cached_notifications()
+            except Exception:
+                items = []
+        Clock.schedule_once(lambda _dt, rows=items: self._apply_notification_sync(rows))
+
+    def _apply_notification_sync(self, rows) -> None:
+        items = [item for item in (rows or []) if isinstance(item, dict)]
+        self.notification_manager.update(items)
+        try:
+            self.app_state.set_notifications(items)
+        except Exception:
+            pass
+        try:
+            self.event_bus.publish("NotificationsUpdated", items)
+        except Exception:
+            pass
+
+    def _refresh_session_worker(self) -> None:
+        token = str(getattr(self, "access_token", "") or "").strip()
+        if not token:
+            return
+        try:
+            result = api_client.request(
+                "GET",
+                "/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=FAST_TIMEOUT,
+                failover=False,
+            )
+        except Exception:
+            logger.warning("Wallet Refresh Failed")
+            return
+
+        status_code = int(result.get("status_code", 0) or 0)
+        data = result.get("data", {})
+        if status_code in {401, 403}:
+            Clock.schedule_once(lambda _dt: self._handle_expired_session())
+            return
+        if isinstance(data, dict):
+            Clock.schedule_once(lambda _dt, payload=data: self._apply_session_refresh(payload))
+
+    def _apply_session_refresh(self, payload: dict) -> None:
+        if not isinstance(payload, dict):
+            return
+        user_payload = dict(payload or {})
+        name = str(
+            user_payload.get("name")
+            or user_payload.get("full_name")
+            or user_payload.get("first_name")
+            or self.user_name
+            or ""
+        ).strip()
+        if name:
+            self.user_name = name
+        try:
+            self.app_state.set_user(user_payload)
+        except Exception:
+            pass
+
+    def _handle_expired_session(self) -> None:
+        logger.warning("Wallet Refresh Failed")
+        self.reset_session_state(clear_wallet_state=False)
+        self.go_to_screen("login")
 
     def build(self):
         self.theme_cls.theme_style = "Dark"
@@ -470,6 +714,7 @@ class CyberCashApp(MDApp):
         self.app_state = AppState()
         self.session_manager = session
         self.event_bus = EventBus()
+        self.dashboard_controller = HomeController()
         self.notification_manager = notification_manager
         self.pending_momo = ""
         snapshot = self.session_manager.restore()
@@ -478,6 +723,13 @@ class CyberCashApp(MDApp):
         self.pending_wallet_action = ""
         self.pending_deposit_amount = ""
         self.pending_deposit_autostart = False
+        self._background_events = {}
+        self._background_busy = set()
+        self._background_lock = threading.RLock()
+        self._last_connectivity_state = None
+        self.network_manager = NetworkManager()
+        self.notification_controller = NotificationController()
+        self._global_event_handlers_bound = False
         self.theme_mode = "Dark"
         self.gold = list(CyberTheme.GOLD)
         self.emerald = list(CyberTheme.EMERALD)
@@ -497,6 +749,7 @@ class CyberCashApp(MDApp):
 
         self.theme_manager = ThemeManager(self)
         self.theme_manager.apply(self.theme_mode, animate=False)
+        self._bind_global_event_handlers()
 
         login_kv = Path(__file__).resolve().parent / "screens" / "login.kv"
         if login_kv.exists():

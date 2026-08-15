@@ -40,6 +40,11 @@ class AuthController:
                 app_state = getattr(app, "app_state", None)
                 if isinstance(app_state, AppState):
                     app_state.set_user(user_payload or {"identifier": identifier, "name": app.user_name})
+                if hasattr(app, "start_background_services"):
+                    try:
+                        app.start_background_services()
+                    except Exception:
+                        pass
 
         return result
 
@@ -67,9 +72,18 @@ class AuthController:
         session.set_user(None)
         app = MDApp.get_running_app()
         if app is not None:
+            reset_session = getattr(app, "reset_session_state", None)
+            if callable(reset_session):
+                reset_session(clear_wallet_state=True)
+                return
             app.access_token = ""
             app.pending_momo = ""
             app.user_name = "Cyber Cash User"
+            if hasattr(app, "stop_background_services"):
+                try:
+                    app.stop_background_services()
+                except Exception:
+                    pass
             app_state = getattr(app, "app_state", None)
             if isinstance(app_state, AppState):
                 app_state.reset()

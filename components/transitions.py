@@ -27,6 +27,11 @@ def smooth_switch_screen(manager, target: str, *, duration: float = 0.25, style:
         manager.current = target
         return True
 
+    if style == "none":
+        manager.current = target
+        target_screen.opacity = 1
+        return True
+
     def _complete(*_args):
         manager.current = target
         target_screen.opacity = 0
@@ -53,4 +58,3 @@ def smooth_switch_screen(manager, target: str, *, duration: float = 0.25, style:
 
     Clock.schedule_once(_complete, duration)
     return True
-

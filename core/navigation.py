@@ -15,11 +15,17 @@ def resolve_transition_style(target: str, previous: str = "") -> str:
     return "fade_up"
 
 
-def navigate(manager, target: str, previous: str = "", *, fallback: str = "login") -> bool:
-    style = resolve_transition_style(target, previous)
+def navigate(
+    manager,
+    target: str,
+    previous: str = "",
+    *,
+    fallback: str = "login",
+    transition_style: str | None = None,
+) -> bool:
+    style = str(transition_style or "").strip() or resolve_transition_style(target, previous)
     if smooth_switch_screen(manager, target, style=style):
         return True
     if fallback:
         return smooth_switch_screen(manager, fallback, style="fade")
     return False
-

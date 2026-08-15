@@ -88,6 +88,32 @@ class HomeController:
             return dict(payload)
         return {}
 
+    @classmethod
+    def _extract_notifications(cls, payload) -> list[dict]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if isinstance(payload, dict):
+            for key in ("notifications", "items", "results", "data"):
+                nested = payload.get(key)
+                if isinstance(nested, list):
+                    return [item for item in nested if isinstance(item, dict)]
+            notification = cls._extract_notification(payload)
+            if notification:
+                return [notification]
+        return []
+
+    @staticmethod
+    def _notification_key(payload: dict) -> str:
+        return str(
+            payload.get("id")
+            or payload.get("notification_id")
+            or payload.get("message")
+            or payload.get("title")
+            or payload.get("created_at")
+            or payload.get("timestamp")
+            or ""
+        ).strip()
+
     def _apply_state(
         self,
         payload: dict | None,
@@ -176,33 +202,32 @@ class HomeController:
                     current.insert(0, transaction)
                     self.state.transactions = current[:20]
                     logger.info("Transaction Added")
-            elif event == "NotificationCreated":
-                notification = self._extract_notification(payload)
-                if notification:
-                    notification_key = str(
-                        notification.get("id")
-                        or notification.get("message")
-                        or notification.get("title")
-                        or notification.get("created_at")
-                        or notification.get("timestamp")
-                        or ""
-                    ).strip()
-                    current = [
-                        item
-                        for item in self.state.notifications or []
-                        if str(
-                            item.get("id")
-                            or item.get("message")
-                            or item.get("title")
-                            or item.get("created_at")
-                            or item.get("timestamp")
-                            or ""
-                        ).strip()
-                        != notification_key
-                    ]
-                    current.insert(0, notification)
+            elif event in {"NotificationCreated", "NotificationsUpdated"}:
+                if event == "NotificationsUpdated":
+                    rows = self._extract_notifications(payload)
+                    current = []
+                    seen: set[str] = set()
+                    for item in rows:
+                        key = self._notification_key(item)
+                        if key and key in seen:
+                            continue
+                        if key:
+                            seen.add(key)
+                        current.append(item)
                     self.state.notifications = current[:20]
-                    logger.info("Notification Added")
+                    logger.info("Notifications Synced")
+                else:
+                    notification = self._extract_notification(payload)
+                    if notification:
+                        notification_key = self._notification_key(notification)
+                        current = [
+                            item
+                            for item in self.state.notifications or []
+                            if self._notification_key(item) != notification_key
+                        ]
+                        current.insert(0, notification)
+                        self.state.notifications = current[:20]
+                        logger.info("Notification Added")
             self.state.loading = False
             snapshot = self.normalize_dashboard(self.state.snapshot())
             self._sync_app_state(snapshot)

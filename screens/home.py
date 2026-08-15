@@ -2051,6 +2051,7 @@ class HomeScreen(ResponsiveScreen):
             return
         subscribe("WalletUpdated", self._on_wallet_updated)
         subscribe("TransactionCreated", self._on_transaction_created)
+        subscribe("NotificationsUpdated", self._on_notifications_updated)
         self._dashboard_events_bound = True
 
     def _unbind_dashboard_events(self) -> None:
@@ -2062,6 +2063,7 @@ class HomeScreen(ResponsiveScreen):
         if callable(unsubscribe):
             unsubscribe("WalletUpdated", self._on_wallet_updated)
             unsubscribe("TransactionCreated", self._on_transaction_created)
+            unsubscribe("NotificationsUpdated", self._on_notifications_updated)
         self._dashboard_events_bound = False
 
     def _on_wallet_updated(self, payload=None) -> None:
@@ -2076,6 +2078,26 @@ class HomeScreen(ResponsiveScreen):
         if transactions:
             self._prepend_recent_transaction(transactions[0])
         self.refresh_dashboard()
+
+    def _on_notifications_updated(self, payload=None) -> None:
+        notification_count = 0
+        if isinstance(payload, list):
+            notification_count = len([item for item in payload if isinstance(item, dict)])
+        elif isinstance(payload, dict):
+            for key in ("notifications", "items", "results", "data"):
+                rows = payload.get(key)
+                if isinstance(rows, list):
+                    notification_count = len([item for item in rows if isinstance(item, dict)])
+                    break
+        if notification_count <= 0:
+            app = MDApp.get_running_app()
+            app_state = getattr(app, "app_state", None) if app else None
+            notifications = getattr(app_state, "notifications", []) if app_state is not None else []
+            if isinstance(notifications, list):
+                notification_count = len([item for item in notifications if isinstance(item, dict)])
+
+        self.notification_badge_visible = notification_count > 0
+        self.notification_count_text = str(min(9, notification_count)) if notification_count > 0 else "0"
 
     def _prepend_recent_transaction(self, transaction: dict) -> None:
         if not isinstance(transaction, dict):
