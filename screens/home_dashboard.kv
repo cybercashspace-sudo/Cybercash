@@ -645,12 +645,14 @@
                                 height: dp(56 * root.layout_scale)
                                 spacing: dp(10 * root.layout_scale)
 
-                                MDCard:
+                                PressableCard:
                                     size_hint_x: 0.52
                                     radius: [dp(18 * root.layout_scale)]
                                     md_bg_color: [0.95, 0.74, 0.12, 1]
                                     line_color: [0.98, 0.86, 0.36, 0.56]
                                     elevation: 0
+                                    disabled: not root.dashboard_ready
+                                    opacity: 0.55 if not root.dashboard_ready else 1
                                     padding: [dp(12 * root.layout_scale), dp(8 * root.layout_scale), dp(12 * root.layout_scale), dp(8 * root.layout_scale)]
                                     on_release: root.go_to("deposit")
 
@@ -684,12 +686,14 @@
                                             shorten: True
                                             shorten_from: "right"
 
-                                MDCard:
+                                PressableCard:
                                     size_hint_x: 0.48
                                     radius: [dp(18 * root.layout_scale)]
                                     md_bg_color: [0.10, 0.10, 0.11, 0.95]
                                     line_color: [0.42, 0.42, 0.44, 0.55]
                                     elevation: 0
+                                    disabled: not root.dashboard_ready
+                                    opacity: 0.55 if not root.dashboard_ready else 1
                                     padding: [dp(12 * root.layout_scale), dp(8 * root.layout_scale), dp(12 * root.layout_scale), dp(8 * root.layout_scale)]
                                     on_release: root.go_to("withdraw")
 
@@ -1317,11 +1321,13 @@
                                         font_name: FONT_SEMI
                                         font_size: sp(11.5 * root.text_scale)
 
-                            MDCard:
+                            PressableCard:
                                 radius: [dp(18 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.10, 0.11, 0.92]
                                 line_color: BORDER
                                 elevation: 0
+                                disabled: not root.dashboard_ready
+                                opacity: 0.55 if not root.dashboard_ready else 1
                                 padding: [dp(8 * root.layout_scale)] * 4
                                 on_release: root.go_to("investments")
 
@@ -1389,11 +1395,13 @@
                                         font_name: FONT_SEMI
                                         font_size: sp(12 * root.text_scale)
 
-                            MDCard:
+                            PressableCard:
                                 radius: [dp(18 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.10, 0.11, 0.92]
                                 line_color: BORDER
                                 elevation: 0
+                                disabled: not root.dashboard_ready
+                                opacity: 0.55 if not root.dashboard_ready else 1
                                 padding: [dp(8 * root.layout_scale)] * 4
                                 on_release: root.go_to("loans")
 
@@ -1461,11 +1469,13 @@
                                         font_name: FONT_SEMI
                                         font_size: sp(12 * root.text_scale)
 
-                            MDCard:
+                            PressableCard:
                                 radius: [dp(18 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.10, 0.11, 0.92]
                                 line_color: BORDER
                                 elevation: 0
+                                disabled: not root.dashboard_ready
+                                opacity: 0.55 if not root.dashboard_ready else 1
                                 padding: [dp(8 * root.layout_scale)] * 4
                                 on_release: root.open_promo_cta("QR Pay", "QR Pay is coming soon. Use Send Money or Virtual Card for now.")
 
@@ -1497,11 +1507,13 @@
                                         font_name: FONT_SEMI
                                         font_size: sp(12 * root.text_scale)
 
-                            MDCard:
+                            PressableCard:
                                 radius: [dp(18 * root.layout_scale)]
                                 md_bg_color: [0.10, 0.10, 0.11, 0.92]
                                 line_color: BORDER
                                 elevation: 0
+                                disabled: not root.dashboard_ready
+                                opacity: 0.55 if not root.dashboard_ready else 1
                                 padding: [dp(8 * root.layout_scale)] * 4
                                 on_release: root.go_to("transactions")
 
@@ -1534,8 +1546,10 @@
                                         font_size: sp(12 * root.text_scale)
 
                 MDCard:
+                    id: transaction_list
+                    opacity: 0
                     size_hint_y: None
-                    height: dp(332 * root.layout_scale)
+                    height: dp(240 * root.layout_scale)
                     radius: [dp(26 * root.layout_scale)]
                     md_bg_color: [0.08, 0.08, 0.09, 0.94]
                     line_color: [0.42, 0.42, 0.44, 0.58]
@@ -1575,15 +1589,16 @@
                             size_hint_y: None
                             height: dp(18 * root.layout_scale)
 
-                        MDBoxLayout:
-                            id: recent_container
-                            orientation: "vertical"
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
+                        ScrollView:
+                            do_scroll_x: False
+                            bar_width: dp(3 * root.layout_scale)
+                            scroll_type: ["bars", "content"]
 
-                        Widget:
-                            size_hint_y: None
-                            height: dp(4 * root.layout_scale)
+                            MDBoxLayout:
+                                id: recent_container
+                                orientation: "vertical"
+                                adaptive_height: True
+                                spacing: dp(10 * root.layout_scale)
 
                 MDFabButton:
                     icon: "robot-outline"

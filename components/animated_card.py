@@ -31,9 +31,9 @@ class AnimatedCard(GradientMDCard):
         self.animate_in(*_args)
 
     def pulse(self):
-        origin_y = getattr(self, "_cybercash_origin_y", self.y)
-        Animation(y=origin_y + dp(4), duration=0.08, transition="out_quad").start(self)
-        Animation(y=origin_y, duration=0.14, transition="out_quad").start(self)
+        Animation.cancel_all(self, "scale_value")
+        Animation(scale_value=0.96, duration=0.08, transition="out_quad").start(self)
+        Animation(scale_value=1.0, duration=0.14, transition="out_back").start(self)
 
     def press_animation(self):
         self.pulse()

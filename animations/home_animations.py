@@ -25,6 +25,15 @@ class HomeAnimations:
         def _start(_dt):
             widget.opacity = 0
             widget.y = origin_y - 24
+            if hasattr(widget, "scale_value"):
+                widget.scale_value = 0.85
+                Animation(scale_value=1.0, duration=0.55, transition="out_back").start(widget)
+            elif hasattr(widget, "scale"):
+                try:
+                    widget.scale = 0.85
+                    Animation(scale=1.0, duration=0.55, transition="out_back").start(widget)
+                except Exception:
+                    pass
             Animation(y=origin_y, opacity=1, duration=0.55, transition="out_back").start(widget)
 
         Clock.schedule_once(_start, delay)

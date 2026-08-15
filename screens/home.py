@@ -24,7 +24,11 @@ from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
 from api.client import API_URL, FAST_TIMEOUT, api_client
+from animations.dashboard import DashboardAnimationSequence
 from animations.effects import AnimationManager
+from components.balance_counter import BalanceCounter
+from components.pressable_card import PressableCard
+from components.wallet_card import WalletCard
 from components.transaction_card import TransactionCard
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
@@ -1862,6 +1866,7 @@ KV = """
 
                 MDBoxLayout:
                     id: recent_container
+                    opacity: 0
                     orientation: "vertical"
                     adaptive_height: True
                     spacing: dp(10 * root.layout_scale)
@@ -1879,6 +1884,8 @@ KV = """
             on_release: root.open_dashboard_help()
 
         BottomNavBar:
+            id: bottom_navigation
+            opacity: 0
             nav_variant: "dashboard"
             active_target: "home"
             layout_scale: root.layout_scale
@@ -1922,6 +1929,7 @@ class HomeScreen(ResponsiveScreen):
     market_status_color = ListProperty([0.54, 0.82, 0.67, 1])
     market_updated_text = StringProperty("Updating...")
     is_agent_active = BooleanProperty(False)
+    dashboard_ready = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
     agent_action_hint = StringProperty(f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}")
     _is_loading = False
@@ -1933,6 +1941,7 @@ class HomeScreen(ResponsiveScreen):
         self._portfolio_carousel_ready = False
         self._portfolio_cards: dict[str, dict[str, object]] = {}
         self._recent_rows_pending: list[dict] | None = None
+        self._recent_render_sequence = 0
         self._home_kv_ready = False
         self._promo_scroll_event = None
         self._market_refresh_event = None
@@ -1963,6 +1972,9 @@ class HomeScreen(ResponsiveScreen):
 
     def on_leave(self, *_args):
         self._agent_verify_sequence += 1
+        wallet_card = self._wallet_portfolio_card()
+        if wallet_card is not None and hasattr(wallet_card, "stop_shimmer"):
+            wallet_card.stop_shimmer()
         self._cancel_dashboard_timers()
         self.close_more_actions()
 
@@ -2056,9 +2068,29 @@ class HomeScreen(ResponsiveScreen):
         self._sync_theme_toggle_icon()
         self._build_portfolio_carousel(force=True)
         self._refresh_portfolio_values()
-        AnimationManager.fade_in(self.ids.get("wallet_hero_block"), duration=0.35, delay=0.02)
-        AnimationManager.fade_in(self.ids.get("quick_actions_block"), duration=0.35, delay=0.12)
-        AnimationManager.fade_in(self.ids.get("promotions_block"), duration=0.35, delay=0.22)
+        self.animate_home()
+
+    def _wallet_portfolio_card(self):
+        return (self._portfolio_cards.get("wallet") or {}).get("card")
+
+    def animate_home(self) -> None:
+        """Run the dashboard entrance sequence from reusable animation helpers."""
+        wallet_card = self.ids.get("wallet_hero_block")
+        balance_panel = self.ids.get("portfolio_carousel")
+        action_buttons = self.ids.get("quick_actions_block")
+        promotions = self.ids.get("promotions_block")
+        transactions = self.ids.get("transaction_list") or self.ids.get("transactions_block") or self.ids.get("recent_container")
+        bottom_navigation = self.ids.get("bottom_navigation")
+
+        DashboardAnimationSequence.play(
+            wallet_card=wallet_card,
+            balance_panel=balance_panel,
+            action_buttons=action_buttons,
+            promotions=promotions,
+            transactions=transactions,
+            bottom_navigation=bottom_navigation,
+            shimmer_card=self._wallet_portfolio_card(),
+        )
 
     def _ensure_dashboard_timers(self) -> None:
         if self._promo_scroll_event is None:
@@ -2310,7 +2342,9 @@ class HomeScreen(ResponsiveScreen):
             size_hint_y=1,
         )
 
-        card = MDCard(
+        is_wallet_card = str(spec.get("key", "")) == "wallet"
+        card_cls = WalletCard if is_wallet_card else MDCard
+        card = card_cls(
             radius=[dp(26 * layout_scale)],
             md_bg_color=list(self._theme_value("ui_glass", [1, 1, 1, 0.05])),
             line_color=list(self._theme_value("ui_glass_border", [1, 1, 1, 0.10])),
@@ -2374,7 +2408,8 @@ class HomeScreen(ResponsiveScreen):
         top_row.add_widget(icon_shell)
         top_row.add_widget(title_stack)
 
-        value_label = MDLabel(
+        value_label_class = BalanceCounter if is_wallet_card else MDLabel
+        value_label = value_label_class(
             text=spec["value"],
             theme_text_color="Custom",
             text_color=spec["value_color"],
@@ -2385,6 +2420,10 @@ class HomeScreen(ResponsiveScreen):
             shorten=True,
             shorten_from="right",
         )
+        if is_wallet_card and isinstance(value_label, BalanceCounter):
+            value_label.currency_symbol = "GH¢"
+            value_label.highlight_color = list(spec["value_color"])
+            value_label.normal_color = list(spec["value_color"])
         hint_label = MDLabel(
             text=spec["hint"],
             theme_text_color="Custom",
@@ -2439,7 +2478,16 @@ class HomeScreen(ResponsiveScreen):
         if wallet:
             wallet_label = wallet.get("value_label")
             if wallet_label is not None:
-                wallet_label.text = self.balance_display
+                if (
+                    isinstance(wallet_label, BalanceCounter)
+                    and self.wallet_balance_loaded
+                    and not self.balance_hidden
+                ):
+                    wallet_label.animate_balance(float(self.wallet_balance_amount or 0.0))
+                elif isinstance(wallet_label, BalanceCounter):
+                    wallet_label.set_static_text(self.balance_display)
+                else:
+                    wallet_label.text = self.balance_display
             hint_label = wallet.get("hint_label")
             if hint_label is not None:
                 hint_label.text = f"Bonus: {self.bonus_balance_display}"
@@ -2714,19 +2762,32 @@ class HomeScreen(ResponsiveScreen):
             return
         self._recent_activity_retry_scheduled = False
         container.clear_widgets()
+        self._recent_render_sequence += 1
+        render_sequence = self._recent_render_sequence
+
+        def _queue_widget(widget, delay: float) -> None:
+            def _start(_dt):
+                if render_sequence != self._recent_render_sequence:
+                    return
+                widget.opacity = 0
+                container.add_widget(widget)
+                AnimationManager.fade_in(widget, duration=0.28)
+
+            Clock.schedule_once(_start, delay)
 
         if not rows:
-            container.add_widget(self._build_empty_recent_item())
+            _queue_widget(self._build_empty_recent_item(), 0)
             return
 
-        for tx in rows[:3]:
-            container.add_widget(self._build_recent_item(tx))
+        for index, tx in enumerate(rows[:3]):
+            _queue_widget(self._build_recent_item(tx), index * 0.08)
 
     def _apply_signed_out_state(self, greeting_name: str = "") -> None:
         self._set_greeting(greeting_name)
         self._set_balance_unavailable("Sign in", "Sign in to view live wallet")
         self._set_agent_action_state(False)
         self._set_account_status("SIGN IN", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
+        self.dashboard_ready = False
         self.notification_count_text = "0"
         self.notification_badge_visible = False
         self._render_recent_activity([])
@@ -2871,6 +2932,8 @@ class HomeScreen(ResponsiveScreen):
         is_admin: bool | None = None,
     ) -> None:
         self._is_loading = False
+        previous_balance = float(self.wallet_balance_amount or 0.0)
+        had_loaded_balance = bool(self.wallet_balance_loaded)
         if reset_token:
             app = MDApp.get_running_app()
             app.access_token = ""
@@ -2921,6 +2984,14 @@ class HomeScreen(ResponsiveScreen):
         self.notification_badge_visible = recent_count > 0
         self.notification_count_text = str(min(9, recent_count)) if recent_count > 0 else "0"
         self._refresh_portfolio_values()
+        if balance is not None:
+            new_balance = float(balance or 0.0)
+            balance_changed = abs(previous_balance - new_balance) > 0.005 or not had_loaded_balance
+            if balance_changed:
+                wallet_card = self._wallet_portfolio_card()
+                if wallet_card is not None and hasattr(wallet_card, "pulse"):
+                    wallet_card.pulse()
+        self.dashboard_ready = True
 
     def load_home_data(self) -> None:
         if self._is_loading:
@@ -2940,6 +3011,7 @@ class HomeScreen(ResponsiveScreen):
             return
 
         self._is_loading = True
+        self.dashboard_ready = False
         self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
         if not self.wallet_balance_loaded:
             self.balance_placeholder = "Syncing..."

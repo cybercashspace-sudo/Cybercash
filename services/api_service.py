@@ -1,4 +1,4 @@
-from api.client import API_URL, api_client
+from services.api import API_URL, api_client
 
 BASE_URL = API_URL
 

@@ -5,7 +5,7 @@ from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.properties import NumericProperty, ListProperty
 
-from animations.home_animations import ShimmerEffect
+from animations.home_animations import HomeAnimations, ShimmerEffect
 from components.animated_card import AnimatedCard
 
 
@@ -24,7 +24,10 @@ class WalletCard(AnimatedCard):
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
-        Clock.schedule_once(lambda _dt: self._start_shimmer(), 0.15)
+        Clock.schedule_once(lambda _dt: self.start_shimmer(), 0.15)
+
+    def animate_in(self, *_args):
+        HomeAnimations.pop_card(self, delay=0)
 
     def _draw_accent(self, *_args):
         try:
@@ -47,7 +50,7 @@ class WalletCard(AnimatedCard):
         self._accent_strip.pos = (self.x, self.top - float(self.accent_height or dp(4)))
         self._accent_strip.size = (self.width, float(self.accent_height or dp(4)))
 
-    def _start_shimmer(self):
+    def start_shimmer(self):
         if self._shimmer is None:
             self._shimmer = ShimmerEffect(self, speed=6.0, width=96.0, opacity=0.12)
         self._shimmer.start()
@@ -60,7 +63,7 @@ class WalletCard(AnimatedCard):
         super().pulse()
         if self._shimmer is not None:
             self._shimmer.stop()
-            Clock.schedule_once(lambda _dt: self._start_shimmer(), 0.22)
+            Clock.schedule_once(lambda _dt: self.start_shimmer(), 0.22)
 
 
 try:

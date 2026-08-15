@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from kivy.graphics import Color, Line
+from kivy.graphics import Color, Line, PopMatrix, PushMatrix, Scale
 from kivy.graphics.texture import Texture
 from kivy.graphics.vertex_instructions import RoundedRectangle
 from kivy.metrics import dp
@@ -68,6 +68,7 @@ class GradientMDCard(MDCard):
     gradient_steps = NumericProperty(64)
     border_color = ListProperty([1, 1, 1, 0.08])
     border_width = NumericProperty(1.0)
+    scale_value = NumericProperty(1.0)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -78,13 +79,21 @@ class GradientMDCard(MDCard):
         except Exception:
             pass
 
+        self._scale_push = PushMatrix()
+        self._scale_transform = Scale(x=1, y=1, z=1, origin=self.center)
+        self._scale_pop = PopMatrix()
+
+        self.canvas.before.add(self._scale_push)
+        self.canvas.before.add(self._scale_transform)
         with self.canvas.before:
             self._fill_color = Color(1, 1, 1, 1)
             self._fill_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=self._resolved_radius())
             self._stroke_color = Color(*self.border_color)
             self._stroke_line = Line(width=float(self.border_width or 1.0))
+        self.canvas.after.add(self._scale_pop)
 
         self.bind(pos=self._redraw, size=self._redraw, radius=self._redraw)
+        self.bind(pos=self._sync_scale, size=self._sync_scale, scale_value=self._sync_scale)
         self.bind(
             gradient_start=self._sync_texture,
             gradient_end=self._sync_texture,
@@ -96,6 +105,7 @@ class GradientMDCard(MDCard):
 
         self._sync_texture()
         self._sync_border()
+        self._sync_scale()
         self._redraw()
 
     def _resolved_radius(self):
@@ -143,6 +153,16 @@ class GradientMDCard(MDCard):
 
         radius = self._resolved_line_radius()
         self._stroke_line.rounded_rectangle = (self.x, self.y, self.width, self.height, radius)
+
+    def _sync_scale(self, *_args) -> None:
+        try:
+            self._scale_transform.origin = self.center
+            scale_value = float(self.scale_value or 1.0)
+            self._scale_transform.x = scale_value
+            self._scale_transform.y = scale_value
+            self._scale_transform.z = 1.0
+        except Exception:
+            pass
 
 
 try:
