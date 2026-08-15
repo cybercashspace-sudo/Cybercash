@@ -113,6 +113,26 @@ def install_kivymd_text_field_compat() -> None:
     MDTextField._cybercash_text_field_compat = True
 
 
+def install_kivymd_divider_compat() -> None:
+    """Expose a stable separator class name across KivyMD versions."""
+
+    try:
+        from kivymd.uix.divider import MDDivider
+    except Exception:
+        try:
+            from kivymd.uix.card import MDSeparator as MDDivider
+        except Exception:
+            return
+
+    try:
+        if "MDSeparator" not in Factory.classes:
+            Factory.register("MDSeparator", cls=MDDivider)
+        if "MDDivider" not in Factory.classes:
+            Factory.register("MDDivider", cls=MDDivider)
+    except Exception:
+        pass
+
+
 def resolve_kivymd_top_app_bar():
     """Return the top app bar widget class for the installed KivyMD build."""
 
@@ -268,3 +288,4 @@ else:
 
 register_legacy_button_aliases()
 install_kivymd_text_field_compat()
+install_kivymd_divider_compat()

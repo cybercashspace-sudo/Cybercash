@@ -1,0 +1,284 @@
+#:import dp kivy.metrics.dp
+#:import theme theme
+#:import FitImage kivymd.uix.fitimage.FitImage
+#:import GlassCard widgets.GlassCard
+#:import GoldButton widgets.GoldButton
+#:import SocialButton widgets.SocialButton
+#:import MDGridLayout kivymd.uix.gridlayout.MDGridLayout
+#:import MDChip kivymd.uix.chip.MDChip
+#:import MDChipText kivymd.uix.chip.MDChipText
+#:import MDChipLeadingIcon kivymd.uix.chip.MDChipLeadingIcon
+#:import MDSegmentedButton kivymd.uix.segmentedbutton.MDSegmentedButton
+#:import MDSegmentedButtonItem kivymd.uix.segmentedbutton.MDSegmentedButtonItem
+
+<LoginScreen>:
+    MDFloatLayout:
+        canvas.before:
+            Color:
+                rgba: theme.BACKGROUND
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        FitImage:
+            source: "assets/cybercash_logo.png"
+            size_hint: 1, None
+            height: dp(260)
+            pos_hint: {"top": 1}
+            opacity: .10
+
+        ScrollView:
+            do_scroll_x: False
+            bar_width: 0
+
+            MDBoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: dp(18)
+                padding: dp(20)
+
+                Widget:
+                    size_hint_y: None
+                    height: dp(18)
+
+                MDBoxLayout:
+                    id: brand_block
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+
+                    MDIcon:
+                        icon: "shield-crown"
+                        theme_icon_color: "Custom"
+                        icon_color: theme.PRIMARY
+                        halign: "center"
+                        font_size: "56sp"
+
+                    MDLabel:
+                        text: "CYBER CASH"
+                        halign: "center"
+                        bold: True
+                        font_style: "Headline"
+                        theme_text_color: "Custom"
+                        text_color: theme.TEXT_PRIMARY
+
+                    MDLabel:
+                        text: "Secure | Fast | Trusted"
+                        halign: "center"
+                        theme_text_color: "Hint"
+
+                GlassCard:
+                    id: login_card
+                    orientation: "vertical"
+                    adaptive_height: True
+                    padding: dp(22)
+                    spacing: dp(16)
+
+                    MDBoxLayout:
+                        id: action_stack
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(12)
+
+                        MDSegmentedButton:
+                            size_hint_x: 1
+                            size_hint_y: None
+                            height: dp(46)
+
+                            MDSegmentedButtonItem:
+                                text: "Login"
+                                active: True
+
+                            MDSegmentedButtonItem:
+                                text: "Sign Up"
+                                on_release: root.signup()
+
+                    MDBoxLayout:
+                        id: field_stack
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(12)
+
+                        MDTextField:
+                            id: username
+                            hint_text: "Username"
+                            mode: "outlined"
+                            helper_text: "Enter your username"
+                            helper_text_mode: "on_focus"
+                            icon_left: "account"
+                            size_hint_y: None
+                            height: dp(60)
+
+                        MDRelativeLayout:
+                            size_hint_y: None
+                            height: dp(64)
+
+                            MDTextField:
+                                id: password
+                                hint_text: "Password"
+                                password: True
+                                mode: "outlined"
+                                icon_left: "lock"
+                                size_hint: 1, None
+                                height: dp(60)
+                                pos_hint: {"center_y": .5}
+
+                            MDIconButton:
+                                id: password_toggle
+                                icon: "eye"
+                                pos_hint: {"right": 1, "center_y": .5}
+                                on_release: root.toggle_password()
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(10)
+
+                        MDCheckbox:
+                            id: remember_me_checkbox
+                            active: root.remember_me
+                            on_active: root.toggle_remember(*args)
+
+                        MDLabel:
+                            text: "Remember Me"
+                            valign: "middle"
+                            adaptive_height: True
+
+                        Widget:
+
+                        MDTextButton:
+                            text: "Forgot Password?"
+                            on_release: root.forgot_password()
+
+                    GoldButton:
+                        id: login_button
+                        text: "LOGIN"
+                        on_release: root.login()
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(12)
+
+                        MDSeparator:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: dp(1)
+
+                        MDLabel:
+                            text: "OR"
+                            adaptive_size: True
+                            theme_text_color: "Hint"
+                            halign: "center"
+
+                        MDSeparator:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: dp(1)
+
+                    MDGridLayout:
+                        cols: 2
+                        adaptive_height: True
+                        spacing: dp(12)
+
+                        SocialButton:
+                            text: "Google"
+                            icon: "google"
+                            on_release: root.google_login()
+
+                        SocialButton:
+                            text: "Facebook"
+                            icon: "facebook"
+                            on_release: root.facebook_login()
+
+                        SocialButton:
+                            text: "Apple"
+                            icon: "apple"
+                            on_release: root.apple_login()
+
+                        SocialButton:
+                            text: "Phone"
+                            icon: "phone"
+                            on_release: root.phone_login()
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(8)
+
+                        MDLabel:
+                            text: "Protected by"
+                            halign: "center"
+                            theme_text_color: "Hint"
+
+                        MDGridLayout:
+                            cols: 2
+                            adaptive_height: True
+                            spacing: dp(10)
+
+                            MDChip:
+                                type: "assist"
+                                size_hint_y: None
+                                height: dp(40)
+                                theme_bg_color: "Custom"
+                                md_bg_color: theme.GLASS_BG
+                                theme_line_color: "Custom"
+                                line_color: theme.GLASS_BORDER
+
+                                MDChipLeadingIcon:
+                                    icon: "shield-lock"
+                                    theme_text_color: "Custom"
+                                    text_color: theme.PRIMARY
+
+                                MDChipText:
+                                    text: "256-bit Encryption"
+
+                            MDChip:
+                                type: "assist"
+                                size_hint_y: None
+                                height: dp(40)
+                                theme_bg_color: "Custom"
+                                md_bg_color: theme.GLASS_BG
+                                theme_line_color: "Custom"
+                                line_color: theme.GLASS_BORDER
+
+                                MDChipLeadingIcon:
+                                    icon: "lock-check"
+                                    theme_text_color: "Custom"
+                                    text_color: theme.PRIMARY
+
+                                MDChipText:
+                                    text: "Secure Login"
+
+                            MDChip:
+                                type: "assist"
+                                size_hint_y: None
+                                height: dp(40)
+                                theme_bg_color: "Custom"
+                                md_bg_color: theme.GLASS_BG
+                                theme_line_color: "Custom"
+                                line_color: theme.GLASS_BORDER
+
+                                MDChipLeadingIcon:
+                                    icon: "fingerprint"
+                                    theme_text_color: "Custom"
+                                    text_color: theme.PRIMARY
+
+                                MDChipText:
+                                    text: "Biometric Ready"
+
+                            MDChip:
+                                type: "assist"
+                                size_hint_y: None
+                                height: dp(40)
+                                theme_bg_color: "Custom"
+                                md_bg_color: theme.GLASS_BG
+                                theme_line_color: "Custom"
+                                line_color: theme.GLASS_BORDER
+
+                                MDChipLeadingIcon:
+                                    icon: "credit-card-check"
+                                    theme_text_color: "Custom"
+                                    text_color: theme.PRIMARY
+
+                                MDChipText:
+                                    text: "PCI DSS"

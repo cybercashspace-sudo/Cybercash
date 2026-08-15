@@ -19,13 +19,15 @@ from features.auth.validators import validate_identifier, validate_password
 class LoginScreen(MDScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
-    remember_me = BooleanProperty(False)
+    remember_me = BooleanProperty(True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AuthController()
 
-    def on_kv_post(self, *_args):
+    def on_pre_enter(self, *_args):
+        self.remember_me = True
+        self._set_text("", "username", "identifier", "password")
         self._restore_remembered_identity()
 
     def on_enter(self):
@@ -73,11 +75,19 @@ class LoginScreen(MDScreen):
         password = self.ids.get("password")
         if password is not None:
             password.password = not self.password_visible
-        eye = self.ids.get("password_toggle")
+        eye = self.ids.get("password_toggle") or self.ids.get("eye_icon")
         if eye is not None:
             eye.icon = "eye-off" if self.password_visible else "eye"
 
-    def toggle_remember(self, active):
+    def toggle_remember(self, *args):
+        active = False
+        for value in reversed(args):
+            if isinstance(value, bool):
+                active = value
+                break
+            if hasattr(value, "active"):
+                active = bool(getattr(value, "active"))
+                break
         self.remember_me = bool(active)
         if not self.remember_me:
             try:
@@ -121,7 +131,10 @@ class LoginScreen(MDScreen):
         self.loading = bool(value)
         button = self.ids.get("login_button")
         if button is not None:
-            button.loading = bool(value)
+            if hasattr(button, "loading"):
+                button.loading = bool(value)
+            else:
+                button.disabled = bool(value)
 
     def _login_worker(self, identifier: str, password: str) -> None:
         try:

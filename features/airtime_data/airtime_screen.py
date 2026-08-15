@@ -3,6 +3,7 @@ from threading import Thread
 
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.snackbar import MDSnackbar
@@ -16,6 +17,8 @@ Builder.load_file(str(Path(__file__).with_name("airtime_screen.kv")))
 
 
 class AirtimeScreen(MDScreen):
+    loading = BooleanProperty(False)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AirtimeController()
@@ -44,21 +47,43 @@ class AirtimeScreen(MDScreen):
         self._last_network = detected
 
     def submit_purchase(self):
+        if self.loading:
+            return
+
         phone = self.ids.phone.text.strip()
         amount = self.ids.amount.text.strip()
         network = self.ids.network.text.strip()
+        self._set_loading(True)
         Thread(target=self._submit_worker, args=(phone, amount, network), daemon=True).start()
+
+    def _set_loading(self, value: bool) -> None:
+        self.loading = bool(value)
+        button = self.ids.get("purchase_button")
+        if button is not None:
+            button.loading = bool(value)
 
     def _submit_worker(self, phone, amount, network):
         try:
             result = self.controller.purchase(phone, amount, network)
         except Exception as exc:
-            Clock.schedule_once(lambda dt, msg=str(exc): self.show_message(msg or "Airtime purchase failed."))
+            Clock.schedule_once(
+                lambda dt, msg=str(exc): self._finish_purchase_request(msg or "Airtime purchase failed.")
+            )
             return
 
-        Clock.schedule_once(lambda dt, res=result: self.show_message(self._success_text(res)))
-        Clock.schedule_once(lambda dt, res=result: self._publish_event("TransactionCreated", res))
-        Clock.schedule_once(lambda dt, res=result: self._publish_event("WalletUpdated", res))
+        Clock.schedule_once(lambda dt, res=result: self._apply_purchase_result(res))
+
+    def _finish_purchase_request(self, message: str) -> None:
+        self._set_loading(False)
+        self.show_message(message)
+
+    def _apply_purchase_result(self, result: dict) -> None:
+        try:
+            self.show_message(self._success_text(result))
+            self._publish_event("TransactionCreated", result)
+            self._publish_event("WalletUpdated", result)
+        finally:
+            self._set_loading(False)
 
     @staticmethod
     def _success_text(result):

@@ -491,7 +491,7 @@ class CyberCashApp(MDApp):
         self.theme_manager = ThemeManager(self)
         self.theme_manager.apply(self.theme_mode, animate=False)
 
-        login_kv = Path(__file__).resolve().parent / "features" / "auth" / "login_screen.kv"
+        login_kv = Path(__file__).resolve().parent / "screens" / "login.kv"
         if login_kv.exists():
             Builder.load_file(str(login_kv))
 

@@ -1,4 +1,7 @@
 #:import DataPackageCard features.airtime_data.data_screen.DataPackageCard
+#:import GlassCard widgets.GlassCard
+#:import GoldButton widgets.GoldButton
+#:import AuthButton features.auth.widgets.auth_button.AuthButton
 
 <DataScreen>:
     MDBoxLayout:
@@ -26,12 +29,9 @@
                 spacing: "16dp"
                 padding: "16dp"
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "104dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 8
-                    md_bg_color: 0.08, 0.08, 0.08, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -51,12 +51,9 @@
                             theme_text_color: "Custom"
                             text_color: 1, 0.76, 0.12, 1
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "190dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 6
-                    md_bg_color: 0.09, 0.09, 0.09, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -76,17 +73,14 @@
 
                         Widget:
 
-                        MDRaisedButton:
+                        GoldButton:
+                            id: load_button
                             text: "Load Packages"
-                            md_bg_color: 0.16, 0.16, 0.16, 1
                             on_release: root.load_packages(root.ids.network.text)
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "290dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 6
-                    md_bg_color: 0.09, 0.09, 0.09, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -112,12 +106,9 @@
                                 height: self.minimum_height
                                 spacing: "10dp"
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "108dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 6
-                    md_bg_color: 0.08, 0.08, 0.08, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -133,8 +124,8 @@
                             text: "No package selected"
                             bold: True
 
-                MDRaisedButton:
+                AuthButton:
+                    id: purchase_button
                     text: "PURCHASE"
-                    md_bg_color: 1, 0.76, 0.12, 1
-                    text_color: 0, 0, 0, 1
+                    busy_text: "PROCESSING..."
                     on_release: root.submit_purchase()

@@ -8,19 +8,19 @@ from kivy.properties import ObjectProperty
 from kivy.properties import StringProperty
 from kivy.uix.behaviors import ButtonBehavior
 from kivymd.app import MDApp
-from kivymd.uix.card import MDCard
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.snackbar import MDSnackbar
 from kivymd.uix.snackbar import MDSnackbarText
 
 from features.airtime_data.data_controller import DataController
 from features.airtime_data.network_detector import NetworkDetector
+from widgets import GlassCard
 
 
 Builder.load_file(str(Path(__file__).with_name("data_screen.kv")))
 
 
-class DataPackageCard(ButtonBehavior, MDCard):
+class DataPackageCard(ButtonBehavior, GlassCard):
     package_id = StringProperty("")
     title = StringProperty("")
     summary = StringProperty("")
@@ -42,6 +42,8 @@ class DataPackageCard(ButtonBehavior, MDCard):
 
 
 class DataScreen(MDScreen):
+    loading = BooleanProperty(False)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = DataController()
@@ -133,21 +135,47 @@ class DataScreen(MDScreen):
         self._set_packages(list(self._packages.values()))
 
     def submit_purchase(self):
+        if self.loading:
+            return
+
         phone = self.ids.phone.text.strip()
         network = self.ids.network.text.strip()
         package = self._packages.get(self.selected_package)
+        if package is None:
+            self.show_message("Select a package first.")
+            return
+
+        self._set_loading(True)
         Thread(target=self._submit_worker, args=(phone, package, network), daemon=True).start()
+
+    def _set_loading(self, value: bool) -> None:
+        self.loading = bool(value)
+        button = self.ids.get("purchase_button")
+        if button is not None:
+            button.loading = bool(value)
 
     def _submit_worker(self, phone, package, network):
         try:
             result = self.controller.purchase(phone, package, network)
         except Exception as exc:
-            Clock.schedule_once(lambda dt, msg=str(exc): self.show_message(msg or "Data purchase failed."))
+            Clock.schedule_once(
+                lambda dt, msg=str(exc): self._finish_purchase_request(msg or "Data purchase failed.")
+            )
             return
 
-        Clock.schedule_once(lambda dt, res=result: self.show_message(self._success_text(res)))
-        Clock.schedule_once(lambda dt, res=result: self._publish_event("TransactionCreated", res))
-        Clock.schedule_once(lambda dt, res=result: self._publish_event("WalletUpdated", res))
+        Clock.schedule_once(lambda dt, res=result: self._apply_purchase_result(res))
+
+    def _finish_purchase_request(self, message: str) -> None:
+        self._set_loading(False)
+        self.show_message(message)
+
+    def _apply_purchase_result(self, result: dict) -> None:
+        try:
+            self.show_message(self._success_text(result))
+            self._publish_event("TransactionCreated", result)
+            self._publish_event("WalletUpdated", result)
+        finally:
+            self._set_loading(False)
 
     @staticmethod
     def _success_text(result):

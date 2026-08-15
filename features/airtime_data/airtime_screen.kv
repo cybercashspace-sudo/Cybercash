@@ -29,12 +29,9 @@
                 spacing: "16dp"
                 padding: "16dp"
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "110dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 8
-                    md_bg_color: 0.08, 0.08, 0.08, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -54,12 +51,9 @@
                             theme_text_color: "Custom"
                             text_color: 1, 0.76, 0.12, 1
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "320dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 6
-                    md_bg_color: 0.09, 0.09, 0.09, 1
                     padding: "16dp"
 
                     MDBoxLayout:
@@ -85,8 +79,8 @@
 
                         Widget:
 
-                        MDRaisedButton:
+                        AuthButton:
+                            id: purchase_button
                             text: "BUY NOW"
-                            md_bg_color: 1, 0.76, 0.12, 1
-                            text_color: 0, 0, 0, 1
+                            busy_text: "PROCESSING..."
                             on_release: root.submit_purchase()
