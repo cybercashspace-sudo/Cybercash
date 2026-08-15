@@ -61,6 +61,10 @@ class SessionManager:
         self.remember_me = {"momo": momo, "first_name": first_name, "pin": pin}
         _storage.save_remember_me(momo, first_name=first_name, pin=pin)
 
+    def clear_remember_me(self) -> None:
+        self.remember_me = None
+        _storage.clear_remember_me()
+
     def set_privacy_mode(self, enabled: bool) -> None:
         self.privacy_mode = bool(enabled)
         _storage.save_privacy_mode(self.privacy_mode)

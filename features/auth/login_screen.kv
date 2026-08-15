@@ -151,6 +151,21 @@
                             text: "Create account"
                             on_release: root.signup()
 
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(34)
+                        spacing: dp(10)
+
+                        MDCheckbox:
+                            id: remember_me_checkbox
+                            active: root.remember_me
+                            on_active: root.toggle_remember(self.active)
+
+                        MDLabel:
+                            text: "Remember Me"
+                            theme_text_color: "Hint"
+                            valign: "center"
+
                     AuthButton:
                         id: login_button
                         text: "LOGIN"

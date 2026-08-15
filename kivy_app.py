@@ -81,7 +81,7 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 SCREEN_SPECS = {
-    "login": ("features.auth.login_screen", "LoginScreen"),
+    "login": ("screens.login", "LoginScreen"),
     "register": ("screens.register", "RegisterScreen"),
     "otp": ("screens.otp", "OTPScreen"),
     "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
