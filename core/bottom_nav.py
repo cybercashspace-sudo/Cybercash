@@ -89,6 +89,9 @@ class BottomNavBar(MDCard):
     def _navigate(self, target: str) -> None:
         tap_feedback()
         app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen(target, fallback=getattr(getattr(app, "root", None), "current", "home") or "home")
+            return
         manager = getattr(app, "root", None)
         if manager and hasattr(manager, "has_screen") and manager.has_screen(target):
             manager.current = target

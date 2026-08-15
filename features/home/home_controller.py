@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from threading import RLock
 
+from kivymd.app import MDApp
+
 from core.dashboard_state import DashboardState
+from core.app_state import AppState
+from core.logger import get_logger
 from features.home.adapters import TransactionAdapter
 from features.home.home_service import HomeService
+
+
+logger = get_logger(__name__)
 
 
 class HomeController:
@@ -94,7 +101,29 @@ class HomeController:
             self.state.apply(payload, source=source, online=online, loading=loading)
             snapshot = self.normalize_dashboard(self.state.snapshot())
             snapshot["error_text"] = str(error_text or snapshot.get("error_text") or "")
+            self._sync_app_state(snapshot)
+            if source == "live" and not loading:
+                logger.info("Dashboard Loaded")
             return snapshot
+
+    def _sync_app_state(self, snapshot: dict) -> None:
+        app = MDApp.get_running_app()
+        app_state = getattr(app, "app_state", None) if app else None
+        if not isinstance(app_state, AppState):
+            return
+        try:
+            app_state.set_dashboard(
+                snapshot,
+                user=snapshot.get("profile") or snapshot.get("user"),
+                wallet=snapshot.get("wallet"),
+                transactions=snapshot.get("transactions"),
+                notifications=snapshot.get("notifications"),
+                online=snapshot.get("online"),
+                loading=snapshot.get("loading"),
+                source=snapshot.get("source"),
+            )
+        except Exception:
+            logger.exception("Failed to sync dashboard state")
 
     def load_cached_dashboard_state(self) -> dict:
         payload = self.load_cached_dashboard()
@@ -106,6 +135,7 @@ class HomeController:
             return self._apply_state(payload, source="live", online=True, loading=False)
         except Exception as exc:
             error_text = str(exc or "").strip()
+            logger.warning("Network Timeout")
             cached = self.load_cached_dashboard()
             snapshot = self._apply_state(
                 cached,
@@ -114,6 +144,8 @@ class HomeController:
                 loading=False,
                 error_text=error_text or "Check connection and try again.",
             )
+            if not snapshot.get("wallet"):
+                logger.error("Wallet Refresh Failed")
             if not snapshot.get("error_text"):
                 snapshot["error_text"] = "Check connection and try again."
             return snapshot
@@ -131,6 +163,7 @@ class HomeController:
                     current = dict(self.state.wallet or {})
                     current.update(wallet)
                     self.state.wallet = current
+                    logger.info("Wallet Updated")
             elif event == "TransactionCreated":
                 transaction = self._extract_transaction(payload)
                 if transaction:
@@ -142,6 +175,7 @@ class HomeController:
                     ]
                     current.insert(0, transaction)
                     self.state.transactions = current[:20]
+                    logger.info("Transaction Added")
             elif event == "NotificationCreated":
                 notification = self._extract_notification(payload)
                 if notification:
@@ -168,8 +202,11 @@ class HomeController:
                     ]
                     current.insert(0, notification)
                     self.state.notifications = current[:20]
+                    logger.info("Notification Added")
             self.state.loading = False
-            return self.normalize_dashboard(self.state.snapshot())
+            snapshot = self.normalize_dashboard(self.state.snapshot())
+            self._sync_app_state(snapshot)
+            return snapshot
 
     def normalize_dashboard(self, payload: dict | None) -> dict:
         data = dict(payload or {})

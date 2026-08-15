@@ -22,6 +22,7 @@ from kivymd.app import MDApp
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
+from core.logger import get_logger
 from core.session import session
 from core.event_bus import EventBus
 from core.navigation import navigate
@@ -36,6 +37,8 @@ from core.theme_manager import ThemeManager
 from core.app_state import AppState
 
 install_kivymd_font_style_compat()
+
+logger = get_logger("cybercash.app")
 
 
 def _install_snackbar_compat() -> None:
@@ -125,11 +128,22 @@ class AppScreenManager(ScreenManager):
         return bool(ensure_screen and ensure_screen(str(name or "")))
 
     def on_current(self, _instance, value):
+        previous = self._last_screen
         super().on_current(_instance, value)
         current = str(value or "")
-        if self._last_screen and self._last_screen != current:
-            self.previous_screen = self._last_screen
+        if previous and previous != current:
+            self.previous_screen = previous
+            logger.info("Navigation: %s -> %s", previous, current)
+        elif current:
+            logger.info("Navigation: %s", current)
+        app = MDApp.get_running_app()
+        app_state = getattr(app, "app_state", None) if app else None
+        if isinstance(app_state, AppState):
+            app_state.set_screen(current, previous)
         self._last_screen = current
+
+
+RootScreenManager = AppScreenManager
 
 
 class CyberCashApp(MDApp):
@@ -260,7 +274,7 @@ class CyberCashApp(MDApp):
             sm.add_widget(screen_cls(name=screen_name))
             return True
         except Exception:
-            logging.exception("Failed to load screen %s", screen_name)
+            logger.exception("Failed to load screen %s", screen_name)
             return False
         finally:
             # Clear image cache to free memory on low-end devices
@@ -276,7 +290,7 @@ class CyberCashApp(MDApp):
 
         # Centralized Role-Based Access Control (RBAC)
         if target.startswith("admin_") and not self.is_admin:
-            logging.warning("RBAC Security: Access to restricted screen '%s' denied for non-admin user.", target)
+            logger.warning("RBAC Security: Access to restricted screen '%s' denied for non-admin user.", target)
             target = "home" if self.access_token else "login"
 
         sm = getattr(self, "root", None)
@@ -286,6 +300,7 @@ class CyberCashApp(MDApp):
         if sm and fallback and self.ensure_screen(fallback):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
             return navigate(sm, fallback, previous=previous, fallback="")
+        logger.warning("Navigation failed: target=%s fallback=%s", target, fallback)
         return False
 
     def _is_mobile_runtime(self) -> bool:
@@ -433,7 +448,7 @@ class CyberCashApp(MDApp):
 
         target = "home" if self.access_token else "login"
         if not self.go_to_screen(target, fallback="login"):
-            logging.warning("Startup route to %s is not ready yet; retrying.", target)
+            logger.warning("Startup route to %s is not ready yet; retrying.", target)
             return False
 
         self._startup_complete = True
@@ -474,6 +489,7 @@ class CyberCashApp(MDApp):
         self._startup_complete = False
         self._startup_attempts = 0
         self._startup_request_event = None
+        self.app_state.set_screen("splash", "")
 
         # Load and apply initial Privacy Mode state
         self.privacy_mode = snapshot.privacy_mode

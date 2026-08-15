@@ -142,13 +142,23 @@ class ActionScreen(ResponsiveScreen):
         previous = str(getattr(manager, "previous_screen", "") or "").strip()
         disallow = {"splash"}
         if previous and previous != self.name and previous not in disallow and manager.has_screen(previous):
-            manager.current = previous
+            app = MDApp.get_running_app()
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen(previous, fallback="login")
+            else:
+                manager.current = previous
             return
 
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
         if token and manager.has_screen("home"):
-            manager.current = "home"
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen("home", fallback="login")
+            else:
+                manager.current = "home"
             return
         if manager.has_screen("login"):
-            manager.current = "login"
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen("login", fallback="")
+            else:
+                manager.current = "login"
