@@ -2,5 +2,4 @@ from __future__ import annotations
 
 from features.notifications.notification_controller import NotificationController
 from features.notifications.notification_manager import notification_manager
-from features.notifications.notification_screen import NotificationScreen
 from features.notifications.notification_service import NotificationService

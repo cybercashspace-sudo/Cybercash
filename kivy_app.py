@@ -34,9 +34,33 @@ from core.kivymd_compat import (
 )
 from core.theme_manager import ThemeManager
 from core.app_state import AppState
-from features.notifications.notification_manager import notification_manager
 
 install_kivymd_font_style_compat()
+
+
+def _install_snackbar_compat() -> None:
+    try:
+        snackbar_module = import_module("kivymd.uix.snackbar")
+    except Exception:
+        logging.exception("Failed to import KivyMD snackbar module for compatibility")
+        return
+
+    if hasattr(snackbar_module, "MDSnackbarText"):
+        return
+
+    def _snackbar_text(*args, **kwargs):
+        try:
+            from kivymd.uix.label import MDLabel as _SnackbarText
+        except Exception:
+            from kivy.uix.label import Label as _SnackbarText
+        return _SnackbarText(*args, **kwargs)
+
+    snackbar_module.MDSnackbarText = _snackbar_text
+
+
+_install_snackbar_compat()
+
+from features.notifications.notification_manager import notification_manager
 
 from screens.splash import SplashScreen
 from storage import (
