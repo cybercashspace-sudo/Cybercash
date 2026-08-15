@@ -472,10 +472,132 @@
                                     shorten: True
                                     shorten_from: "right"
 
+                MDCard:
+                    size_hint_y: None
+                    height: dp(38 * root.layout_scale) if root.offline_banner_visible else 0
+                    opacity: 1 if root.offline_banner_visible else 0
+                    radius: [dp(16 * root.layout_scale)]
+                    md_bg_color: [0.18, 0.12, 0.08, 0.96]
+                    line_color: [0.95, 0.74, 0.12, 0.28]
+                    elevation: 0
+                    padding: [dp(12 * root.layout_scale), 0, dp(12 * root.layout_scale), 0]
+                    disabled: not root.offline_banner_visible
+
+                    MDBoxLayout:
+                        spacing: dp(8 * root.layout_scale)
+                        adaptive_height: True
+                        pos_hint: {"center_y": 0.5}
+
+                        MDIcon:
+                            icon: "cloud-off-outline"
+                            theme_text_color: "Custom"
+                            text_color: [0.98, 0.86, 0.58, 1]
+                            font_size: sp(18 * root.icon_scale)
+
+                        MDLabel:
+                            text: root.offline_banner_text
+                            theme_text_color: "Custom"
+                            text_color: [0.98, 0.90, 0.72, 1]
+                            font_name: FONT_SEMI
+                            font_size: sp(12 * root.text_scale)
+                            shorten: True
+                            shorten_from: "right"
+
+                MDCard:
+                    id: loading_skeleton_card
+                    size_hint_y: None
+                    height: dp(338 * root.layout_scale) if (root.loading_skeleton_visible and not root.dashboard_ready) else 0
+                    opacity: 1 if (root.loading_skeleton_visible and not root.dashboard_ready) else 0
+                    radius: [dp(28 * root.layout_scale)]
+                    md_bg_color: [0.07, 0.07, 0.08, 0.96]
+                    line_color: [0.18, 0.18, 0.20, 0.50]
+                    elevation: 0
+                    padding: [dp(18 * root.layout_scale), dp(18 * root.layout_scale), dp(18 * root.layout_scale), dp(16 * root.layout_scale)]
+                    disabled: True
+
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        spacing: dp(14 * root.layout_scale)
+
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(56 * root.layout_scale)
+                            spacing: dp(12 * root.layout_scale)
+
+                            MDCard:
+                                size_hint: None, None
+                                size: dp(54 * root.layout_scale), dp(54 * root.layout_scale)
+                                radius: [dp(27 * root.layout_scale)]
+                                md_bg_color: [0.13, 0.13, 0.15, 1]
+                                elevation: 0
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: dp(8 * root.layout_scale)
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: dp(16 * root.layout_scale)
+                                    radius: [dp(8 * root.layout_scale)]
+                                    md_bg_color: [0.14, 0.14, 0.16, 1]
+                                    elevation: 0
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: dp(12 * root.layout_scale)
+                                    radius: [dp(6 * root.layout_scale)]
+                                    md_bg_color: [0.11, 0.11, 0.13, 1]
+                                    elevation: 0
+
+                        MDCard:
+                            size_hint_y: None
+                            height: dp(82 * root.layout_scale)
+                            radius: [dp(22 * root.layout_scale)]
+                            md_bg_color: [0.12, 0.12, 0.14, 1]
+                            elevation: 0
+
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                spacing: dp(10 * root.layout_scale)
+                                padding: [dp(16 * root.layout_scale), dp(16 * root.layout_scale), dp(16 * root.layout_scale), dp(16 * root.layout_scale)]
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: dp(18 * root.layout_scale)
+                                    radius: [dp(9 * root.layout_scale)]
+                                    md_bg_color: [0.15, 0.15, 0.17, 1]
+                                    elevation: 0
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: dp(30 * root.layout_scale)
+                                    radius: [dp(15 * root.layout_scale)]
+                                    md_bg_color: [0.16, 0.16, 0.18, 1]
+                                    elevation: 0
+
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(54 * root.layout_scale)
+                            spacing: dp(10 * root.layout_scale)
+
+                            MDCard:
+                                size_hint_x: 0.5
+                                radius: [dp(18 * root.layout_scale)]
+                                md_bg_color: [0.15, 0.15, 0.17, 1]
+                                elevation: 0
+
+                            MDCard:
+                                size_hint_x: 0.5
+                                radius: [dp(18 * root.layout_scale)]
+                                md_bg_color: [0.13, 0.13, 0.15, 1]
+                                elevation: 0
+
                 GradientMDCard:
                     id: hero_card
                     size_hint_y: None
-                    height: dp(338 * root.layout_scale) if not root.compact_mode else dp(304 * root.layout_scale)
+                    height: (dp(338 * root.layout_scale) if not root.compact_mode else dp(304 * root.layout_scale)) if not (root.loading_skeleton_visible and not root.dashboard_ready) else 0
+                    opacity: 1 if not (root.loading_skeleton_visible and not root.dashboard_ready) else 0
+                    disabled: root.loading_skeleton_visible and not root.dashboard_ready
                     radius: [dp(28 * root.layout_scale)]
                     gradient_start: [0.05, 0.05, 0.06, 1]
                     gradient_end: [0.02, 0.02, 0.03, 1]

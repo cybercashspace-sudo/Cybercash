@@ -30,17 +30,15 @@ from components.wallet_card import WalletCard
 from components.transaction_card import TransactionCard
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
-from core.dashboard_cache import load_dashboard_cache, save_dashboard_cache
 from core.dashboard_state import DashboardState
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from core.kivymd_compat import resolve_kivymd_top_app_bar
+from features.home.home_controller import HomeController
 from services.api import FAST_TIMEOUT, api
 from services.market_service import MarketService
-from services.transaction_service import TransactionService
-from services.wallet_service import WalletService
 from storage import save_token
 
 MDTopAppBar = resolve_kivymd_top_app_bar()
@@ -1930,10 +1928,14 @@ class HomeScreen(ResponsiveScreen):
     market_status_text = StringProperty("MARKET LIVE")
     market_status_color = ListProperty([0.54, 0.82, 0.67, 1])
     market_updated_text = StringProperty("Updating...")
+    loading_skeleton_visible = BooleanProperty(False)
+    offline_banner_visible = BooleanProperty(False)
+    offline_banner_text = StringProperty("Offline mode")
     is_agent_active = BooleanProperty(False)
     dashboard_ready = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
     agent_action_hint = StringProperty(f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}")
+    _loading = False
     _is_loading = False
 
     def __init__(self, **kwargs):
@@ -1951,8 +1953,12 @@ class HomeScreen(ResponsiveScreen):
         self._market_loading = False
         self._market_load_seq = 0
         self._market_snapshot: dict | None = None
-        self.wallet_service = WalletService()
-        self.transaction_service = TransactionService()
+        self._dashboard_load_seq = 0
+        self._dashboard_events_bound = False
+        self._home_entrance_played = False
+        self.dashboard_state = DashboardState()
+        self.home_controller = HomeController()
+        self.home_controller.state = self.dashboard_state
         self.market_service = MarketService()
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
@@ -1971,17 +1977,162 @@ class HomeScreen(ResponsiveScreen):
 
     def on_pre_enter(self):
         self._sync_theme_toggle_icon()
+        self.show_loading_state()
+        self._bind_dashboard_events()
         Clock.schedule_once(lambda _dt: self._ensure_dashboard_timers(), 0.02)
-        Clock.schedule_once(lambda _dt: self.load_home_data(), 0.05)
+
+    def on_enter(self):
+        Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.05)
+        Clock.schedule_once(lambda _dt: self.load_dashboard(), 0.08)
         Clock.schedule_once(lambda _dt: self.refresh_market_data(silent=True), 0.15)
 
     def on_leave(self, *_args):
         self._agent_verify_sequence += 1
+        self.stop_background_tasks()
+        self._unbind_dashboard_events()
+        self.close_more_actions()
+
+    def show_loading_state(self) -> None:
+        self.loading_skeleton_visible = True
+        self.offline_banner_visible = False
+        self.notification_badge_visible = False
+        self.notification_count_text = "0"
+        self.dashboard_ready = False
+        self._home_entrance_played = False
+        self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
+        self.balance_status = "Loading dashboard..."
+        if not self.wallet_balance_loaded:
+            self.balance_placeholder = "Loading..."
+            self._update_balance_display()
+        self._refresh_portfolio_values()
+
+    def start_entrance_animation(self) -> None:
+        if not self._home_kv_ready:
+            Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.05)
+            return
+        if not self.manager or self.manager.current != self.name:
+            return
+        if self.loading_skeleton_visible and not self.dashboard_ready:
+            Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.08)
+            return
+        if getattr(self, "_home_entrance_played", False):
+            return
+        if not self.dashboard_ready:
+            Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.08)
+            return
+        self._home_entrance_played = True
+        self.animate_home()
+
+    def stop_background_tasks(self) -> None:
+        self._dashboard_load_seq += 1
+        self.loading_skeleton_visible = False
+        self.offline_banner_visible = False
+        self._set_loading_guard(False)
+        self._cancel_dashboard_timers()
         wallet_card = self._wallet_portfolio_card()
         if wallet_card is not None and hasattr(wallet_card, "stop_shimmer"):
             wallet_card.stop_shimmer()
-        self._cancel_dashboard_timers()
-        self.close_more_actions()
+
+    def _set_loading_guard(self, active: bool) -> None:
+        self._loading = bool(active)
+        self._is_loading = bool(active)
+        try:
+            self.home_controller.state.loading = bool(active)
+        except Exception:
+            pass
+
+    def _bind_dashboard_events(self) -> None:
+        if self._dashboard_events_bound:
+            return
+        app = MDApp.get_running_app()
+        event_bus = getattr(app, "event_bus", None) if app else None
+        subscribe = getattr(event_bus, "subscribe", None)
+        if not callable(subscribe):
+            return
+        subscribe("WalletUpdated", self._on_wallet_updated)
+        subscribe("TransactionCreated", self._on_transaction_created)
+        self._dashboard_events_bound = True
+
+    def _unbind_dashboard_events(self) -> None:
+        if not self._dashboard_events_bound:
+            return
+        app = MDApp.get_running_app()
+        event_bus = getattr(app, "event_bus", None) if app else None
+        unsubscribe = getattr(event_bus, "unsubscribe", None)
+        if callable(unsubscribe):
+            unsubscribe("WalletUpdated", self._on_wallet_updated)
+            unsubscribe("TransactionCreated", self._on_transaction_created)
+        self._dashboard_events_bound = False
+
+    def _on_wallet_updated(self, payload=None) -> None:
+        self.refresh_dashboard()
+
+    def _on_transaction_created(self, payload=None) -> None:
+        try:
+            snapshot = self.home_controller.merge_event_update("TransactionCreated", payload)
+        except Exception:
+            snapshot = {}
+        transactions = list(snapshot.get("transactions") or [])
+        if transactions:
+            self._prepend_recent_transaction(transactions[0])
+        self.refresh_dashboard()
+
+    def _prepend_recent_transaction(self, transaction: dict) -> None:
+        if not isinstance(transaction, dict):
+            return
+        container = self.ids.get("recent_container")
+        if container is None:
+            pending = list(self._recent_rows_pending or [])
+            pending.insert(0, dict(transaction))
+            self._recent_rows_pending = pending[:3]
+            return
+        widget = self._build_recent_item(transaction)
+        widget.opacity = 0
+        container.add_widget(widget)
+        AnimationManager.fade_in(widget, duration=0.22)
+        while len(container.children) > 3:
+            container.remove_widget(container.children[-1])
+
+    def _snapshot_has_content(self, snapshot: dict | None) -> bool:
+        if not isinstance(snapshot, dict):
+            return False
+        return any(
+            bool(snapshot.get(key))
+            for key in ("profile", "user", "wallet", "transactions", "notifications", "recent_rows", "balance")
+        )
+
+    def _apply_dashboard_snapshot(self, snapshot: dict | None, *, load_seq: int | None = None, final: bool = True) -> None:
+        if load_seq is not None and load_seq != self._dashboard_load_seq:
+            return
+
+        data = dict(snapshot or {})
+        profile = data.get("profile") if isinstance(data.get("profile"), dict) else data.get("user")
+        wallet = data.get("wallet") if isinstance(data.get("wallet"), dict) else {}
+        transactions = list(data.get("transactions") or [])
+        notifications = list(data.get("notifications") or [])
+        greeting_name = str(data.get("greeting_name") or self._extract_first_name(profile or {}) or "").strip()
+
+        balance_value = data.get("balance")
+        if balance_value is None and isinstance(wallet, dict):
+            balance_value = wallet.get("balance")
+
+        notification_count = data.get("notification_count")
+        if notification_count is None:
+            notification_count = len(notifications)
+
+        self._apply_home_data(
+            greeting_name=greeting_name,
+            balance=balance_value,
+            recent_rows=transactions,
+            error_text=str(data.get("error_text") or ""),
+            is_agent_active=bool(data.get("is_agent_active", False)),
+            reset_token=bool(data.get("reset_token", False)),
+            is_verified=bool(data.get("is_verified", False)),
+            is_admin=data.get("is_admin"),
+            notification_count=notification_count,
+            online=bool(data.get("online", True)),
+            final=final,
+        )
 
     @staticmethod
     def _resolve_avatar_source() -> str:
@@ -2073,7 +2224,6 @@ class HomeScreen(ResponsiveScreen):
         self._sync_theme_toggle_icon()
         self._build_portfolio_carousel(force=True)
         self._refresh_portfolio_values()
-        self.animate_home()
 
     def _wallet_portfolio_card(self):
         return (self._portfolio_cards.get("wallet") or {}).get("card")
@@ -2135,9 +2285,13 @@ class HomeScreen(ResponsiveScreen):
         threading.Thread(target=self._load_market_worker, args=(seq,), daemon=True).start()
 
     def refresh_dashboard(self) -> None:
+        if self._loading:
+            return
+        self._loading = True
+        self._is_loading = True
         self.balance_status = "Refreshing..."
         self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
-        self.load_home_data()
+        self.load_dashboard(force=True)
         self.refresh_market_data(silent=False)
 
         if self._dashboard_refresh_event is not None:
@@ -2763,6 +2917,8 @@ class HomeScreen(ResponsiveScreen):
         self._set_agent_action_state(False)
         self._set_account_status("SIGN IN", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
         self.dashboard_ready = False
+        self.loading_skeleton_visible = False
+        self.offline_banner_visible = False
         self.notification_count_text = "0"
         self.notification_badge_visible = False
         self._render_recent_activity([])
@@ -2808,19 +2964,21 @@ class HomeScreen(ResponsiveScreen):
         response = api.get(path, params=params, headers=headers, timeout=FAST_TIMEOUT)
         return int(getattr(response, "status_code", 0) or 0), response.json()
 
-    def _load_home_worker(self, token: str) -> None:
+    def _load_home_worker(self, token: str, load_seq: int) -> None:
         headers = {"Authorization": f"Bearer {token}"}
         app = MDApp.get_running_app()
         greeting_name = str(getattr(app, "user_name", "") or "").strip()
         if greeting_name == "Cyber Cash User":
             greeting_name = ""
-        balance = None
-        is_verified = False
-        recent_rows = []
-        error_text = ""
-        is_agent_active = False
         is_admin = bool(getattr(app, "is_admin", False)) if app else False
+        is_verified = False
+        is_agent_active = False
         reset_token = False
+        error_text = ""
+        balance = None
+        recent_rows: list[dict] = []
+        notification_count = 0
+        dashboard_snapshot: dict = {}
 
         try:
             me_status, me_payload = self._api_get("/auth/me", headers=headers)
@@ -2838,40 +2996,64 @@ class HomeScreen(ResponsiveScreen):
 
         if not reset_token:
             try:
-                wallet_payload = self.wallet_service.get_wallet()
-                wallet_status = 200
-                if self._should_clear_session(wallet_status, wallet_payload):
-                    reset_token = True
-                elif isinstance(wallet_payload, dict):
-                    balance = float(wallet_payload.get("balance", 0.0) or 0.0)
-                    # Point 8: Perform integrity check against transaction ledger
-                    v_status, v_payload = self._api_get("/wallet/verify", headers=headers)
-                    if v_status < 400 and isinstance(v_payload, dict):
-                        is_verified = v_payload.get("status") == "verified"
-                        if not is_verified and v_payload.get("difference", 0) != 0:
-                            Logger.warning("CyberCashLedger: Balance mismatch detected: %s", v_payload.get("difference"))
-                else:
-                    Logger.info("CyberCashAuth: wallet refresh unavailable with HTTP %s; keeping session", wallet_status)
-                    error_text = "Balance unavailable."
-            except Exception:
+                dashboard_snapshot = self.home_controller.load_dashboard_state()
+            except Exception as exc:
+                error_text = str(exc or "").strip() or "Check connection and try again."
+                dashboard_snapshot = {}
+
+            if not isinstance(dashboard_snapshot, dict):
+                dashboard_snapshot = {}
+
+            profile = dashboard_snapshot.get("profile") if isinstance(dashboard_snapshot.get("profile"), dict) else {}
+            wallet = dashboard_snapshot.get("wallet") if isinstance(dashboard_snapshot.get("wallet"), dict) else {}
+            recent_rows = list(dashboard_snapshot.get("transactions") or [])
+            notification_count = int(dashboard_snapshot.get("notification_count") or len(dashboard_snapshot.get("notifications") or []))
+
+            if profile:
+                greeting_name = self._extract_first_name(profile) or greeting_name
+                is_admin = bool(
+                    profile.get("is_admin")
+                    or str(profile.get("role", "") or "").strip().lower() in {"admin", "super_admin"}
+                    or is_admin
+                )
+                is_verified = bool(
+                    profile.get("is_verified")
+                    or profile.get("verified")
+                    or wallet.get("verified")
+                    or wallet.get("status") == "verified"
+                    or dashboard_snapshot.get("is_verified")
+                )
+                is_agent_active = bool(
+                    profile.get("is_agent")
+                    or profile.get("agent_active")
+                    or dashboard_snapshot.get("is_agent_active")
+                )
+
+            if dashboard_snapshot.get("balance") is not None:
+                try:
+                    balance = float(dashboard_snapshot.get("balance") or 0.0)
+                except Exception:
+                    balance = None
+            elif wallet:
+                try:
+                    balance = float(wallet.get("balance", 0.0) or 0.0)
+                except Exception:
+                    balance = None
+
+            if not error_text:
+                error_text = str(dashboard_snapshot.get("error_text") or "")
+            if not error_text and str(dashboard_snapshot.get("source") or "") != "live":
                 error_text = "Check connection and try again."
 
-        if not reset_token:
             try:
-                recent_rows = self.transaction_service.list_transactions(limit=2)
-                tx_status = 200
-                tx_payload = recent_rows
-                if self._should_clear_session(tx_status, tx_payload):
-                    reset_token = True
-                elif recent_rows:
-                    recent_rows = list(recent_rows[:2])
-                else:
-                    Logger.info("CyberCashAuth: activity refresh returned no rows; keeping session")
+                v_status, v_payload = self._api_get("/wallet/verify", headers=headers)
+                if v_status < 400 and isinstance(v_payload, dict):
+                    is_verified = bool(v_payload.get("status") == "verified" or is_verified)
+                    if not is_verified and v_payload.get("difference", 0) != 0:
+                        Logger.warning("CyberCashLedger: Balance mismatch detected: %s", v_payload.get("difference"))
             except Exception:
-                if not error_text:
-                    error_text = "Activity unavailable."
+                pass
 
-        if not reset_token:
             try:
                 agent_status_code, agent_payload = self._api_get("/agents/me", headers=headers)
                 if self._should_clear_session(agent_status_code, agent_payload):
@@ -2884,17 +3066,22 @@ class HomeScreen(ResponsiveScreen):
             except Exception:
                 is_agent_active = False
 
+        dashboard_snapshot.update(
+            {
+                "greeting_name": greeting_name,
+                "balance": balance,
+                "transactions": recent_rows,
+                "error_text": error_text,
+                "is_agent_active": is_agent_active,
+                "reset_token": reset_token,
+                "is_verified": is_verified,
+                "is_admin": is_admin,
+                "notification_count": notification_count,
+                "online": bool(dashboard_snapshot.get("online", True)) and not reset_token,
+            }
+        )
         Clock.schedule_once(
-            lambda _dt: self._apply_home_data(
-                greeting_name=greeting_name,
-                balance=balance,
-                recent_rows=recent_rows,
-                error_text=error_text,
-                is_agent_active=is_agent_active,
-                reset_token=reset_token,
-                is_verified=is_verified,
-                is_admin=is_admin,
-            )
+            lambda _dt, snap=dashboard_snapshot, seq=load_seq: self._apply_dashboard_snapshot(snap, load_seq=seq)
         )
 
     def _apply_home_data(
@@ -2907,8 +3094,12 @@ class HomeScreen(ResponsiveScreen):
         reset_token: bool = False,
         is_verified: bool = False,
         is_admin: bool | None = None,
+        notification_count: int | None = None,
+        online: bool = True,
+        final: bool = True,
     ) -> None:
-        self._is_loading = False
+        if final:
+            self._set_loading_guard(False)
         previous_balance = float(self.wallet_balance_amount or 0.0)
         had_loaded_balance = bool(self.wallet_balance_loaded)
         if reset_token:
@@ -2919,6 +3110,7 @@ class HomeScreen(ResponsiveScreen):
             app.is_admin = False
             save_token("")
             self._apply_signed_out_state()
+            self._set_loading_guard(False)
             if self.manager and self.manager.has_screen("login"):
                 self.manager.current = "login"
             return
@@ -2939,9 +3131,9 @@ class HomeScreen(ResponsiveScreen):
             else:
                 self._set_balance_unavailable("Sync unavailable", error_text or "Balance sync unavailable")
                 self._set_account_status(
-                    "OFFLINE" if error_text else "SYNC",
-                    [0.22, 0.16, 0.11, 0.95] if error_text else [0.12, 0.14, 0.18, 0.95],
-                    [0.98, 0.88, 0.68, 1] if error_text else [0.86, 0.88, 0.90, 1],
+                    "OFFLINE" if (error_text or not online) else "SYNC",
+                    [0.22, 0.16, 0.11, 0.95] if (error_text or not online) else [0.12, 0.14, 0.18, 0.95],
+                    [0.98, 0.88, 0.68, 1] if (error_text or not online) else [0.86, 0.88, 0.90, 1],
                 )
         else:
             self.wallet_balance_loaded = True
@@ -2950,16 +3142,25 @@ class HomeScreen(ResponsiveScreen):
             self._update_balance_display()
             self.balance_status = ("Verified balance ✓" if is_verified else "Live balance") if not error_text else error_text
             self._set_account_status(
-                "VERIFIED" if is_verified else "LIVE",
-                [0.18, 0.31, 0.22, 0.95] if is_verified else [0.14, 0.22, 0.17, 0.95],
-                [0.70, 0.92, 0.78, 1] if is_verified else [0.86, 0.90, 0.88, 1],
+                "VERIFIED" if is_verified else ("OFFLINE" if not online else "LIVE"),
+                [0.18, 0.31, 0.22, 0.95] if is_verified else ([0.22, 0.16, 0.11, 0.95] if not online else [0.14, 0.22, 0.17, 0.95]),
+                [0.70, 0.92, 0.78, 1] if is_verified else ([0.98, 0.88, 0.68, 1] if not online else [0.86, 0.90, 0.88, 1]),
             )
 
         self._set_agent_action_state(is_agent_active)
         self._render_recent_activity(recent_rows or [])
-        recent_count = len(recent_rows or [])
+        try:
+            recent_count = int(notification_count if notification_count is not None else len(recent_rows or []) or 0)
+        except Exception:
+            recent_count = len(recent_rows or [])
         self.notification_badge_visible = recent_count > 0
         self.notification_count_text = str(min(9, recent_count)) if recent_count > 0 else "0"
+        if not online or error_text:
+            self.offline_banner_visible = True
+            self.offline_banner_text = str(error_text or "Offline mode").strip() or "Offline mode"
+        else:
+            self.offline_banner_visible = False
+            self.offline_banner_text = "Offline mode"
         self._refresh_portfolio_values()
         if balance is not None:
             new_balance = float(balance or 0.0)
@@ -2969,9 +3170,10 @@ class HomeScreen(ResponsiveScreen):
                 if wallet_card is not None and hasattr(wallet_card, "pulse"):
                     wallet_card.pulse()
         self.dashboard_ready = True
+        self.loading_skeleton_visible = False
 
-    def load_home_data(self) -> None:
-        if self._is_loading:
+    def load_home_data(self, force: bool = False) -> None:
+        if self._loading and not force:
             return
 
         app = MDApp.get_running_app()
@@ -2984,21 +3186,35 @@ class HomeScreen(ResponsiveScreen):
             self._set_greeting(display_name)
 
         if not token:
+            self._set_loading_guard(False)
             self._apply_signed_out_state(pending_name if not pending_name.isdigit() else "")
             return
 
-        self._is_loading = True
-        self.dashboard_ready = False
+        self._dashboard_load_seq += 1
+        load_seq = self._dashboard_load_seq
+        previous_ready = bool(self.dashboard_ready)
+        self._set_loading_guard(True)
+        self.dashboard_ready = previous_ready if force else False
+        self.loading_skeleton_visible = not force
+        self.offline_banner_visible = False
         self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
         if not self.wallet_balance_loaded:
             self.balance_placeholder = "Syncing..."
             self._update_balance_display()
         self.balance_status = "Refreshing..."
         self._refresh_portfolio_values()
-        threading.Thread(target=self._load_home_worker, args=(token,), daemon=True).start()
+        if not force:
+            try:
+                cached_snapshot = self.home_controller.load_cached_dashboard_state()
+            except Exception as exc:
+                Logger.warning("CyberCashHome: failed to load cached dashboard: %s", exc)
+                cached_snapshot = {}
+            if self._snapshot_has_content(cached_snapshot):
+                self._apply_dashboard_snapshot(cached_snapshot, load_seq=load_seq, final=False)
+        threading.Thread(target=self._load_home_worker, args=(token, load_seq), daemon=True).start()
 
-    def load_dashboard(self) -> None:
-        self.load_home_data()
+    def load_dashboard(self, force: bool = False) -> None:
+        self.load_home_data(force=force)
 
     def populate_dashboard(self, wallet: dict | None, transactions: list[dict] | None) -> None:
         balance = None
@@ -3011,6 +3227,8 @@ class HomeScreen(ResponsiveScreen):
             balance=balance,
             recent_rows=list(transactions or []),
             error_text="",
+            online=True,
+            final=True,
         )
 
     def open_more_actions(self) -> None:
