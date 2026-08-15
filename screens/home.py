@@ -5,7 +5,6 @@ import time
 import webbrowser
 from datetime import datetime, timezone
 
-import requests
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.logger import Logger
@@ -23,7 +22,6 @@ from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
-from api.client import API_URL, FAST_TIMEOUT, api_client
 from animations.dashboard import DashboardAnimationSequence
 from animations.effects import AnimationManager
 from components.balance_counter import BalanceCounter
@@ -39,6 +37,10 @@ from core.paystack_checkout import open_paystack_checkout, warmup_paystack_check
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from core.kivymd_compat import resolve_kivymd_top_app_bar
+from services.api import FAST_TIMEOUT, api
+from services.market_service import MarketService
+from services.transaction_service import TransactionService
+from services.wallet_service import WalletService
 from storage import save_token
 
 MDTopAppBar = resolve_kivymd_top_app_bar()
@@ -1949,6 +1951,9 @@ class HomeScreen(ResponsiveScreen):
         self._market_loading = False
         self._market_load_seq = 0
         self._market_snapshot: dict | None = None
+        self.wallet_service = WalletService()
+        self.transaction_service = TransactionService()
+        self.market_service = MarketService()
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
         self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
@@ -2157,37 +2162,7 @@ class HomeScreen(ResponsiveScreen):
         Clock.schedule_once(lambda _dt: self._apply_market_data(seq, payload), 0)
 
     def _fetch_market_snapshot(self) -> dict:
-        try:
-            result = api_client.get("/crypto/market/btc")
-            status_code = int(result.get("status_code", 0) or 0)
-            payload = result.get("data", {})
-            if status_code < 400 and isinstance(payload, dict) and payload.get("last_price_usdt") is not None:
-                return payload
-        except Exception:
-            pass
-
-        try:
-            response = requests.get("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", timeout=8)
-            response.raise_for_status()
-            market = response.json()
-            last_price = float(market.get("lastPrice") or market.get("price") or 0.0)
-            return {
-                "symbol": "BTCUSDT",
-                "network": "Bitcoin",
-                "min_deposit_btc": 0.0001,
-                "withdrawal_fee_btc": 0.00005,
-                "last_price_usdt": last_price,
-                "price_change_percent_24h": float(market.get("priceChangePercent") or 0.0),
-                "high_price_usdt": float(market.get("highPrice") or 0.0),
-                "low_price_usdt": float(market.get("lowPrice") or 0.0),
-                "volume_btc": float(market.get("volume") or 0.0),
-                "usd_to_ghs_rate": 12.0,
-                "estimated_ghs_per_btc": last_price * 12.0,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "source": "binance",
-            }
-        except Exception as exc:
-            return {"error": sanitize_backend_message(exc, fallback="Unable to load BTC market data.")}
+        return self.market_service.get_btc_snapshot()
 
     def _apply_market_data(self, seq: int, payload: dict) -> None:
         if seq != int(getattr(self, "_market_load_seq", 0)):
@@ -2830,8 +2805,8 @@ class HomeScreen(ResponsiveScreen):
 
     @staticmethod
     def _api_get(path: str, headers: dict, params: dict | None = None) -> tuple[int, object]:
-        result = api_client.request("GET", path, params=params, headers=headers, timeout=FAST_TIMEOUT)
-        return int(result.get("status_code", 0) or 0), result.get("data", {})
+        response = api.get(path, params=params, headers=headers, timeout=FAST_TIMEOUT)
+        return int(getattr(response, "status_code", 0) or 0), response.json()
 
     def _load_home_worker(self, token: str) -> None:
         headers = {"Authorization": f"Bearer {token}"}
@@ -2863,10 +2838,11 @@ class HomeScreen(ResponsiveScreen):
 
         if not reset_token:
             try:
-                wallet_status, wallet_payload = self._api_get("/wallet/me", headers=headers)
+                wallet_payload = self.wallet_service.get_wallet()
+                wallet_status = 200
                 if self._should_clear_session(wallet_status, wallet_payload):
                     reset_token = True
-                elif wallet_status < 400 and isinstance(wallet_payload, dict):
+                elif isinstance(wallet_payload, dict):
                     balance = float(wallet_payload.get("balance", 0.0) or 0.0)
                     # Point 8: Perform integrity check against transaction ledger
                     v_status, v_payload = self._api_get("/wallet/verify", headers=headers)
@@ -2882,14 +2858,15 @@ class HomeScreen(ResponsiveScreen):
 
         if not reset_token:
             try:
-                tx_status, tx_payload = self._api_get("/wallet/transactions/me", headers=headers, params={"limit": 2})
+                recent_rows = self.transaction_service.list_transactions(limit=2)
+                tx_status = 200
+                tx_payload = recent_rows
                 if self._should_clear_session(tx_status, tx_payload):
                     reset_token = True
-                elif tx_status < 400 and isinstance(tx_payload, list):
-                    recent_rows = list(tx_payload[:2])
-                elif not error_text:
-                    Logger.info("CyberCashAuth: activity refresh unavailable with HTTP %s; keeping session", tx_status)
-                    error_text = "Activity unavailable."
+                elif recent_rows:
+                    recent_rows = list(recent_rows[:2])
+                else:
+                    Logger.info("CyberCashAuth: activity refresh returned no rows; keeping session")
             except Exception:
                 if not error_text:
                     error_text = "Activity unavailable."
@@ -3020,6 +2997,22 @@ class HomeScreen(ResponsiveScreen):
         self._refresh_portfolio_values()
         threading.Thread(target=self._load_home_worker, args=(token,), daemon=True).start()
 
+    def load_dashboard(self) -> None:
+        self.load_home_data()
+
+    def populate_dashboard(self, wallet: dict | None, transactions: list[dict] | None) -> None:
+        balance = None
+        if isinstance(wallet, dict):
+            try:
+                balance = float(wallet.get("balance", 0.0) or 0.0)
+            except Exception:
+                balance = None
+        self._apply_home_data(
+            balance=balance,
+            recent_rows=list(transactions or []),
+            error_text="",
+        )
+
     def open_more_actions(self) -> None:
         tap_feedback()
         content = MoreActionsContent(
@@ -3114,14 +3107,14 @@ class HomeScreen(ResponsiveScreen):
 
     def _initiate_agent_registration_worker(self, headers: dict) -> None:
         try:
-            result = api_client.request(
+            response = api.request(
                 "POST",
                 "/agents/register",
                 headers=headers,
                 timeout=(4, 15),
             )
-            payload = result.get("data", {})
-            if result.get("ok") and isinstance(payload, dict):
+            payload = response.json()
+            if response.status_code < 400 and isinstance(payload, dict):
                 reference = str(payload.get("reference", "") or "").strip()
                 authorization_url = str(payload.get("authorization_url", "") or "").strip()
                 message = str(payload.get("message", "") or "").strip()
@@ -3189,20 +3182,19 @@ class HomeScreen(ResponsiveScreen):
             if verify_sequence != self._agent_verify_sequence:
                 return
             try:
-                result = api_client.request(
+                response = api.request(
                     "GET",
                     f"/agents/register/verify/{reference}",
                     headers=headers,
                     timeout=(4, 12),
                 )
-                payload = result.get("data", {})
+                payload = response.json()
 
-                if result.get("ok") and isinstance(payload, dict):
+                if response.status_code < 400 and isinstance(payload, dict):
                     status_value = str(payload.get("status", "") or "").strip().lower()
                     if status_value == "active":
                         Clock.schedule_once(lambda _dt, p=payload: self._on_agent_registration_success(p))
                         return
-                else:
                     detail = self._extract_detail(payload)
                     detail_lc = str(detail or "").lower()
                     if (
@@ -3273,8 +3265,8 @@ class HomeScreen(ResponsiveScreen):
         status_value = ""
         error_text = ""
         try:
-            response = requests.get(f"{API_URL}/agents/me", headers=headers, timeout=12)
-            payload = self._safe_json(response)
+            response = api.get("/agents/me", headers=headers, timeout=(4, 12))
+            payload = response.json()
             if response.status_code < 400 and isinstance(payload, dict):
                 status_value = str(payload.get("status", "") or "").strip().lower()
             else:

@@ -1,23 +1,15 @@
 from __future__ import annotations
 
-from api.client import FAST_TIMEOUT, api_client
 from core.dashboard_cache import load_dashboard_cache, save_dashboard_cache
-from core.exceptions import NetworkError
+from services.api import FAST_TIMEOUT, api
+from services.transaction_service import TransactionService as AppTransactionService
+from services.wallet_service import WalletService
 
 
 class HomeService:
-    def _request_json(self, path: str, params: dict | None = None):
-        result = api_client.get(path, params=params, timeout=FAST_TIMEOUT)
-        status_code = int(result.get("status_code", 0) or 0)
-        data = result.get("data")
-        if status_code < 400:
-            return data
-        message = ""
-        if isinstance(data, dict):
-            message = str(data.get("detail") or data.get("message") or "").strip()
-        if not message:
-            message = f"Request to {path} failed with HTTP {status_code}"
-        raise NetworkError(message)
+    def __init__(self):
+        self.wallet_service = WalletService()
+        self.transaction_service = AppTransactionService()
 
     @staticmethod
     def _as_list(payload) -> list[dict]:
@@ -30,30 +22,23 @@ class HomeService:
                     return [item for item in value if isinstance(item, dict)]
         return []
 
+    def _request_json(self, path: str, params: dict | None = None):
+        response = api.get(path, params=params, timeout=FAST_TIMEOUT)
+        response.raise_for_status()
+        return response.json()
+
     def get_wallet(self) -> dict:
-        for path in ("/wallet/me", "/api/wallet/me"):
-            try:
-                payload = self._request_json(path)
-                if isinstance(payload, dict):
-                    return payload
-            except Exception:
-                continue
-        return {}
+        try:
+            payload = self.wallet_service.get_wallet()
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
 
     def get_transactions(self, limit: int = 10) -> list[dict]:
-        for path, params in (
-            ("/transactions/recent", {"limit": limit}),
-            ("/transactions", {"limit": limit}),
-            ("/wallet/transactions/me", {"limit": limit}),
-        ):
-            try:
-                payload = self._request_json(path, params=params)
-                rows = self._as_list(payload)
-                if rows:
-                    return rows
-            except Exception:
-                continue
-        return []
+        try:
+            return self.transaction_service.list_transactions(limit=limit)
+        except Exception:
+            return []
 
     def get_notifications(self, limit: int = 10) -> list[dict]:
         for path, params in (
@@ -104,3 +89,4 @@ class HomeService:
         if not isinstance(data, dict):
             return {}
         return data
+
