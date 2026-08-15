@@ -1,7 +1,8 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
 #:import GlassCard widgets.GlassCard
-#:import AuthButton features.auth.widgets.auth_button.AuthButton
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 <TransferScreen>:
     MDFloatLayout:
@@ -52,7 +53,7 @@
                         text: "Recipient"
                         theme_text_color: "Hint"
 
-                    MDTextField:
+                    AppTextField:
                         id: recipient
                         hint_text: "Phone / Email / Wallet ID"
                         mode: "outlined"
@@ -74,7 +75,7 @@
                     padding: dp(18)
                     spacing: dp(14)
 
-                    MDTextField:
+                    AppTextField:
                         id: amount
                         hint_text: "Amount (GHS)"
                         mode: "outlined"
@@ -82,14 +83,14 @@
                         helper_text: "Enter the transfer amount"
                         helper_text_mode: "on_focus"
 
-                    MDTextField:
+                    AppTextField:
                         id: description
                         hint_text: "Description"
                         mode: "outlined"
                         helper_text: "Optional note"
                         helper_text_mode: "on_focus"
 
-                    MDTextField:
+                    AppTextField:
                         id: pin
                         hint_text: "Confirm PIN"
                         mode: "outlined"
@@ -98,8 +99,8 @@
                         helper_text: "Enter your 4-digit PIN"
                         helper_text_mode: "on_focus"
 
-                AuthButton:
+                AppButton:
                     id: send_button
                     text: "SEND"
-                    busy_text: "PROCESSING..."
+                    loading_text: "PROCESSING..."
                     on_release: root.submit_transfer()

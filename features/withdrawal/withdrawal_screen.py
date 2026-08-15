@@ -97,7 +97,7 @@ class WithdrawalScreen(MDScreen):
             except Exception:
                 pass
         if app is not None and hasattr(app, "go_to_screen"):
-            app.go_to_screen("home", fallback="withdraw")
+            app.go_to_screen("home", fallback="withdraw", transition_style="slide_right")
         self.show_message("Withdrawal submitted.")
 
     def show_message(self, text: str):

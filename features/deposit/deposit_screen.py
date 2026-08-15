@@ -125,10 +125,11 @@ class DepositScreen(MDScreen):
         if app is not None and hasattr(app, "event_bus"):
             try:
                 app.event_bus.publish("WalletUpdated", response)
+                app.event_bus.publish("TransactionCreated", response)
             except Exception:
                 pass
         if app is not None and hasattr(app, "go_to_screen"):
-            app.go_to_screen("home", fallback="deposit")
+            app.go_to_screen("home", fallback="deposit", transition_style="slide_right")
         self.show_message("Deposit successful.")
 
     def show_message(self, text: str):

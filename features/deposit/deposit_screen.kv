@@ -1,7 +1,8 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
 #:import GlassCard widgets.GlassCard
-#:import AuthButton features.auth.widgets.auth_button.AuthButton
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 <DepositScreen>:
     MDFloatLayout:
@@ -52,7 +53,7 @@
                         text: "Amount"
                         theme_text_color: "Hint"
 
-                    MDTextField:
+                    AppTextField:
                         id: amount
                         hint_text: "GHS 0.00"
                         mode: "outlined"
@@ -86,8 +87,8 @@
                             text: "Mobile Money"
                             on_release: root.set_method("mobile_money")
 
-                AuthButton:
+                AppButton:
                     id: continue_button
                     text: "CONTINUE"
-                    busy_text: "PROCESSING..."
+                    loading_text: "PROCESSING..."
                     on_release: root.submit_deposit()

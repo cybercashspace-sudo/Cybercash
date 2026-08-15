@@ -1,7 +1,8 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
 #:import GlassCard widgets.GlassCard
-#:import AuthButton features.auth.widgets.auth_button.AuthButton
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 <WithdrawalScreen>:
     MDFloatLayout:
@@ -52,7 +53,7 @@
                         text: "Amount"
                         theme_text_color: "Hint"
 
-                    MDTextField:
+                    AppTextField:
                         id: amount
                         hint_text: "GHS 0.00"
                         mode: "outlined"
@@ -107,7 +108,7 @@
                     padding: dp(18)
                     spacing: dp(14)
 
-                    MDTextField:
+                    AppTextField:
                         id: phone
                         hint_text: "MoMo Number"
                         mode: "outlined"
@@ -116,7 +117,7 @@
                         helper_text_mode: "on_focus"
                         on_text: root.update_detected_network()
 
-                    MDTextField:
+                    AppTextField:
                         id: pin
                         hint_text: "Confirm PIN"
                         mode: "outlined"
@@ -125,8 +126,8 @@
                         helper_text: "Enter your 4-digit PIN"
                         helper_text_mode: "on_focus"
 
-                AuthButton:
+                AppButton:
                     id: withdraw_button
                     text: "WITHDRAW"
-                    busy_text: "PROCESSING..."
+                    loading_text: "PROCESSING..."
                     on_release: root.submit_withdrawal()

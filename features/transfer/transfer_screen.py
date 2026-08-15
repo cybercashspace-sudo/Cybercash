@@ -113,7 +113,7 @@ class TransferScreen(MDScreen):
             except Exception:
                 pass
         if app is not None and hasattr(app, "go_to_screen"):
-            app.go_to_screen("home", fallback="p2p_transfer")
+            app.go_to_screen("home", fallback="p2p_transfer", transition_style="slide_right")
         self.show_message("Transfer successful.")
 
     def show_message(self, text: str):
