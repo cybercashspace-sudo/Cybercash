@@ -4,24 +4,15 @@ from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 
+from animations.effects import AnimationManager
+
 
 class HomeAnimations:
     """Entrance and emphasis animations for the dashboard."""
 
     @staticmethod
     def fade_slide(widget, delay: float = 0.0, y_offset: float = 40, duration: float = 0.45):
-        if widget is None:
-            return
-
-        origin_y = getattr(widget, "_cybercash_origin_y", widget.y)
-        widget._cybercash_origin_y = origin_y
-
-        def _start(_dt):
-            widget.opacity = 0
-            widget.y = origin_y - y_offset
-            Animation(y=origin_y, opacity=1, duration=duration, transition="out_cubic").start(widget)
-
-        Clock.schedule_once(_start, delay)
+        AnimationManager.slide_up(widget, distance=y_offset, duration=duration, delay=delay)
 
     @staticmethod
     def pop_card(widget, delay: float = 0.0):
@@ -40,14 +31,7 @@ class HomeAnimations:
 
     @staticmethod
     def fade(widget, delay: float = 0.0, duration: float = 0.35):
-        if widget is None:
-            return
-
-        def _start(_dt):
-            widget.opacity = 0
-            Animation(opacity=1, duration=duration, transition="out_quad").start(widget)
-
-        Clock.schedule_once(_start, delay)
+        AnimationManager.fade_in(widget, duration=duration, delay=delay)
 
 
 class ShimmerEffect:
@@ -105,4 +89,3 @@ class ShimmerEffect:
         self._stripe.pos = (self.widget.x + self.position, self.widget.y)
         self._stripe.size = (self.width, self.widget.height)
         return True
-

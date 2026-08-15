@@ -44,13 +44,46 @@ class AnimationManager:
         Clock.schedule_once(_start, delay)
 
     @staticmethod
-    def pulse(widget, *, shrink: float = 0.97, duration: float = 0.1):
+    def scale_pop(widget, *, shrink: float = 0.8, duration: float = 0.35, delay: float = 0.0):
         if widget is None:
             return
-        if hasattr(widget, "scale_value"):
-            Animation(scale_value=shrink, duration=duration, transition="out_quad").start(widget)
-            Animation(scale_value=1.0, duration=duration * 1.5, transition="out_quad").start(widget)
-            return
-        Animation(opacity=max(0.85, float(getattr(widget, "opacity", 1.0))), duration=duration).start(widget)
-        Animation(opacity=1.0, duration=duration * 1.5).start(widget)
 
+        def _start(_dt):
+            if hasattr(widget, "scale_value"):
+                widget.scale_value = float(shrink)
+                Animation(
+                    scale_value=1.0,
+                    duration=duration,
+                    transition="out_back",
+                ).start(widget)
+                return
+
+            if hasattr(widget, "scale"):
+                try:
+                    widget.scale = float(shrink)
+                    Animation(
+                        scale=1.0,
+                        duration=duration,
+                        transition="out_back",
+                    ).start(widget)
+                    return
+                except Exception:
+                    pass
+
+            base_opacity = float(getattr(widget, "opacity", 1.0))
+            Animation(
+                opacity=max(0.85, base_opacity * float(shrink)),
+                duration=duration * 0.35,
+                transition="out_quad",
+            ).start(widget)
+            Animation(
+                opacity=base_opacity,
+                duration=duration,
+                transition="out_quad",
+            ).start(widget)
+
+        Clock.schedule_once(_start, delay)
+
+    @staticmethod
+    def pulse(widget, *, shrink: float = 0.97, duration: float = 0.1):
+        AnimationManager.scale_pop(widget, shrink=shrink, duration=duration)

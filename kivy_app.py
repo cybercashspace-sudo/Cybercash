@@ -22,9 +22,9 @@ from kivymd.app import MDApp
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
-from components.transitions import smooth_switch_screen
 from core.session import session
 from core.event_bus import EventBus
+from core.navigation import navigate
 
 install_silent_touch()
 
@@ -85,7 +85,7 @@ SCREEN_SPECS = {
     "register": ("screens.register", "RegisterScreen"),
     "otp": ("screens.otp", "OTPScreen"),
     "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
-    "home": ("screens.home", "HomeScreen"),
+    "home": ("screens.home_screen", "HomeScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
     "deposit": ("features.deposit.deposit_screen", "DepositScreen"),
     "withdraw": ("features.withdrawal.withdrawal_screen", "WithdrawalScreen"),
@@ -282,19 +282,10 @@ class CyberCashApp(MDApp):
         sm = getattr(self, "root", None)
         if sm and self.ensure_screen(target):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
-            if target in {"deposit", "withdraw", "p2p_transfer"}:
-                style = "slide_right"
-            elif target == previous:
-                style = "slide_left"
-            elif target == "login":
-                style = "fade"
-            else:
-                style = "fade_up"
-            smooth_switch_screen(sm, target, style=style)
-            return True
+            return navigate(sm, target, previous=previous, fallback=fallback)
         if sm and fallback and self.ensure_screen(fallback):
-            smooth_switch_screen(sm, fallback, style="fade")
-            return True
+            previous = str(getattr(sm, "previous_screen", "") or "").strip()
+            return navigate(sm, fallback, previous=previous, fallback="")
         return False
 
     def _is_mobile_runtime(self) -> bool:

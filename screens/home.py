@@ -24,7 +24,7 @@ from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
 from api.client import API_URL, FAST_TIMEOUT, api_client
-from animations.home_animations import HomeAnimations
+from animations.effects import AnimationManager
 from components.transaction_card import TransactionCard
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
@@ -677,6 +677,8 @@ KV = """
                                 bold: True
 
                 MDBoxLayout:
+                    id: wallet_hero_block
+                    opacity: 0
                     orientation: "vertical"
                     size_hint_y: None
                     height: dp(242 * root.layout_scale)
@@ -814,6 +816,8 @@ KV = """
                                     radius: [dp(4 * root.layout_scale)]
 
                 MDBoxLayout:
+                    id: quick_actions_block
+                    opacity: 0
                     size_hint_y: None
                     height: dp(84 * root.layout_scale)
                     spacing: dp(12 * root.layout_scale)
@@ -917,6 +921,8 @@ KV = """
                                 bold: True
 
                 MDBoxLayout:
+                    id: promotions_block
+                    opacity: 0
                     adaptive_height: True
 
                     MDLabel:
@@ -2050,6 +2056,9 @@ class HomeScreen(ResponsiveScreen):
         self._sync_theme_toggle_icon()
         self._build_portfolio_carousel(force=True)
         self._refresh_portfolio_values()
+        AnimationManager.fade_in(self.ids.get("wallet_hero_block"), duration=0.35, delay=0.02)
+        AnimationManager.fade_in(self.ids.get("quick_actions_block"), duration=0.35, delay=0.12)
+        AnimationManager.fade_in(self.ids.get("promotions_block"), duration=0.35, delay=0.22)
 
     def _ensure_dashboard_timers(self) -> None:
         if self._promo_scroll_event is None:

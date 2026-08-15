@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from kivy.animation import Animation
 from kivy.properties import NumericProperty
 from kivymd.uix.button import MDRaisedButton
+
+from animations.effects import AnimationManager
 
 
 class AnimatedButton(MDRaisedButton):
@@ -10,9 +11,12 @@ class AnimatedButton(MDRaisedButton):
 
     press_scale = NumericProperty(0.97)
 
-    def animate_press(self):
-        Animation(opacity=0.92, duration=0.06).start(self)
-        Animation(opacity=1.0, duration=0.12).start(self)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(on_press=self._animate_press)
+
+    def _animate_press(self, *_args):
+        AnimationManager.pulse(self, shrink=float(self.press_scale or 0.97), duration=0.14)
 
 
 try:
@@ -21,4 +25,3 @@ try:
     Factory.register("AnimatedButton", cls=AnimatedButton)
 except Exception:
     pass
-
