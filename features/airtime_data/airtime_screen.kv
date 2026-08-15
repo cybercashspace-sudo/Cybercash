@@ -1,7 +1,8 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
 #:import GlassCard widgets.GlassCard
-#:import AuthButton features.auth.widgets.auth_button.AuthButton
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 <AirtimeScreen>:
     MDBoxLayout:
@@ -60,27 +61,31 @@
                         orientation: "vertical"
                         spacing: "12dp"
 
-                        MDTextField:
+                        AppTextField:
                             id: phone
                             hint_text: "Phone Number"
                             text: ""
+                            mode: "outlined"
                             on_text: root.on_phone_text(self.text)
 
-                        MDTextField:
+                        AppTextField:
                             id: network
                             hint_text: "Detected Network"
                             text: "Unknown"
+                            mode: "outlined"
                             readonly: True
 
-                        MDTextField:
+                        AppTextField:
                             id: amount
                             hint_text: "Amount (GHS)"
+                            mode: "outlined"
                             input_filter: "float"
 
                         Widget:
 
-                        AuthButton:
+                        AppButton:
                             id: purchase_button
                             text: "BUY NOW"
-                            busy_text: "PROCESSING..."
+                            loading_text: "PROCESSING..."
+                            variant: "primary"
                             on_release: root.submit_purchase()

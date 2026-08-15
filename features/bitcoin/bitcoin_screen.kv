@@ -1,4 +1,6 @@
-#:import TransactionCard features.transactions.transaction_card.TransactionCard
+#:import GlassCard widgets.GlassCard
+#:import AppButton components.app_button.AppButton
+#:import TransactionCard components.transaction_card.TransactionCard
 
 <BitcoinScreen>:
     MDBoxLayout:
@@ -33,12 +35,9 @@
                 spacing: "16dp"
                 padding: "16dp"
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "180dp"
-                    radius: [26, 26, 26, 26]
-                    elevation: 10
-                    md_bg_color: 0.08, 0.08, 0.08, 1
                     padding: "18dp"
 
                     MDBoxLayout:
@@ -80,12 +79,9 @@
                             shorten: True
                             shorten_from: "right"
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: "120dp"
-                    radius: [22, 22, 22, 22]
-                    elevation: 6
-                    md_bg_color: 0.09, 0.09, 0.09, 1
                     padding: "18dp"
 
                     MDBoxLayout:
@@ -115,25 +111,24 @@
                     adaptive_height: True
                     spacing: "12dp"
 
-                    MDRaisedButton:
+                    AppButton:
                         text: "Buy BTC"
-                        md_bg_color: 1, 0.76, 0.12, 1
-                        text_color: 0, 0, 0, 1
+                        variant: "primary"
                         on_release: root.buy_btc()
 
-                    MDRaisedButton:
+                    AppButton:
                         text: "Sell BTC"
-                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        variant: "secondary"
                         on_release: root.sell_btc()
 
-                    MDRaisedButton:
+                    AppButton:
                         text: "Deposit"
-                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        variant: "secondary"
                         on_release: root.deposit_btc()
 
-                    MDRaisedButton:
+                    AppButton:
                         text: "Withdraw"
-                        md_bg_color: 0.16, 0.16, 0.16, 1
+                        variant: "secondary"
                         on_release: root.withdraw_btc()
 
                 MDBoxLayout:
@@ -158,4 +153,3 @@
                             size_hint_y: None
                             height: self.minimum_height
                             orientation: "vertical"
-

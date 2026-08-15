@@ -1,7 +1,7 @@
 #:import DataPackageCard features.airtime_data.data_screen.DataPackageCard
 #:import GlassCard widgets.GlassCard
-#:import GoldButton widgets.GoldButton
-#:import AuthButton features.auth.widgets.auth_button.AuthButton
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 <DataScreen>:
     MDBoxLayout:
@@ -60,22 +60,25 @@
                         orientation: "vertical"
                         spacing: "12dp"
 
-                        MDTextField:
+                        AppTextField:
                             id: phone
                             hint_text: "Phone Number"
+                            mode: "outlined"
                             on_text: root.on_phone_text(self.text)
 
-                        MDTextField:
+                        AppTextField:
                             id: network
                             hint_text: "Detected Network"
                             text: "Unknown"
                             readonly: True
+                            mode: "outlined"
 
                         Widget:
 
-                        GoldButton:
+                        AppButton:
                             id: load_button
                             text: "Load Packages"
+                            variant: "primary"
                             on_release: root.load_packages(root.ids.network.text)
 
                 GlassCard:
@@ -124,8 +127,9 @@
                             text: "No package selected"
                             bold: True
 
-                AuthButton:
+                AppButton:
                     id: purchase_button
                     text: "PURCHASE"
-                    busy_text: "PROCESSING..."
+                    loading_text: "PROCESSING..."
+                    variant: "primary"
                     on_release: root.submit_purchase()

@@ -193,4 +193,4 @@ class DataScreen(MDScreen):
             publish(event_name, payload=payload)
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
+        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()

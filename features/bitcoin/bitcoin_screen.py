@@ -22,6 +22,20 @@ class BitcoinScreen(MDScreen):
         self._current_wallet = {}
         self._current_price = 0.0
 
+    @staticmethod
+    def _wallet_balance_value(wallet) -> float:
+        if isinstance(wallet, dict):
+            try:
+                return float(wallet.get("balance") or 0.0)
+            except Exception:
+                return 0.0
+        if wallet is not None:
+            try:
+                return float(getattr(wallet, "balance", 0.0) or 0.0)
+            except Exception:
+                return 0.0
+        return 0.0
+
     def on_enter(self):
         self.load_dashboard()
         if self._price_event is None:
@@ -77,7 +91,7 @@ class BitcoinScreen(MDScreen):
             self.ids.btc_price.text = payload.get("price_text", "$0.00")
 
         if self._current_wallet and "wallet_usd" in self.ids:
-            balance = float(getattr(self._current_wallet, "balance", 0.0) or 0.0)
+            balance = self._wallet_balance_value(self._current_wallet)
             value = balance * self._current_price
             self.ids.wallet_usd.text = f"≈ GH₵ {value:,.2f}"
 
@@ -107,4 +121,4 @@ class BitcoinScreen(MDScreen):
         self.show_message("BTC withdrawal flow will open from the backend form.")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
+        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()

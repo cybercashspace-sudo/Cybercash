@@ -9,10 +9,9 @@ from kivy.properties import BooleanProperty, NumericProperty, StringProperty
 from kivy.utils import get_color_from_hex
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDIconButton, MDRaisedButton
+from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDIcon, MDLabel
-from kivymd.uix.textfield import MDTextField
 
 from core.bottom_nav import BottomNavBar
 from core.kivymd_compat import resolve_kivymd_top_app_bar
@@ -25,6 +24,8 @@ MDTopAppBar = resolve_kivymd_top_app_bar()
 KV = """
 #:import dp kivy.metrics.dp
 #:import sp kivy.metrics.sp
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 
 #:set BG (0.04, 0.05, 0.07, 1)
 #:set SURFACE (0.09, 0.11, 0.15, 0.96)
@@ -398,24 +399,25 @@ KV = """
                                 font_size: sp(13 * root.text_scale)
                                 halign: "right"
 
-                        MDTextField:
+                        AppTextField:
                             id: load_amount
                             hint_text: "Amount to load"
                             helper_text: "This amount is loaded from your wallet into the card."
                             helper_text_mode: "on_focus"
-                            mode: "fill"
+                            mode: "outlined"
                             input_filter: "float"
                             size_hint_y: None
                             height: dp(72 * root.layout_scale)
                             disabled: root.processing or root.is_frozen or not bool(root.card_id)
 
-                        MDRaisedButton:
+                        AppButton:
+                            id: load_card_button
                             text: "Load Card"
+                            loading_text: "PROCESSING..."
                             size_hint_x: 1
                             size_hint_y: None
                             height: dp(52 * root.layout_scale)
-                            md_bg_color: GOLD
-                            text_color: BG
+                            variant: "primary"
                             disabled: root.processing or root.is_frozen or not bool(root.card_id)
                             on_release: root.submit_load()
 
@@ -860,7 +862,7 @@ class VirtualCardScreen(ActionScreen):
             self._set_feedback("Insufficient wallet balance", "error")
             return
 
-        self.processing = True
+        self._set_processing(True)
         self._set_feedback("Processing card load...", "info")
 
         def _worker():
@@ -874,7 +876,7 @@ class VirtualCardScreen(ActionScreen):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_load_complete(self, ok, payload):
-        self.processing = False
+        self._set_processing(False)
         if ok:
             self._set_feedback("Card loaded successfully!", "success")
             self.ids.load_amount.text = ""
@@ -884,6 +886,12 @@ class VirtualCardScreen(ActionScreen):
 
         detail = self._extract_detail(payload) or "Failed to load card"
         self._set_feedback(detail, "error")
+
+    def _set_processing(self, value: bool) -> None:
+        self.processing = bool(value)
+        button = self.ids.get("load_card_button")
+        if button is not None:
+            button.loading = bool(value)
 
 
 Builder.load_string(KV)
