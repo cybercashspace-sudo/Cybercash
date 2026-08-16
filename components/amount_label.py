@@ -3,15 +3,16 @@ from __future__ import annotations
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
 from kivymd.uix.label import MDLabel
 
-from theme import GREEN, RED, TEXT_PRIMARY, TEXT_SECONDARY
+from theme import GREEN, RED, TEXT_PRIMARY
 
 
 class AmountLabel(MDLabel):
     """Financial amount label with sign-aware color styling."""
 
     amount = NumericProperty(0.0)
-    currency_symbol = StringProperty("GH₵")
+    currency_symbol = StringProperty("GH\u20B5")
     show_sign = BooleanProperty(True)
+    precision = NumericProperty(2)
     positive_color = ListProperty(list(GREEN))
     negative_color = ListProperty(list(RED))
     neutral_color = ListProperty(list(TEXT_PRIMARY))
@@ -27,10 +28,11 @@ class AmountLabel(MDLabel):
             value = float(self.amount or 0.0)
         except Exception:
             value = 0.0
+        places = max(0, int(self.precision or 2))
         sign = ""
         if self.show_sign:
             sign = "+" if value > 0 else "-" if value < 0 else ""
-        amount_text = f"{abs(value):,.2f}"
+        amount_text = f"{abs(value):,.{places}f}"
         self.text = f"{sign}{self.currency_symbol} {amount_text}"
         if value > 0:
             self.text_color = list(self.positive_color or GREEN)

@@ -12,7 +12,8 @@ class BalanceCounter(MDLabel):
     value = NumericProperty(0.0)
     current_value = NumericProperty(0.0)
     target_value = NumericProperty(0.0)
-    currency_symbol = StringProperty("GH₵")
+    currency_symbol = StringProperty("GH\u20B5")
+    precision = NumericProperty(2)
     highlight_color = ListProperty([0.95, 0.74, 0.12, 1])
     normal_color = ListProperty([0.98, 0.98, 0.98, 1])
     animation_duration = NumericProperty(1.15)
@@ -70,7 +71,8 @@ class BalanceCounter(MDLabel):
             amount = float(value or 0.0)
         except Exception:
             amount = 0.0
-        self.text = f"{self.currency_symbol} {amount:,.2f}"
+        places = max(0, int(self.precision or 2))
+        self.text = f"{self.currency_symbol} {amount:,.{places}f}"
 
     def _reset_highlight(self):
         self.text_color = list(self.normal_color)

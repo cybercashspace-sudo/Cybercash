@@ -8,7 +8,7 @@ from .balance_counter import BalanceCounter
 class BalanceLabel(BalanceCounter):
     """Currency label alias with the correct Ghana cedi symbol."""
 
-    currency_symbol = StringProperty("GH₵")
+    currency_symbol = StringProperty("GH\u20B5")
 
 
 try:

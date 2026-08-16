@@ -18,6 +18,27 @@ class StatusChip(MDCard):
     status = StringProperty("neutral")
     icon = StringProperty("information-outline")
 
+    _STATUS_MAP = {
+        "completed": ("success", SUCCESS, [0.07, 0.25, 0.16, 1], "check-circle-outline"),
+        "complete": ("success", SUCCESS, [0.07, 0.25, 0.16, 1], "check-circle-outline"),
+        "done": ("success", SUCCESS, [0.07, 0.25, 0.16, 1], "check-circle-outline"),
+        "success": ("success", SUCCESS, [0.07, 0.25, 0.16, 1], "check-circle-outline"),
+        "verified": ("success", SUCCESS, [0.07, 0.25, 0.16, 1], "check-decagram-outline"),
+        "pending": ("warning", WARNING, [0.24, 0.19, 0.05, 1], "clock-outline"),
+        "queued": ("warning", WARNING, [0.24, 0.19, 0.05, 1], "clock-outline"),
+        "processing": ("info", INFO, [0.06, 0.18, 0.23, 1], "progress-clock"),
+        "in-progress": ("info", INFO, [0.06, 0.18, 0.23, 1], "progress-clock"),
+        "progress": ("info", INFO, [0.06, 0.18, 0.23, 1], "progress-clock"),
+        "failed": ("error", ERROR, [0.25, 0.10, 0.10, 1], "close-circle-outline"),
+        "failure": ("error", ERROR, [0.25, 0.10, 0.10, 1], "close-circle-outline"),
+        "error": ("error", ERROR, [0.25, 0.10, 0.10, 1], "close-circle-outline"),
+        "cancelled": ("neutral", TEXT_PRIMARY, [1, 1, 1, 0.08], "close-circle-outline"),
+        "canceled": ("neutral", TEXT_PRIMARY, [1, 1, 1, 0.08], "close-circle-outline"),
+        "neutral": ("neutral", TEXT_PRIMARY, [1, 1, 1, 0.08], "information-outline"),
+        "info": ("info", INFO, [0.06, 0.18, 0.23, 1], "information-outline"),
+        "primary": ("primary", PRIMARY, [0.16, 0.13, 0.03, 1], "shield-check-outline"),
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.size_hint = (None, None)
@@ -52,19 +73,12 @@ class StatusChip(MDCard):
         Clock.schedule_once(self._sync, 0)
 
     def _sync(self, *_args):
-        status = str(self.status or "neutral").strip().lower()
-        palette = {
-            "success": (SUCCESS, [0.07, 0.25, 0.16, 1]),
-            "warning": (WARNING, [0.24, 0.19, 0.05, 1]),
-            "error": (ERROR, [0.25, 0.10, 0.10, 1]),
-            "info": (INFO, [0.06, 0.18, 0.23, 1]),
-            "primary": (PRIMARY, [0.16, 0.13, 0.03, 1]),
-            "neutral": (GLASS_BG, [1, 1, 1, 0.08]),
-        }
-        icon_color, background = palette.get(status, palette["neutral"])
+        status_key = str(self.status or self.text or "neutral").strip().lower()
+        mapped = self._STATUS_MAP.get(status_key, self._STATUS_MAP["neutral"])
+        _, icon_color, background, default_icon = mapped
         self.md_bg_color = list(background)
         self._icon.text_color = list(icon_color)
-        self._icon.icon = str(self.icon or "information-outline")
+        self._icon.icon = str(self.icon or default_icon)
         self._label.text = str(self.text or "")
         self.height = dp(30)
 
