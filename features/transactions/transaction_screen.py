@@ -12,12 +12,13 @@ from components.app_snackbar import show_app_snackbar
 
 from features.auth.animations import AuthAnimations
 from features.transactions.transaction_controller import TransactionController
+from core.refresh_mixin import RefreshableScreenMixin
 
 
 Builder.load_file(str(Path(__file__).with_name("transaction_screen.kv")))
 
 
-class TransactionScreen(MDScreen):
+class TransactionScreen(RefreshableScreenMixin, MDScreen):
     page = NumericProperty(1)
     page_size = NumericProperty(20)
     loading = BooleanProperty(False)
@@ -57,7 +58,7 @@ class TransactionScreen(MDScreen):
         if cached:
             self._all_transactions = cached
             self.apply_view_filters()
-        self.loading = True
+        self._begin_refresh("Refreshing transactions...")
         self._sync_empty_state()
         Thread(target=self._load_transactions_worker, args=(1,), daemon=True).start()
 
@@ -73,7 +74,7 @@ class TransactionScreen(MDScreen):
             rows = self.controller.load_transactions(page=page, limit=int(self.page_size))
             Clock.schedule_once(lambda _dt: self._apply_transactions(rows, page))
         except Exception:
-            Clock.schedule_once(lambda _dt: self._finish_loading())
+            Clock.schedule_once(lambda _dt: self._handle_transactions_error(page))
 
     def _apply_transactions(self, rows: list[dict], page: int):
         if page <= 1:
@@ -83,13 +84,23 @@ class TransactionScreen(MDScreen):
         self.page = page
         self.has_more = len(rows) >= int(self.page_size)
         self.apply_view_filters()
-        self._finish_loading()
+        if page <= 1:
+            self._complete_refresh("Transactions refreshed.")
+        else:
+            self._finish_loading()
         app = MDApp.get_running_app()
         if app is not None and hasattr(app, "app_state"):
             try:
                 app.app_state.set_wallet(getattr(app.app_state, "wallet", None))
             except Exception:
                 pass
+
+    def _handle_transactions_error(self, page: int):
+        if page <= 1:
+            self._fail_refresh("Unable to refresh transactions.")
+            self.show_message("Unable to refresh transactions.")
+            return
+        self._finish_loading()
 
     def _finish_loading(self):
         self.loading = False

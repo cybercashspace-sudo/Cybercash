@@ -13,12 +13,13 @@ from components.app_snackbar import show_app_snackbar
 from features.auth.animations import AuthAnimations
 from features.notifications.notification_controller import NotificationController
 from features.notifications.notification_manager import notification_manager
+from core.refresh_mixin import RefreshableScreenMixin
 
 
 Builder.load_file(str(Path(__file__).with_name("notification_screen.kv")))
 
 
-class NotificationScreen(MDScreen):
+class NotificationScreen(RefreshableScreenMixin, MDScreen):
     loading = BooleanProperty(False)
     has_notifications = BooleanProperty(False)
     show_empty_state = BooleanProperty(False)
@@ -48,7 +49,7 @@ class NotificationScreen(MDScreen):
         cached = self.controller.load_cached_notifications()
         if cached:
             self._apply_notifications(cached, source="cache")
-        self.loading = True
+        self._begin_refresh("Refreshing notifications...")
         self._sync_empty_state()
         Thread(target=self._load_notifications_worker, daemon=True).start()
 
@@ -62,7 +63,10 @@ class NotificationScreen(MDScreen):
     def _show_cached_fallback(self):
         cached = self.controller.load_cached_notifications()
         self._apply_notifications(cached, source="cache")
-        self.loading = False
+        if cached:
+            self._complete_refresh("Cached notifications loaded.")
+        else:
+            self._fail_refresh("Unable to refresh notifications.")
         self._sync_empty_state()
 
     def _apply_notifications(self, items, source: str = "network"):

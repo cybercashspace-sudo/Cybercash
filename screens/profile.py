@@ -9,6 +9,7 @@ from kivymd.app import MDApp
 
 from features.auth.animations import AuthAnimations
 from core.screen_actions import ActionScreen
+from core.refresh_mixin import RefreshableScreenMixin
 
 
 Builder.load_string(
@@ -74,6 +75,7 @@ Builder.load_string(
                         on_release: root.refresh_profile()
 
                 RefreshIndicator:
+                    id: refresh_indicator
                     active: root.loading
                     text: "Refreshing profile..."
                     show_text: True
@@ -235,7 +237,7 @@ Builder.load_string(
 )
 
 
-class ProfileScreen(ActionScreen):
+class ProfileScreen(RefreshableScreenMixin, ActionScreen):
     loading = BooleanProperty(False)
     display_name = StringProperty("Your Profile")
     email_text = StringProperty("No email available")
@@ -302,8 +304,7 @@ class ProfileScreen(ActionScreen):
     def refresh_profile(self):
         if self.loading:
             return
-        self.loading = True
-        self._set_feedback("Refreshing profile...", "info")
+        self._begin_refresh("Refreshing profile...")
         Thread(target=self._refresh_worker, daemon=True).start()
 
     def _refresh_worker(self):
@@ -312,8 +313,6 @@ class ProfileScreen(ActionScreen):
         Clock.schedule_once(lambda _dt: self._apply_refresh_results(user_result, wallet_result))
 
     def _apply_refresh_results(self, user_result, wallet_result):
-        self.loading = False
-
         user_ok, user_payload = user_result
         wallet_ok, wallet_payload = wallet_result
 
@@ -340,8 +339,10 @@ class ProfileScreen(ActionScreen):
 
         if user_ok or wallet_ok:
             self._set_feedback("Profile refreshed.", "success")
+            self._complete_refresh("Profile refreshed.")
         else:
             self._set_feedback("Unable to refresh profile right now.", "warning")
+            self._fail_refresh("Unable to refresh profile right now.")
 
     @staticmethod
     def _format_currency(value) -> str:
