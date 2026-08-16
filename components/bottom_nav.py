@@ -9,3 +9,15 @@ class BottomNav(MDBottomNavigation):
         self.add_widget(MDBottomNavigationItem(name="wallet", text="Wallet", icon="wallet"))
         self.add_widget(MDBottomNavigationItem(name="cards", text="Cards", icon="credit-card"))
         self.add_widget(MDBottomNavigationItem(name="settings", text="Settings", icon="cog"))
+
+
+class BottomNavBar(BottomNav):
+    """Compatibility alias for the shared bottom navigation component."""
+
+
+try:
+    from kivy.factory import Factory
+
+    Factory.register("BottomNavBar", cls=BottomNavBar)
+except Exception:
+    pass
