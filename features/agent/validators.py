@@ -1,32 +1,27 @@
-import re
+from core.validation import (
+    normalize_phone,
+    validate_amount as core_validate_amount,
+    validate_id_number as core_validate_id_number,
+    validate_name as core_validate_name,
+)
 
 
 def validate_name(value):
-    text = (value or "").strip()
-    if len(text) < 2:
-        raise ValueError("Enter the agent's full name.")
-    return text
+    return core_validate_name(value, message="Enter the agent's full name.")
 
 
 def validate_phone(value):
-    digits = re.sub(r"\D", "", value or "")
-    if digits.startswith("233") and len(digits) >= 12:
-        digits = "0" + digits[3:]
-    if len(digits) != 10:
-        raise ValueError("Enter a valid Ghana phone number.")
-    return digits
+    return normalize_phone(value, label="Ghana phone number", message="Enter a valid Ghana phone number.")
 
 
 def validate_id_number(value):
-    text = (value or "").strip()
-    if len(text) < 5:
-        raise ValueError("Enter a valid ID number.")
-    return text
+    return core_validate_id_number(value, message="Enter a valid ID number.")
 
 
 def validate_positive_amount(value, label="amount"):
-    amount = float(value)
-    if amount <= 0:
-        raise ValueError(f"Enter a valid {label}.")
-    return amount
-
+    return core_validate_amount(
+        value,
+        label=label,
+        invalid_message=f"Enter a valid {label}.",
+        minimum_message=f"Enter a valid {label}.",
+    )

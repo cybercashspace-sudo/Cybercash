@@ -1,23 +1,12 @@
-from __future__ import annotations
-
-from core.exceptions import ValidationError
+from core.validation import validate_amount as core_validate_amount, validate_choice
 
 
 SUPPORTED_METHODS = {"paystack", "mobile_money"}
 
 
 def validate_amount(value) -> float:
-    try:
-        amount = float(str(value or "").replace(",", "").strip())
-    except Exception as exc:
-        raise ValidationError("Enter a valid amount.") from exc
-    if amount <= 0:
-        raise ValidationError("Amount must be greater than zero.")
-    return amount
+    return core_validate_amount(value, label="amount")
 
 
 def validate_method(value: str) -> str:
-    method = str(value or "").strip().lower()
-    if method not in SUPPORTED_METHODS:
-        raise ValidationError("Select a valid payment method.")
-    return method
+    return validate_choice(value, SUPPORTED_METHODS, label="payment method")

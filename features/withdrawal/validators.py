@@ -1,56 +1,30 @@
-from __future__ import annotations
-
-from core.exceptions import ValidationError
+from core.validation import (
+    detect_ghana_network,
+    validate_amount as core_validate_amount,
+    validate_network as core_validate_network,
+    validate_phone as core_validate_phone,
+    validate_pin as core_validate_pin,
+)
 
 
 SUPPORTED_NETWORKS = {"mtn", "telecel", "airteltigo", "auto"}
 
 
 def validate_amount(value) -> float:
-    try:
-        amount = float(str(value or "").replace(",", "").strip())
-    except Exception as exc:
-        raise ValidationError("Enter a valid withdrawal amount.") from exc
-    if amount <= 0:
-        raise ValidationError("Withdrawal amount must be greater than zero.")
-    return amount
+    return core_validate_amount(value, label="withdrawal amount")
 
 
 def validate_phone(value: str) -> str:
-    phone = str(value or "").strip()
-    if len(phone) < 10:
-        raise ValidationError("Enter a valid mobile money number.")
-    return phone
+    return core_validate_phone(value, label="mobile money number")
 
 
 def validate_pin(value: str) -> str:
-    pin = str(value or "").strip()
-    if len(pin) != 4 or not pin.isdigit():
-        raise ValidationError("Enter a valid 4-digit PIN.")
-    return pin
+    return core_validate_pin(value)
 
 
 def validate_network(value: str) -> str:
-    network = str(value or "").strip().lower()
-    if network not in SUPPORTED_NETWORKS:
-        raise ValidationError("Select a valid mobile network.")
-    return network
+    return core_validate_network(value, SUPPORTED_NETWORKS, label="mobile network")
 
 
 def detect_network(phone: str) -> str:
-    phone = str(phone or "").strip()
-    prefixes = {
-        "024": "mtn",
-        "025": "mtn",
-        "053": "mtn",
-        "054": "mtn",
-        "055": "mtn",
-        "059": "mtn",
-        "020": "telecel",
-        "050": "telecel",
-        "026": "airteltigo",
-        "027": "airteltigo",
-        "056": "airteltigo",
-        "057": "airteltigo",
-    }
-    return prefixes.get(phone[:3], "auto")
+    return detect_ghana_network(phone)

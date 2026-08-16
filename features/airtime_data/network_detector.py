@@ -1,21 +1,14 @@
-class NetworkDetector:
-    prefixes = {
-        "024": "MTN",
-        "025": "MTN",
-        "053": "MTN",
-        "054": "MTN",
-        "055": "MTN",
-        "059": "MTN",
-        "020": "Telecel",
-        "050": "Telecel",
-        "026": "AirtelTigo",
-        "027": "AirtelTigo",
-        "056": "AirtelTigo",
-        "057": "AirtelTigo",
-    }
+from core.validation import detect_ghana_network
 
+
+class NetworkDetector:
     @classmethod
     def detect(cls, phone):
-        prefix = str(phone or "")[:3]
-        return cls.prefixes.get(prefix, "Unknown")
-
+        network = detect_ghana_network(phone)
+        if network == "mtn":
+            return "MTN"
+        if network == "telecel":
+            return "Telecel"
+        if network == "airteltigo":
+            return "AirtelTigo"
+        return "Unknown"

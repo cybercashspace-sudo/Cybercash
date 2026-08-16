@@ -1,25 +1,26 @@
-import re
+from core.validation import (
+    detect_ghana_network,
+    normalize_phone,
+    validate_amount as core_validate_amount,
+    validate_network as core_validate_network,
+)
 
 
-def normalize_phone(phone):
-    digits = re.sub(r"\D", "", phone or "")
-    if digits.startswith("233") and len(digits) >= 12:
-        digits = "0" + digits[3:]
-    if len(digits) != 10:
-        raise ValueError("Enter a valid Ghana mobile number.")
-    return digits
+SUPPORTED_NETWORKS = {"mtn", "telecel", "airteltigo"}
 
 
 def validate_amount(value):
-    amount = float(value)
-    if amount <= 0:
-        raise ValueError("Enter an amount greater than zero.")
-    return amount
+    return core_validate_amount(
+        value,
+        label="amount",
+        invalid_message="Enter a valid amount.",
+        minimum_message="Enter an amount greater than zero.",
+    )
 
 
 def validate_network(network):
-    cleaned = (network or "").strip()
-    if not cleaned or cleaned.lower() == "unknown":
-        raise ValueError("Select a valid mobile network.")
-    return cleaned
+    return core_validate_network(network, SUPPORTED_NETWORKS, label="mobile network")
 
+
+def detect_network(phone):
+    return detect_ghana_network(phone)
