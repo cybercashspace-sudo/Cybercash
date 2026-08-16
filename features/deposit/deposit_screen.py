@@ -9,8 +9,7 @@ from kivy.properties import BooleanProperty, StringProperty
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
-
+from components.app_snackbar import show_app_snackbar
 from core.exceptions import PaymentError, ValidationError
 from features.auth.animations import AuthAnimations
 from features.deposit.deposit_controller import DepositController
@@ -133,4 +132,4 @@ class DepositScreen(MDScreen):
         self.show_message("Deposit successful.")
 
     def show_message(self, text: str):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

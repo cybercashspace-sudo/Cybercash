@@ -6,8 +6,7 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.airtime_controller import AirtimeController
 from features.airtime_data.network_detector import NetworkDetector
@@ -104,4 +103,4 @@ class AirtimeScreen(MDScreen):
         self.detect_network(value)
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

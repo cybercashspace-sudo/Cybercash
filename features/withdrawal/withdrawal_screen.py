@@ -8,8 +8,7 @@ from kivy.properties import BooleanProperty, StringProperty
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
-
+from components.app_snackbar import show_app_snackbar
 from core.exceptions import NetworkError, ValidationError
 from features.auth.animations import AuthAnimations
 from features.withdrawal.withdrawal_controller import WithdrawalController
@@ -101,4 +100,4 @@ class WithdrawalScreen(MDScreen):
         self.show_message("Withdrawal submitted.")
 
     def show_message(self, text: str):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

@@ -9,8 +9,7 @@ from kivy.properties import StringProperty
 from kivy.uix.behaviors import ButtonBehavior
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.data_controller import DataController
 from features.airtime_data.network_detector import NetworkDetector
@@ -193,4 +192,4 @@ class DataScreen(MDScreen):
             publish(event_name, payload=payload)
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

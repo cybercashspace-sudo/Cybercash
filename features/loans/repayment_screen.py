@@ -4,8 +4,7 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.loans.loan_controller import LoanController
 
@@ -43,5 +42,4 @@ class RepaymentScreen(MDScreen):
             self.ids.due_date.text = active.get("next_payment_text", "Not available")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
-
+        show_app_snackbar(text)

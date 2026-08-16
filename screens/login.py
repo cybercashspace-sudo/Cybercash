@@ -6,11 +6,10 @@ from kivy.clock import Clock
 from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
-
 from core.exceptions import AuthenticationError, ValidationError
 from core.message_sanitizer import extract_backend_message
 from core.session import session
+from components.app_snackbar import show_app_snackbar
 from features.auth.animations import AuthAnimations
 from features.auth.auth_controller import AuthController
 from features.auth.validators import validate_identifier, validate_password
@@ -267,4 +266,4 @@ class LoginScreen(MDScreen):
         self.show_message("Use your saved session to continue.")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

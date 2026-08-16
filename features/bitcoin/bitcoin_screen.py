@@ -5,8 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.bitcoin.bitcoin_controller import BitcoinController
 
@@ -121,4 +120,4 @@ class BitcoinScreen(MDScreen):
         self.show_message("BTC withdrawal flow will open from the backend form.")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)

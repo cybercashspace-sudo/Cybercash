@@ -5,8 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.investment.investment_controller import InvestmentController
 
@@ -168,5 +167,4 @@ class InvestmentScreen(MDScreen):
             publish(event_name, payload=payload)
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
-
+        show_app_snackbar(text)

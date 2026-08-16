@@ -8,7 +8,7 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.auth.animations import AuthAnimations
 from features.transactions.transaction_controller import TransactionController
@@ -118,7 +118,7 @@ class TransactionScreen(MDScreen):
             self.load_more()
 
     def show_message(self, text: str):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)
 
     def _sync_empty_state(self):
         rows = list(self.transactions or [])

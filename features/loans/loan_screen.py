@@ -5,8 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.loans.loan_controller import LoanController
 
@@ -99,5 +98,4 @@ class LoanScreen(MDScreen):
             self.show_message("Repayment history is not available yet.")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
-
+        show_app_snackbar(text)

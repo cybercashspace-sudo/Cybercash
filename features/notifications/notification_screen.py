@@ -8,7 +8,7 @@ from kivy.properties import BooleanProperty, ListProperty, StringProperty
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.auth.animations import AuthAnimations
 from features.notifications.notification_controller import NotificationController
@@ -101,7 +101,7 @@ class NotificationScreen(MDScreen):
             self.show_message("Unable to mark notification as read.")
 
     def show_message(self, text: str):
-        MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+        show_app_snackbar(text)
 
     def _sync_empty_state(self):
         rows = list(self.notification_rows or [])

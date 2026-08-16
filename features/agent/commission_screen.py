@@ -4,8 +4,7 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.snackbar import MDSnackbar
-from kivymd.uix.snackbar import MDSnackbarText
+from components.app_snackbar import show_app_snackbar
 
 from features.agent.agent_controller import AgentController
 
@@ -46,5 +45,4 @@ class CommissionScreen(MDScreen):
         self.show_message("Commission withdrawal flow will be connected to the backend payout screen.")
 
     def show_message(self, text):
-        MDSnackbar(MDSnackbarText(text=text)).open()
-
+        show_app_snackbar(text)
