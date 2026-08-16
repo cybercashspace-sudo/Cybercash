@@ -69,7 +69,7 @@ _install_snackbar_compat()
 
 from features.notifications.notification_manager import notification_manager
 
-from screens.splash import SplashScreen
+from screens.splash_screen import SplashScreen
 from storage import (
     get_token,
     get_remember_me,
@@ -707,6 +707,15 @@ class CyberCashApp(MDApp):
         self.reset_session_state(clear_wallet_state=False)
         self.go_to_screen("login")
 
+    def _load_startup_layouts(self, *_args) -> None:
+        login_kv = Path(__file__).resolve().parent / "screens" / "login.kv"
+        if not login_kv.exists():
+            return
+        try:
+            Builder.load_file(str(login_kv))
+        except Exception:
+            logger.exception("Failed to load login layout during startup")
+
     def build(self):
         self.theme_cls.theme_style = "Dark"
         register_font_style_aliases(self.theme_cls.font_styles)
@@ -752,12 +761,9 @@ class CyberCashApp(MDApp):
         self.theme_manager.apply(self.theme_mode, animate=False)
         self._bind_global_event_handlers()
 
-        login_kv = Path(__file__).resolve().parent / "screens" / "login.kv"
-        if login_kv.exists():
-            Builder.load_file(str(login_kv))
-
         sm = AppScreenManager(transition=NoTransition())
         sm.add_widget(SplashScreen(name="splash"))
         sm.current = "splash"
+        Clock.schedule_once(self._load_startup_layouts, 0)
 
         return sm

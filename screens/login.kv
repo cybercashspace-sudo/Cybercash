@@ -1,13 +1,12 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
 #:import FitImage kivymd.uix.fitimage.FitImage
+#:import MDTextField kivymd.uix.textfield.MDTextField
 #:import GlassCard widgets.GlassCard
 #:import GoldButton widgets.GoldButton
 #:import SocialButton widgets.SocialButton
+#:import StatusChip components.status_chip.StatusChip
 #:import MDGridLayout kivymd.uix.gridlayout.MDGridLayout
-#:import MDChip kivymd.uix.chip.MDChip
-#:import MDChipText kivymd.uix.chip.MDChipText
-#:import MDChipLeadingIcon kivymd.uix.chip.MDChipLeadingIcon
 #:import MDSegmentedButton kivymd.uix.segmentedbutton.MDSegmentedButton
 #:import MDSegmentedButtonItem kivymd.uix.segmentedbutton.MDSegmentedButtonItem
 
@@ -215,70 +214,34 @@
                             adaptive_height: True
                             spacing: dp(10)
 
-                            MDChip:
-                                type: "assist"
+                            StatusChip:
+                                text: "256-bit Encryption"
+                                icon: "shield-lock"
+                                status: "success"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: dp(40)
-                                theme_bg_color: "Custom"
-                                md_bg_color: theme.GLASS_BG
-                                theme_line_color: "Custom"
-                                line_color: theme.GLASS_BORDER
+                                height: dp(34)
 
-                                MDChipLeadingIcon:
-                                    icon: "shield-lock"
-                                    theme_text_color: "Custom"
-                                    text_color: theme.PRIMARY
-
-                                MDChipText:
-                                    text: "256-bit Encryption"
-
-                            MDChip:
-                                type: "assist"
+                            StatusChip:
+                                text: "Secure Login"
+                                icon: "lock-check"
+                                status: "info"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: dp(40)
-                                theme_bg_color: "Custom"
-                                md_bg_color: theme.GLASS_BG
-                                theme_line_color: "Custom"
-                                line_color: theme.GLASS_BORDER
+                                height: dp(34)
 
-                                MDChipLeadingIcon:
-                                    icon: "lock-check"
-                                    theme_text_color: "Custom"
-                                    text_color: theme.PRIMARY
-
-                                MDChipText:
-                                    text: "Secure Login"
-
-                            MDChip:
-                                type: "assist"
+                            StatusChip:
+                                text: "Biometric Ready"
+                                icon: "fingerprint"
+                                status: "primary"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: dp(40)
-                                theme_bg_color: "Custom"
-                                md_bg_color: theme.GLASS_BG
-                                theme_line_color: "Custom"
-                                line_color: theme.GLASS_BORDER
+                                height: dp(34)
 
-                                MDChipLeadingIcon:
-                                    icon: "fingerprint"
-                                    theme_text_color: "Custom"
-                                    text_color: theme.PRIMARY
-
-                                MDChipText:
-                                    text: "Biometric Ready"
-
-                            MDChip:
-                                type: "assist"
+                            StatusChip:
+                                text: "PCI DSS"
+                                icon: "credit-card-check"
+                                status: "warning"
+                                size_hint_x: 1
                                 size_hint_y: None
-                                height: dp(40)
-                                theme_bg_color: "Custom"
-                                md_bg_color: theme.GLASS_BG
-                                theme_line_color: "Custom"
-                                line_color: theme.GLASS_BORDER
-
-                                MDChipLeadingIcon:
-                                    icon: "credit-card-check"
-                                    theme_text_color: "Custom"
-                                    text_color: theme.PRIMARY
-
-                                MDChipText:
-                                    text: "PCI DSS"
+                                height: dp(34)
