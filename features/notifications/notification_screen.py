@@ -20,6 +20,13 @@ Builder.load_file(str(Path(__file__).with_name("notification_screen.kv")))
 
 class NotificationScreen(MDScreen):
     loading = BooleanProperty(False)
+    has_notifications = BooleanProperty(False)
+    show_empty_state = BooleanProperty(False)
+    empty_state_icon = StringProperty("bell-outline")
+    empty_state_title = StringProperty("No notifications yet")
+    empty_state_message = StringProperty(
+        "Security alerts and wallet updates will appear here."
+    )
     notification_rows = ListProperty([])
     unread_count_text = StringProperty("0")
 
@@ -42,7 +49,7 @@ class NotificationScreen(MDScreen):
         if cached:
             self._apply_notifications(cached, source="cache")
         self.loading = True
-        self._set_loading(True)
+        self._sync_empty_state()
         Thread(target=self._load_notifications_worker, daemon=True).start()
 
     def _load_notifications_worker(self):
@@ -56,7 +63,7 @@ class NotificationScreen(MDScreen):
         cached = self.controller.load_cached_notifications()
         self._apply_notifications(cached, source="cache")
         self.loading = False
-        self._set_loading(False)
+        self._sync_empty_state()
 
     def _apply_notifications(self, items, source: str = "network"):
         rows = []
@@ -84,7 +91,7 @@ class NotificationScreen(MDScreen):
             except Exception:
                 pass
         self.loading = False
-        self._set_loading(False)
+        self._sync_empty_state()
 
     def mark_read(self, notification_id: str):
         try:
@@ -96,7 +103,7 @@ class NotificationScreen(MDScreen):
     def show_message(self, text: str):
         MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
 
-    def _set_loading(self, active: bool):
-        button = self.ids.get("refresh_button")
-        if button is not None:
-            button.loading = bool(active)
+    def _sync_empty_state(self):
+        rows = list(self.notification_rows or [])
+        self.has_notifications = bool(rows)
+        self.show_empty_state = not self.loading and not self.has_notifications

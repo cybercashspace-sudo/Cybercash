@@ -22,6 +22,13 @@ class TransactionScreen(MDScreen):
     page_size = NumericProperty(20)
     loading = BooleanProperty(False)
     has_more = BooleanProperty(True)
+    has_transactions = BooleanProperty(False)
+    show_empty_state = BooleanProperty(False)
+    empty_state_icon = StringProperty("swap-horizontal")
+    empty_state_title = StringProperty("No transactions yet")
+    empty_state_message = StringProperty(
+        "Your deposits, transfers, and withdrawals will appear here."
+    )
     search_query = StringProperty("")
     selected_filter = StringProperty("all")
     transactions = ListProperty([])
@@ -51,14 +58,14 @@ class TransactionScreen(MDScreen):
             self._all_transactions = cached
             self.apply_view_filters()
         self.loading = True
-        self._set_loading(True)
+        self._sync_empty_state()
         Thread(target=self._load_transactions_worker, args=(1,), daemon=True).start()
 
     def load_more(self):
         if self.loading or not self.has_more:
             return
         self.loading = True
-        self._set_loading(True)
+        self._sync_empty_state()
         Thread(target=self._load_transactions_worker, args=(self.page + 1,), daemon=True).start()
 
     def _load_transactions_worker(self, page: int):
@@ -86,12 +93,7 @@ class TransactionScreen(MDScreen):
 
     def _finish_loading(self):
         self.loading = False
-        self._set_loading(False)
-
-    def _set_loading(self, active: bool):
-        button = self.ids.get("refresh_button")
-        if button is not None:
-            button.loading = bool(active)
+        self._sync_empty_state()
 
     def apply_view_filters(self):
         rows = self.controller.apply_filters(
@@ -102,6 +104,7 @@ class TransactionScreen(MDScreen):
         self.transactions = rows
         if "transaction_list" in self.ids:
             self.ids.transaction_list.data = rows
+        self._sync_empty_state()
 
     def set_filter(self, value: str):
         self.selected_filter = str(value or "all").strip().lower()
@@ -116,3 +119,25 @@ class TransactionScreen(MDScreen):
 
     def show_message(self, text: str):
         MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+
+    def _sync_empty_state(self):
+        rows = list(self.transactions or [])
+        self.has_transactions = bool(rows)
+        active_filter = str(self.selected_filter or "all").strip().lower()
+        query = str(self.search_query or "").strip()
+
+        if self.has_transactions:
+            self.show_empty_state = False
+            return
+
+        self.show_empty_state = not self.loading
+        if query or active_filter != "all":
+            self.empty_state_title = "No matching transactions"
+            self.empty_state_message = (
+                "Try a broader search or clear the filter to see all activity."
+            )
+        else:
+            self.empty_state_title = "No transactions yet"
+            self.empty_state_message = (
+                "Your deposits, transfers, and withdrawals will appear here."
+            )

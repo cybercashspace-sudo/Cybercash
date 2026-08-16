@@ -18,6 +18,7 @@ Builder.load_string(
 #:import theme theme
 #:import GlassCard widgets.GlassCard
 #:import AppButton components.app_button.AppButton
+#:import RefreshIndicator components.refresh_indicator.RefreshIndicator
 
 <ProfileScreen>:
     MDFloatLayout:
@@ -67,11 +68,19 @@ Builder.load_string(
                         id: refresh_button
                         text: "Refresh"
                         variant: "secondary"
-                        loading_text: "Refreshing..."
                         size_hint_x: None
                         width: dp(140)
                         height: dp(46)
                         on_release: root.refresh_profile()
+
+                RefreshIndicator:
+                    active: root.loading
+                    text: "Refreshing profile..."
+                    show_text: True
+                    size_hint_y: None
+                    height: dp(24) if root.loading else 0
+                    opacity: 1 if root.loading else 0
+                    disabled: not root.loading
 
                 MDLabel:
                     text: root.feedback_text
@@ -294,7 +303,6 @@ class ProfileScreen(ActionScreen):
         if self.loading:
             return
         self.loading = True
-        self._set_loading(True)
         self._set_feedback("Refreshing profile...", "info")
         Thread(target=self._refresh_worker, daemon=True).start()
 
@@ -305,7 +313,6 @@ class ProfileScreen(ActionScreen):
 
     def _apply_refresh_results(self, user_result, wallet_result):
         self.loading = False
-        self._set_loading(False)
 
         user_ok, user_payload = user_result
         wallet_ok, wallet_payload = wallet_result
@@ -335,11 +342,6 @@ class ProfileScreen(ActionScreen):
             self._set_feedback("Profile refreshed.", "success")
         else:
             self._set_feedback("Unable to refresh profile right now.", "warning")
-
-    def _set_loading(self, active: bool):
-        button = self.ids.get("refresh_button")
-        if button is not None:
-            button.loading = bool(active)
 
     @staticmethod
     def _format_currency(value) -> str:
