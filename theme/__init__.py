@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from kivy.utils import get_color_from_hex
 
-from .animations import COUNTER, FAST, SHIMMER, SLOW, SPRING, STANDARD
+from .animations import COUNTER, FAST, HERO, MEDIUM, NORMAL, SHIMMER, SLOW, SPRING, STANDARD
 from .colors import (
     BACKGROUND,
     BACKGROUND_LIGHT,
@@ -26,7 +26,7 @@ from .colors import (
     TEXT_SECONDARY,
     WARNING,
 )
-from .elevation import HIGH, LOW, MEDIUM
+from .elevation import HIGH, LOW, MEDIUM as ELEVATION_MEDIUM
 from .radius import BUTTON_RADIUS, CARD_RADIUS, PILL_RADIUS, SHEET_RADIUS
 from .spacing import CARD_PADDING, SCREEN_PADDING, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XL, SPACE_XS
 from .typography import BODY, CAPTION, DISPLAY, HEADLINE, LABEL, TITLE
@@ -63,6 +63,7 @@ __all__ = [
     "DIVIDER",
     "ERROR",
     "FAST",
+    "HERO",
     "GLASS_BG",
     "GLASS_BORDER",
     "GREEN",
@@ -72,6 +73,8 @@ __all__ = [
     "LABEL",
     "LOW",
     "MEDIUM",
+    "ELEVATION_MEDIUM",
+    "NORMAL",
     "PILL_RADIUS",
     "PRIMARY",
     "PRIMARY_DARK",

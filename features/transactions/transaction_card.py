@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ListProperty, StringProperty
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
-from kivymd.uix.card import MDCard
+
+from widgets import GlassCard
 
 
 def _transaction_style(tx_type: str, status: str):
@@ -24,7 +24,7 @@ def _transaction_style(tx_type: str, status: str):
     return "receipt-text-outline", [0.80, 0.82, 0.86, 1]
 
 
-class TransactionCard(RecycleDataViewBehavior, MDCard):
+class TransactionCard(RecycleDataViewBehavior, GlassCard):
     transaction_id = StringProperty("")
     title = StringProperty("")
     amount_text = StringProperty("")

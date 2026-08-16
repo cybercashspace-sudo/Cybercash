@@ -1,5 +1,8 @@
 #:import dp kivy.metrics.dp
 #:import theme theme
+#:import GlassCard widgets.GlassCard
+#:import AppButton components.app_button.AppButton
+#:import AppTextField components.app_textfield.AppTextField
 #:import TransactionCard features.transactions.transaction_card.TransactionCard
 
 <TransactionCard>:
@@ -110,7 +113,7 @@
                         text: "Recent wallet activity"
                         theme_text_color: "Hint"
 
-                MDCard:
+                GlassCard:
                     id: filter_card
                     orientation: "vertical"
                     size_hint_y: None
@@ -122,13 +125,30 @@
                     md_bg_color: theme.GLASS_BG
                     line_color: theme.GLASS_BORDER
 
-                    MDTextField:
+                    AppTextField:
                         id: search
                         hint_text: "Search transactions"
-                        mode: "outlined"
                         helper_text: "Type a reference, amount, or description"
                         helper_text_mode: "on_focus"
+                        icon_left: "magnify"
                         on_text: root.search_query = self.text
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(10)
+
+                        Widget:
+
+                        AppButton:
+                            id: refresh_button
+                            text: "Refresh"
+                            variant: "secondary"
+                            loading_text: "Refreshing..."
+                            size_hint_x: None
+                            width: dp(140)
+                            height: dp(46)
+                            on_release: root.refresh_transactions()
 
                     MDSegmentedButton:
                         size_hint_y: None
@@ -151,7 +171,7 @@
                             text: "Withdrawals"
                             on_release: root.set_filter("withdraw")
 
-                MDCard:
+                GlassCard:
                     id: list_card
                     orientation: "vertical"
                     size_hint_y: None

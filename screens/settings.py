@@ -6,17 +6,19 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
+from kivy.uix.behaviors import ButtonBehavior
 
 from api.auth import logout
 from api.client import api_client
 from core.bottom_nav import BottomNavBar
-from core.popup_manager import show_confirm_dialog, show_message_dialog
+from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
 
-from kivymd.uix.card import MDCard
+from widgets import GlassCard
 KV = """
 #:import dp kivy.metrics.dp
 #:import sp kivy.metrics.sp
+#:import GlassCard widgets.GlassCard
 #:set BG (0.043, 0.059, 0.078, 1)
 #:set CARD (0.075, 0.096, 0.126, 0.96)
 #:set CARD2 (0.085, 0.114, 0.142, 0.96)
@@ -24,6 +26,53 @@ KV = """
 #:set GREEN (0.122, 0.239, 0.169, 1)
 #:set TEXT_MAIN (0.96, 0.97, 0.98, 1)
 #:set TEXT_SUB (0.69, 0.73, 0.78, 1)
+#:set BRAND_GOLD GOLD
+#:set PROFILE_BG CARD2
+
+<SettingsItem>:
+    size_hint_y: None
+    height: dp(86)
+    radius: [dp(22)]
+    padding: dp(16)
+    spacing: dp(12)
+    md_bg_color: PROFILE_BG
+    line_color: (1, 1, 1, 0.12)
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        spacing: dp(12)
+
+        MDIcon:
+            icon: root.icon
+            theme_text_color: "Custom"
+            text_color: BRAND_GOLD
+            size_hint: None, None
+            size: dp(30), dp(30)
+            pos_hint: {"center_y": .5}
+
+        MDBoxLayout:
+            orientation: "vertical"
+            spacing: dp(2)
+
+            MDLabel:
+                text: root.text
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: TEXT_MAIN
+
+            MDLabel:
+                text: root.secondary
+                theme_text_color: "Hint"
+                font_size: sp(12)
+
+        MDIcon:
+            icon: "chevron-right"
+            theme_text_color: "Custom"
+            text_color: TEXT_SUB
+            size_hint: None, None
+            size: dp(24), dp(24)
+            pos_hint: {"center_y": .5}
 
 <SettingsScreen>:
     MDBoxLayout:
@@ -55,7 +104,7 @@ KV = """
                     text_color: BRAND_GOLD
                     adaptive_height: True
 
-                MDCard:
+                GlassCard:
                     size_hint_y: None
                     height: dp(140)
                     radius: [dp(25)]
@@ -164,7 +213,7 @@ KV = """
             inactive_color: app.ui_text_secondary
 """
 
-class SettingsItem(MDCard):
+class SettingsItem(ButtonBehavior, GlassCard):
     text = StringProperty()
     secondary = StringProperty()
     icon = StringProperty()
@@ -233,8 +282,20 @@ class SettingsScreen(ActionScreen):
         """Handles navigation to specific settings sub-sections/dialogs."""
         if section_name == "Security":
             self.open_security_dialog()
+        elif section_name == "Profile":
+            self._go_to_screen("profile")
+        elif section_name == "Notifications":
+            self._go_to_screen("notifications")
         else:
             self._show_popup(section_name, f"Manage your {section_name.lower()} settings. This section is coming soon.")
+
+    def _go_to_screen(self, screen_name: str) -> None:
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen(screen_name, fallback="settings", transition_style="slide_left")
+            return
+        if self.manager is not None and self.manager.has_screen(screen_name):
+            self.manager.current = screen_name
 
     def open_security_dialog(self):
         """Special handling for Security to include Privacy Mode toggle."""

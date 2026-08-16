@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from kivy.properties import BooleanProperty, ListProperty, StringProperty
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
-from kivymd.uix.card import MDCard
+
+from widgets import GlassCard
 
 
 def _style_for_type(notification_type: str):
@@ -18,7 +19,7 @@ def _style_for_type(notification_type: str):
     return "bell-outline", [0.88, 0.88, 0.90, 1]
 
 
-class NotificationCard(RecycleDataViewBehavior, MDCard):
+class NotificationCard(RecycleDataViewBehavior, GlassCard):
     notification_id = StringProperty("")
     title = StringProperty("")
     message = StringProperty("")

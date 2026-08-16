@@ -51,12 +51,14 @@ class TransactionScreen(MDScreen):
             self._all_transactions = cached
             self.apply_view_filters()
         self.loading = True
+        self._set_loading(True)
         Thread(target=self._load_transactions_worker, args=(1,), daemon=True).start()
 
     def load_more(self):
         if self.loading or not self.has_more:
             return
         self.loading = True
+        self._set_loading(True)
         Thread(target=self._load_transactions_worker, args=(self.page + 1,), daemon=True).start()
 
     def _load_transactions_worker(self, page: int):
@@ -84,6 +86,12 @@ class TransactionScreen(MDScreen):
 
     def _finish_loading(self):
         self.loading = False
+        self._set_loading(False)
+
+    def _set_loading(self, active: bool):
+        button = self.ids.get("refresh_button")
+        if button is not None:
+            button.loading = bool(active)
 
     def apply_view_filters(self):
         rows = self.controller.apply_filters(

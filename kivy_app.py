@@ -110,6 +110,7 @@ SCREEN_SPECS = {
     "pay_bills": ("screens.pay_bills", "PayBillsScreen"),
     "transactions": ("features.transactions.transaction_screen", "TransactionScreen"),
     "notifications": ("features.notifications.notification_screen", "NotificationScreen"),
+    "profile": ("screens.profile", "ProfileScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
     "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),

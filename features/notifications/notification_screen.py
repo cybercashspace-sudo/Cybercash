@@ -42,6 +42,7 @@ class NotificationScreen(MDScreen):
         if cached:
             self._apply_notifications(cached, source="cache")
         self.loading = True
+        self._set_loading(True)
         Thread(target=self._load_notifications_worker, daemon=True).start()
 
     def _load_notifications_worker(self):
@@ -55,6 +56,7 @@ class NotificationScreen(MDScreen):
         cached = self.controller.load_cached_notifications()
         self._apply_notifications(cached, source="cache")
         self.loading = False
+        self._set_loading(False)
 
     def _apply_notifications(self, items, source: str = "network"):
         rows = []
@@ -82,6 +84,7 @@ class NotificationScreen(MDScreen):
             except Exception:
                 pass
         self.loading = False
+        self._set_loading(False)
 
     def mark_read(self, notification_id: str):
         try:
@@ -92,3 +95,8 @@ class NotificationScreen(MDScreen):
 
     def show_message(self, text: str):
         MDSnackbar(MDSnackbarText(text=str(text or ""))).open()
+
+    def _set_loading(self, active: bool):
+        button = self.ids.get("refresh_button")
+        if button is not None:
+            button.loading = bool(active)
