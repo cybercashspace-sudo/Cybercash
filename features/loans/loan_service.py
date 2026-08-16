@@ -1,19 +1,12 @@
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class LoanService:
+class LoanService(BaseApiService):
     def check_eligibility(self):
-        response = api.get("/loans/eligibility")
-        response.raise_for_status()
-        return response.json()
+        return self.get_json("/loans/eligibility")
 
     def apply(self, payload):
-        response = api.post("/loans/apply", payload)
-        response.raise_for_status()
-        return response.json()
+        return self.post_json("/loans/apply", payload)
 
     def repayments(self):
-        response = api.get("/loans/repayments")
-        response.raise_for_status()
-        return response.json()
-
+        return self.get_json("/loans/repayments")

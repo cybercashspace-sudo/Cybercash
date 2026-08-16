@@ -1,30 +1,34 @@
 from __future__ import annotations
 
-from api.client import FAST_TIMEOUT, api_client
+from requests import HTTPError
+
 from core.exceptions import NetworkError, ValidationError
+from core.message_sanitizer import extract_backend_message
+from services.api import FAST_TIMEOUT
+from services.base_service import BaseApiService
 
 
-class TransferService:
+class TransferService(BaseApiService):
     def validate_recipient(self, identifier: str) -> dict:
-        result = api_client.request("GET", f"/users/search/{identifier}", timeout=FAST_TIMEOUT)
-        status_code = int(result.get("status_code", 0) or 0)
-        data = result.get("data", {})
-        if status_code >= 400:
-            message = ""
-            if isinstance(data, dict):
-                message = str(data.get("detail") or data.get("message") or "").strip()
-            raise ValidationError(message or "Recipient not found.")
+        try:
+            data = self.get_json(f"/users/search/{identifier}", timeout=FAST_TIMEOUT)
+        except HTTPError as exc:
+            message = extract_backend_message(
+                getattr(exc.response, "data", None),
+                fallback="Recipient not found.",
+            )
+            raise ValidationError(message) from exc
         if not isinstance(data, dict):
             raise NetworkError("Unexpected recipient response.")
         return data
 
     def send_money(self, payload: dict) -> dict:
-        result = api_client.request("POST", "/wallet/transfer", payload=payload, timeout=FAST_TIMEOUT)
-        status_code = int(result.get("status_code", 0) or 0)
-        data = result.get("data", {})
-        if status_code >= 400:
-            message = ""
-            if isinstance(data, dict):
-                message = str(data.get("detail") or data.get("message") or "").strip()
-            raise NetworkError(message or "Transfer failed.")
+        try:
+            data = self.post_json("/wallet/transfer", payload=payload, timeout=FAST_TIMEOUT)
+        except HTTPError as exc:
+            message = extract_backend_message(
+                getattr(exc.response, "data", None),
+                fallback="Transfer failed.",
+            )
+            raise NetworkError(message) from exc
         return data if isinstance(data, dict) else {"status": "success", "payload": data}

@@ -1,31 +1,15 @@
 from __future__ import annotations
 
 from core.dashboard_cache import load_dashboard_cache, save_dashboard_cache
-from services.api import FAST_TIMEOUT, api
+from services.base_service import BaseApiService
 from services.transaction_service import TransactionService as AppTransactionService
 from services.wallet_service import WalletService
 
 
-class HomeService:
+class HomeService(BaseApiService):
     def __init__(self):
         self.wallet_service = WalletService()
         self.transaction_service = AppTransactionService()
-
-    @staticmethod
-    def _as_list(payload) -> list[dict]:
-        if isinstance(payload, list):
-            return [item for item in payload if isinstance(item, dict)]
-        if isinstance(payload, dict):
-            for key in ("items", "results", "transactions", "notifications", "data"):
-                value = payload.get(key)
-                if isinstance(value, list):
-                    return [item for item in value if isinstance(item, dict)]
-        return []
-
-    def _request_json(self, path: str, params: dict | None = None):
-        response = api.get(path, params=params, timeout=FAST_TIMEOUT)
-        response.raise_for_status()
-        return response.json()
 
     def get_wallet(self) -> dict:
         try:
@@ -46,8 +30,8 @@ class HomeService:
             ("/notifications/recent", {"limit": limit}),
         ):
             try:
-                payload = self._request_json(path, params=params)
-                rows = self._as_list(payload)
+                payload = self.get_json(path, params=params)
+                rows = self.extract_items(payload)
                 if rows:
                     return rows
             except Exception:
@@ -57,7 +41,7 @@ class HomeService:
     def get_profile(self) -> dict:
         for path in ("/users/me", "/auth/me"):
             try:
-                payload = self._request_json(path)
+                payload = self.get_json(path)
                 if isinstance(payload, dict):
                     return payload
             except Exception:
@@ -89,4 +73,3 @@ class HomeService:
         if not isinstance(data, dict):
             return {}
         return data
-

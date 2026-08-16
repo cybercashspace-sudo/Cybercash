@@ -1,9 +1,10 @@
-from services.api import API_URL, api_client
+from services.api import API_URL
+from services.base_service import BaseApiService
 
 BASE_URL = API_URL
 
 
-class APIService:
+class APIService(BaseApiService):
     def __init__(self):
         self.token = None
 
@@ -17,12 +18,7 @@ class APIService:
         return headers
 
     def get_wallet(self):
-        return api_client.get("/wallet", headers=self.get_headers())
+        return self.get_json("/wallet", headers=self.get_headers())
 
     def send_money(self, data):
-        return api_client.request(
-            "POST",
-            "/transfer",
-            payload=data,
-            headers=self.get_headers(),
-        )
+        return self.post_json("/transfer", data, headers=self.get_headers())

@@ -1,11 +1,9 @@
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class PriceService:
+class PriceService(BaseApiService):
     def get_btc_price(self):
-        response = api.get("/btc/price")
-        response.raise_for_status()
-        payload = response.json()
+        payload = self.get_json("/btc/price")
 
         if isinstance(payload, dict):
             for key in ("price", "btc_price", "usd_price", "rate"):
@@ -19,4 +17,3 @@ class PriceService:
             return float(payload)
         except (TypeError, ValueError):
             return 0.0
-

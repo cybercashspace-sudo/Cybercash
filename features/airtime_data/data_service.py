@@ -1,19 +1,12 @@
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class DataService:
+class DataService(BaseApiService):
     def packages(self, network):
-        response = api.get(f"/data/packages/{network}")
-        response.raise_for_status()
-        return response.json()
+        return self.get_json(f"/data/packages/{network}")
 
     def purchase(self, payload):
-        response = api.post("/data/buy", payload)
-        response.raise_for_status()
-        return response.json()
+        return self.post_json("/data/buy", payload)
 
     def history(self, page=1, limit=20):
-        response = api.get(f"/data/history?page={page}&limit={limit}")
-        response.raise_for_status()
-        return response.json()
-
+        return self.get_json("/data/history", params={"page": page, "limit": limit})

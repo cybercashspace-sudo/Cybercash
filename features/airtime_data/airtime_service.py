@@ -1,14 +1,9 @@
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class AirtimeService:
+class AirtimeService(BaseApiService):
     def purchase(self, payload):
-        response = api.post("/airtime/buy", payload)
-        response.raise_for_status()
-        return response.json()
+        return self.post_json("/airtime/buy", payload)
 
     def history(self, page=1, limit=20):
-        response = api.get(f"/airtime/history?page={page}&limit={limit}")
-        response.raise_for_status()
-        return response.json()
-
+        return self.get_json("/airtime/history", params={"page": page, "limit": limit})

@@ -1,29 +1,18 @@
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class AgentService:
+class AgentService(BaseApiService):
     def profile(self):
-        response = api.get("/agent/profile")
-        response.raise_for_status()
-        return response.json()
+        return self.get_json("/agent/profile")
 
     def apply(self, payload):
-        response = api.post("/agent/apply", payload)
-        response.raise_for_status()
-        return response.json()
+        return self.post_json("/agent/apply", payload)
 
     def kyc(self, payload):
-        response = api.post("/agent/kyc", payload)
-        response.raise_for_status()
-        return response.json()
+        return self.post_json("/agent/kyc", payload)
 
     def commissions(self):
-        response = api.get("/agent/commissions")
-        response.raise_for_status()
-        return response.json()
+        return self.get_json("/agent/commissions")
 
     def transactions(self):
-        response = api.get("/agent/transactions")
-        response.raise_for_status()
-        return response.json()
-
+        return self.get_json("/agent/transactions")

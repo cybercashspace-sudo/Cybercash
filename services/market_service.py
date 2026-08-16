@@ -5,15 +5,15 @@ from datetime import datetime, timezone
 import requests
 
 from core.message_sanitizer import sanitize_backend_message
-from services.api import FAST_TIMEOUT, api
+from services.api import FAST_TIMEOUT
+from services.base_service import BaseApiService
 
 
-class MarketService:
+class MarketService(BaseApiService):
     def get_btc_snapshot(self) -> dict:
         try:
-            response = api.get("/crypto/market/btc", timeout=FAST_TIMEOUT)
-            payload = response.json()
-            if response.status_code < 400 and isinstance(payload, dict) and payload.get("last_price_usdt") is not None:
+            payload = self.get_json("/crypto/market/btc", timeout=FAST_TIMEOUT)
+            if isinstance(payload, dict) and payload.get("last_price_usdt") is not None:
                 return payload
         except Exception:
             pass
@@ -40,4 +40,3 @@ class MarketService:
             }
         except Exception as exc:
             return {"error": sanitize_backend_message(exc, fallback="Unable to load BTC market data.")}
-

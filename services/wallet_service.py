@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from models.wallet import Wallet
-from services.api import api
+from services.base_service import BaseApiService
 
 
-class WalletService:
+class WalletService(BaseApiService):
     def get_wallet(self):
         last_error = None
         for path in ("/wallet/me", "/api/wallet/me"):
             try:
-                response = api.get(path)
-                response.raise_for_status()
-                payload = response.json()
+                payload = self.get_json(path)
                 if isinstance(payload, dict):
                     return payload
             except Exception as exc:
