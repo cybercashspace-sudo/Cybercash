@@ -25,6 +25,7 @@ from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 from animations.dashboard import DashboardAnimationSequence
 from animations.effects import AnimationManager
 from components.balance_counter import BalanceCounter
+from components.balance_label import BalanceLabel
 from components.pressable_card import PressableCard
 from components.wallet_card import WalletCard
 from components.transaction_card import TransactionCard
@@ -2559,7 +2560,7 @@ class HomeScreen(ResponsiveScreen):
         top_row.add_widget(icon_shell)
         top_row.add_widget(title_stack)
 
-        value_label_class = BalanceCounter if is_wallet_card else MDLabel
+        value_label_class = BalanceLabel if is_wallet_card else MDLabel
         value_label = value_label_class(
             text=spec["value"],
             theme_text_color="Custom",
@@ -2572,7 +2573,7 @@ class HomeScreen(ResponsiveScreen):
             shorten_from="right",
         )
         if is_wallet_card and isinstance(value_label, BalanceCounter):
-            value_label.currency_symbol = "GH¢"
+            value_label.currency_symbol = "GH₵"
             value_label.highlight_color = list(spec["value_color"])
             value_label.normal_color = list(spec["value_color"])
         hint_label = MDLabel(
