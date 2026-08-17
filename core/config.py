@@ -6,7 +6,7 @@ from core.environment import Environment, resolve_api_base_url, resolve_environm
 
 
 @dataclass(frozen=True)
-class AppConfig:
+class Config:
     api_base_url: str = ""
     request_timeout: int = 15
     app_name: str = "CYBER CASH"
@@ -15,7 +15,7 @@ class AppConfig:
     debug: bool = True
 
     @classmethod
-    def load(cls) -> "AppConfig":
+    def load(cls) -> "Config":
         environment = resolve_environment()
         return cls(
             api_base_url=resolve_api_base_url(),
@@ -26,3 +26,12 @@ class AppConfig:
             debug=environment != Environment.PRODUCTION,
         )
 
+
+AppConfig = Config
+
+
+def get_config() -> Config:
+    return Config.load()
+
+
+config = get_config()

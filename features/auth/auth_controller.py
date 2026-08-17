@@ -22,8 +22,11 @@ class AuthController:
         user_payload = result.get("user") if isinstance(result.get("user"), dict) else {}
 
         if token:
-            session.save(token, user=user_payload)
-            session.set_user(user_payload)
+            session.save(
+                token,
+                user=user_payload,
+                refresh_token=str(result.get("refresh_token", "") or "").strip(),
+            )
 
             app = MDApp.get_running_app()
             if app is not None:
@@ -68,8 +71,7 @@ class AuthController:
         return result
 
     def logout(self):
-        session.save("")
-        session.set_user(None)
+        session.clear_auth()
         app = MDApp.get_running_app()
         if app is not None:
             reset_session = getattr(app, "reset_session_state", None)

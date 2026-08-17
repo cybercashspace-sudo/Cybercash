@@ -113,6 +113,73 @@ def clear_token():
     save_token("")
 
 
+def save_refresh_token(refresh_token: str):
+    try:
+        data = _read_secure_data()
+        data["refresh_token"] = str(refresh_token or "")
+        _write_secure_data(data)
+    except Exception:
+        return
+
+
+def get_refresh_token() -> str:
+    try:
+        data = _read_secure_data()
+        return str(data.get("refresh_token", "") or "").strip()
+    except Exception:
+        return ""
+
+
+def clear_refresh_token():
+    save_refresh_token("")
+
+
+def save_user(user: dict | None):
+    try:
+        data = _read_secure_data()
+        data["user"] = user if isinstance(user, dict) else {}
+        _write_secure_data(data)
+    except Exception:
+        pass
+
+
+def get_user() -> dict:
+    data = _read_secure_data()
+    user = data.get("user", {})
+    return user if isinstance(user, dict) else {}
+
+
+def clear_user():
+    save_user({})
+
+
+def save_session_expiry(expires_at):
+    try:
+        data = _read_secure_data()
+        if expires_at in {None, ""}:
+            data.pop("expires_at", None)
+        else:
+            data["expires_at"] = float(expires_at)
+        _write_secure_data(data)
+    except Exception:
+        pass
+
+
+def get_session_expiry():
+    data = _read_secure_data()
+    expires_at = data.get("expires_at")
+    if expires_at in {None, ""}:
+        return None
+    try:
+        return float(expires_at)
+    except Exception:
+        return None
+
+
+def clear_session_expiry():
+    save_session_expiry(None)
+
+
 def save_remember_me(momo: str, first_name: str = "", pin: str = ""):
     try:
         data = _read_secure_data()

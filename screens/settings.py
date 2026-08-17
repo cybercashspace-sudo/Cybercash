@@ -480,14 +480,20 @@ class SettingsScreen(ActionScreen):
         )
 
     def open_admin_dashboard(self):
-        health = api_client.request("GET", "/", headers=None, timeout=3)
-        if not health.get("ok"):
+        app = MDApp.get_running_app()
+        network_manager = getattr(app, "network_manager", None)
+        healthy = True
+        if network_manager is not None and hasattr(network_manager, "probe"):
+            healthy = bool(network_manager.probe())
+        else:
+            health = api_client.request("GET", "/", headers=None, timeout=3)
+            healthy = bool(health.get("ok"))
+        if not healthy:
             self._show_popup(
                 "Start Backend First",
                 "Admin tools need the backend running first.\n\nTip: run start_all.ps1 from the project root.",
             )
             return
-        app = MDApp.get_running_app()
         if hasattr(app, "go_to_screen"):
             app.go_to_screen("admin_dashboard")
         elif self.manager:

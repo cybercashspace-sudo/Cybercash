@@ -10,12 +10,21 @@ app.
 
 from storage import (
     clear_remember_me,
+    clear_refresh_token,
+    clear_session_expiry,
+    clear_user,
     clear_token,
     get_privacy_mode,
     get_remember_me,
+    get_refresh_token,
+    get_session_expiry,
+    get_user,
     get_token,
     save_privacy_mode,
     save_remember_me,
+    save_refresh_token,
+    save_session_expiry,
+    save_user,
     save_token,
 )
 
@@ -29,6 +38,34 @@ class SecureStorage:
 
     def clear_token(self) -> None:
         clear_token()
+
+    def save_refresh_token(self, refresh_token: str) -> None:
+        save_refresh_token(refresh_token)
+
+    def get_refresh_token(self) -> str:
+        return str(get_refresh_token() or "").strip()
+
+    def clear_refresh_token(self) -> None:
+        clear_refresh_token()
+
+    def save_user(self, user: dict | None) -> None:
+        save_user(user)
+
+    def get_user(self) -> dict:
+        user = get_user()
+        return user if isinstance(user, dict) else {}
+
+    def clear_user(self) -> None:
+        clear_user()
+
+    def save_session_expiry(self, expires_at) -> None:
+        save_session_expiry(expires_at)
+
+    def get_session_expiry(self):
+        return get_session_expiry()
+
+    def clear_session_expiry(self) -> None:
+        clear_session_expiry()
 
     def save_remember_me(self, momo: str, first_name: str = "", pin: str = "") -> None:
         save_remember_me(momo, first_name=first_name, pin=pin)
@@ -47,4 +84,7 @@ class SecureStorage:
 
     def clear(self) -> None:
         clear_token()
+        clear_refresh_token()
+        clear_user()
+        clear_session_expiry()
         clear_remember_me()

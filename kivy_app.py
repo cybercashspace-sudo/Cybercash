@@ -380,8 +380,7 @@ class CyberCashApp(MDApp):
         self.user_name = "Cyber Cash User"
         self.is_admin = False
         try:
-            session.save("")
-            session.set_user(None)
+            session.clear_auth()
         except Exception:
             clear_token()
         try:
@@ -701,6 +700,12 @@ class CyberCashApp(MDApp):
             self.app_state.set_user(user_payload)
         except Exception:
             pass
+        session_manager = getattr(self, "session_manager", None)
+        if session_manager is not None:
+            try:
+                session_manager.set_user(user_payload)
+            except Exception:
+                pass
 
     def _handle_expired_session(self) -> None:
         logger.warning("Wallet Refresh Failed")
@@ -755,6 +760,19 @@ class CyberCashApp(MDApp):
 
         # Load and apply initial Privacy Mode state
         self.privacy_mode = snapshot.privacy_mode
+        snapshot_user = snapshot.user if isinstance(snapshot.user, dict) else {}
+        if snapshot_user:
+            try:
+                self.app_state.set_user(snapshot_user)
+            except Exception:
+                pass
+            self.user_name = str(
+                snapshot_user.get("name")
+                or snapshot_user.get("full_name")
+                or snapshot_user.get("first_name")
+                or self.user_name
+                or ""
+            ).strip() or self.user_name
         self.set_privacy_mode(self.privacy_mode)
 
         self.theme_manager = ThemeManager(self)

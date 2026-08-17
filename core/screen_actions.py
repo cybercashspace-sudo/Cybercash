@@ -7,7 +7,8 @@ from api.client import api_client
 from core.popup_manager import show_message_dialog
 from core.message_sanitizer import extract_backend_message
 from core.responsive_screen import ResponsiveScreen
-from storage import clear_token, get_token, token_is_expired
+from core.session import session
+from storage import get_token, token_is_expired
 
 
 AUTH_FAILURE_DETAIL = "Session expired. Please sign in again to continue."
@@ -66,7 +67,7 @@ class ActionScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         if app is not None:
             app.access_token = ""
-        clear_token()
+        session.clear_auth()
 
     def _auth_required_payload(self) -> dict:
         return {"detail": AUTH_FAILURE_DETAIL, "_auth_required": True, "_status_code": 401}

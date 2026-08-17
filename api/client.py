@@ -1,75 +1,28 @@
-import os
-import json
 import threading
 
 import requests
 from requests.adapters import HTTPAdapter
 
+from core.config import config as app_config
+from core.environment import load_runtime_environment, resolve_api_base_url, resolve_api_urls
 from core.session import session
 from core.message_sanitizer import sanitize_backend_message
+
+load_runtime_environment()
 
 try:
     from urllib3.util.retry import Retry
 except Exception:
     Retry = None
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    def load_dotenv(*_args, **_kwargs):
-        return False
-
-
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from kivy.utils import platform as kivy_platform
-except Exception:
-    kivy_platform = ""
-
-
-def _safe_load_dotenv(path: str) -> None:
-    try:
-        load_dotenv(path)
-    except Exception:
-        pass
-
-
-def _is_runtime_mobile_platform() -> bool:
-    return str(kivy_platform or "").strip().lower() in {"android", "ios"}
-
-
-# Keep secrets out of packaged mobile apps. Android/iOS should use app_config.json
-# or built-in defaults for the backend URL; Paystack keys belong on the backend.
-if not _is_runtime_mobile_platform():
-    _safe_load_dotenv(os.path.join(project_root, ".env"))
-
-MOBILE_BACKEND_URL = "cybercash.space"
-MOBILE_BACKEND_FALLBACK_URLS = (
-    "www.cybercash.space",
-    "https://cyber-cash.onrender.com",
-)
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 4
-DEFAULT_READ_TIMEOUT_SECONDS = 12
+DEFAULT_READ_TIMEOUT_SECONDS = int(getattr(app_config, "request_timeout", 15) or 15)
 DEFAULT_TIMEOUT = (DEFAULT_CONNECT_TIMEOUT_SECONDS, DEFAULT_READ_TIMEOUT_SECONDS)
 FAST_TIMEOUT = (2, 6)
 RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
 PAYSTACK_FAILOVER_STATUS_CODES = (500, 502, 503, 504)
 AUTH_FAILOVER_STATUS_CODES = (401, 403)
-
-
-def _normalize_api_url(raw_value: str) -> str:
-    cleaned_value = str(raw_value or "").strip().rstrip("/")
-    if not cleaned_value:
-        return ""
-    if "://" not in cleaned_value:
-        cleaned_value = f"https://{cleaned_value}"
-    return cleaned_value
-
-
-def _is_mobile_platform() -> bool:
-    return _is_runtime_mobile_platform()
 
 
 def _is_payment_reference_path(path: str) -> bool:
@@ -83,63 +36,6 @@ def _is_payment_reference_path(path: str) -> bool:
     return lower_path == "/agents/register" or lower_path.startswith("/agents/register/")
 
 
-def _default_api_url() -> str:
-    """Default API URL when no env var or app_config.json override is provided.
-
-    - Desktop dev: use localhost backend.
-    - Android/iOS: avoid 127.0.0.1 (phone != your PC).
-    """
-
-    if _is_mobile_platform():
-        return MOBILE_BACKEND_URL
-    return "http://127.0.0.1:8000"
-
-
-DEFAULT_API_URL = _default_api_url()
-
-
-def _load_app_config() -> dict:
-    candidates = [
-        os.path.join(project_root, "app_config.json"),
-        os.path.join(os.getcwd(), "app_config.json"),
-    ]
-
-    for path in candidates:
-        if not path or not os.path.exists(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-            return payload if isinstance(payload, dict) else {}
-        except Exception:
-            continue
-
-    return {}
-
-
-def resolve_api_url() -> str:
-    for env_name in ("KIVY_API_URL", "CYBERCASH_API_URL", "BACKEND_URL"):
-        value = _normalize_api_url(os.getenv(env_name, ""))
-        if value:
-            return value
-
-    config = _load_app_config()
-    value = _normalize_api_url(config.get("api_url", ""))
-    if value:
-        return value
-
-    return _normalize_api_url(DEFAULT_API_URL)
-
-
-def resolve_api_urls() -> list[str]:
-    urls = []
-    for value in (resolve_api_url(), *MOBILE_BACKEND_FALLBACK_URLS):
-        normalized = _normalize_api_url(value)
-        if normalized and normalized not in urls:
-            urls.append(normalized)
-    return urls
-
-
 def _coerce_timeout(timeout):
     if timeout is None:
         return DEFAULT_TIMEOUT
@@ -148,7 +44,7 @@ def _coerce_timeout(timeout):
     return DEFAULT_CONNECT_TIMEOUT_SECONDS, float(timeout)
 
 
-API_URL = resolve_api_url()
+API_URL = resolve_api_base_url()
 
 
 class APIClient:
