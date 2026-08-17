@@ -1,5 +1,23 @@
 """Project Python startup hooks."""
 
+from pathlib import Path
+import sys
+
+ROOT_DIR = Path(__file__).resolve().parent
+root_text = str(ROOT_DIR)
+if root_text not in sys.path:
+    sys.path.insert(0, root_text)
+
+try:
+    from core.bootstrap import ensure_runtime_bootstrap as _ensure_runtime_bootstrap
+except Exception:
+    _ensure_runtime_bootstrap = None
+else:
+    try:
+        _ensure_runtime_bootstrap(ROOT_DIR)
+    except Exception:
+        pass
+
 try:
     from runtime_database_guard import install as _install_database_guard
 except Exception:
