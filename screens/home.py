@@ -22,8 +22,7 @@ from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 
-from animations.dashboard import DashboardAnimationSequence
-from animations.effects import AnimationManager
+from core.animation_helpers import AnimationManager, DashboardAnimationSequence
 from components.balance_counter import BalanceCounter
 from components.balance_label import BalanceLabel
 from components.pressable_card import PressableCard
