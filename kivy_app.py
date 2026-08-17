@@ -4,6 +4,10 @@ import logging
 from importlib import import_module
 from pathlib import Path
 
+from core.bootstrap import ensure_runtime_bootstrap
+
+ensure_runtime_bootstrap(Path(__file__).resolve().parent)
+
 # Performance Tuning for Low-End Devices
 from kivy.config import Config
 Config.set('graphics', 'max_fps', '40')  # Balance between smoothness and battery

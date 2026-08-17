@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 
+from core.bootstrap import ensure_runtime_bootstrap
+
 
 ROOT = Path(__file__).resolve().parent
 PYTHON311 = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python311"
@@ -50,6 +52,7 @@ def configure_runtime() -> None:
 
 def main() -> None:
     configure_runtime()
+    ensure_runtime_bootstrap(ROOT)
     from kivy_app import CyberCashApp
 
     CyberCashApp().run()
