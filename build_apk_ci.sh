@@ -33,9 +33,15 @@ copy_paths=(
   assets
   components
   core
+  features
+  models
+  runtime_database_guard.py
+  runtime_money_guard.py
   screens
   services
   storage.py
+  sitecustomize.py
+  theme
   theme.py
   utils
 )
