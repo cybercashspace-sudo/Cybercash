@@ -5,7 +5,7 @@ from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.properties import NumericProperty
 
-from animations.effects import AnimationManager
+from core.animation_helpers import AnimationManager
 from core.fintech_widgets import GradientMDCard
 
 

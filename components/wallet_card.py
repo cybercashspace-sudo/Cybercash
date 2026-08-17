@@ -14,7 +14,7 @@ from kivymd.uix.button import MDIconButton
 from kivymd.uix.label import MDLabel
 from kivy.uix.widget import Widget
 
-from animations.home_animations import HomeAnimations, ShimmerEffect
+from core.animation_helpers import HomeAnimations, ShimmerEffect
 from components.animated_card import AnimatedCard
 from components.balance_counter import BalanceCounter
 from core.feedback_engine import tap_feedback

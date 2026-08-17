@@ -3,7 +3,7 @@ from __future__ import annotations
 from kivy.properties import NumericProperty
 from kivymd.uix.button import MDRaisedButton
 
-from animations.effects import AnimationManager
+from core.animation_helpers import AnimationManager
 
 
 class AnimatedButton(MDRaisedButton):

@@ -12,7 +12,7 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.icon import MDIcon
 from kivymd.uix.label import MDLabel
 
-from animations.effects import AnimationManager
+from core.animation_helpers import AnimationManager
 from components.animated_card import AnimatedCard
 from components.notification_badge import NotificationBadge
 from core.feedback_engine import tap_feedback

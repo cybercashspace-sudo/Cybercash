@@ -5,7 +5,7 @@ from kivy.metrics import dp
 from kivy.properties import BooleanProperty, StringProperty
 from kivymd.uix.button import MDRaisedButton
 
-from animations.effects import AnimationManager
+from core.animation_helpers import AnimationManager
 from theme import BUTTON_RADIUS, GLASS_BORDER, PRIMARY, RED, SURFACE, TEXT_PRIMARY, TEXT_SECONDARY
 
 
@@ -78,4 +78,3 @@ try:
     Factory.register("AppButton", cls=AppButton)
 except Exception:
     pass
-
