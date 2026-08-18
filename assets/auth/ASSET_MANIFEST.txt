@@ -1,0 +1,36 @@
+CYBER CASH LOGIN SCREEN — EXTRACTED ASSET PACK
+Source: supplied 850x1724 reference image.
+
+These PNGs are pixel crops from the supplied reference, preserving the original pixels.
+They are intended as reference assets for reproducing the screen in Kivy/KivyMD.
+
+Graphic assets:
+01 shield/logo
+02 header world-map area
+03 phone/card/lock cluster
+04 gold phone
+05 virtual Visa card
+06 gold padlock
+07 small security shield
+08 username icon
+09 password lock icon
+10 eye-off icon
+11 remember checkbox
+12 login arrow circle
+13 Google icon
+14 Facebook icon
+15 Apple icon
+16 Phone icon
+17 Secure & Safe shield
+18 Instant Access lightning
+19 24/7 Support headset
+20 bottom sign-up arrow
+
+Reference composites:
+21 CYBER CASH wordmark
+22 tagline
+23 login panel top
+24 full login panel
+25 security feature bar
+26 bottom signup prompt
+00 full original reference

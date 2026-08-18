@@ -5,7 +5,7 @@
 #:import GlassCard widgets.GlassCard
 #:import GoldButton widgets.GoldButton
 #:import SocialButton widgets.SocialButton
-#:import StatusChip components.status_chip.StatusChip
+#:import auth_asset_path core.auth_assets.auth_asset_path
 #:import MDGridLayout kivymd.uix.gridlayout.MDGridLayout
 #:import MDSegmentedButton kivymd.uix.segmentedbutton.MDSegmentedButton
 #:import MDSegmentedButtonItem kivymd.uix.segmentedbutton.MDSegmentedButtonItem
@@ -20,7 +20,7 @@
                 size: self.size
 
         FitImage:
-            source: "assets/cybercash_logo.png"
+            source: auth_asset_path("02_world_map_header.png")
             size_hint: 1, None
             height: dp(260)
             pos_hint: {"top": 1}
@@ -45,27 +45,25 @@
                     id: brand_block
                     orientation: "vertical"
                     adaptive_height: True
-                    spacing: dp(8)
+                    spacing: dp(6)
 
-                    MDIcon:
-                        icon: "shield-crown"
-                        theme_icon_color: "Custom"
-                        icon_color: theme.PRIMARY
-                        halign: "center"
-                        font_size: "56sp"
+                    FitImage:
+                        source: auth_asset_path("01_cyber_cash_shield_logo.png")
+                        size_hint_y: None
+                        height: dp(98)
+                        opacity: .98
 
-                    MDLabel:
-                        text: "CYBER CASH"
-                        halign: "center"
-                        bold: True
-                        font_style: "Headline"
-                        theme_text_color: "Custom"
-                        text_color: theme.TEXT_PRIMARY
+                    FitImage:
+                        source: auth_asset_path("21_cyber_cash_wordmark.png")
+                        size_hint_y: None
+                        height: dp(50)
+                        opacity: .98
 
-                    MDLabel:
-                        text: "Secure | Fast | Trusted"
-                        halign: "center"
-                        theme_text_color: "Hint"
+                    FitImage:
+                        source: auth_asset_path("22_tagline.png")
+                        size_hint_y: None
+                        height: dp(18)
+                        opacity: .95
 
                 GlassCard:
                     id: login_card
@@ -73,6 +71,12 @@
                     adaptive_height: True
                     padding: dp(22)
                     spacing: dp(16)
+
+                    FitImage:
+                        source: auth_asset_path("03_phone_card_lock_cluster.png")
+                        size_hint_y: None
+                        height: dp(150)
+                        opacity: .98
 
                     MDBoxLayout:
                         id: action_stack
@@ -204,44 +208,7 @@
                         adaptive_height: True
                         spacing: dp(8)
 
-                        MDLabel:
-                            text: "Protected by"
-                            halign: "center"
-                            theme_text_color: "Hint"
-
-                        MDGridLayout:
-                            cols: 2
-                            adaptive_height: True
-                            spacing: dp(10)
-
-                            StatusChip:
-                                text: "256-bit Encryption"
-                                icon: "shield-lock"
-                                status: "success"
-                                size_hint_x: 1
-                                size_hint_y: None
-                                height: dp(34)
-
-                            StatusChip:
-                                text: "Secure Login"
-                                icon: "lock-check"
-                                status: "info"
-                                size_hint_x: 1
-                                size_hint_y: None
-                                height: dp(34)
-
-                            StatusChip:
-                                text: "Biometric Ready"
-                                icon: "fingerprint"
-                                status: "primary"
-                                size_hint_x: 1
-                                size_hint_y: None
-                                height: dp(34)
-
-                            StatusChip:
-                                text: "PCI DSS"
-                                icon: "credit-card-check"
-                                status: "warning"
-                                size_hint_x: 1
-                                size_hint_y: None
-                                height: dp(34)
+                        FitImage:
+                            source: auth_asset_path("25_security_feature_bar.png")
+                            size_hint_y: None
+                            height: dp(84)
