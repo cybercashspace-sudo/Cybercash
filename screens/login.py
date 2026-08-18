@@ -12,7 +12,6 @@ from core.exceptions import AuthenticationError, ValidationError
 from core.message_sanitizer import extract_backend_message
 from core.session import session
 from components.app_snackbar import show_app_snackbar
-from features.auth.animations import AuthAnimations
 from features.auth.auth_controller import AuthController
 from features.auth.validators import validate_identifier, validate_password
 
@@ -32,13 +31,13 @@ class LoginScreen(MDScreen):
         self._restore_remembered_identity()
 
     def on_enter(self):
-        Clock.schedule_once(self.start_animation, 0.08)
+        self.start_animation()
 
     def start_animation(self, *_args):
-        AuthAnimations.enter(self.ids.get("brand_block"), 0.00, 0.35)
-        AuthAnimations.slide(self.ids.get("login_card"), 0.15, 28, 0.45)
-        AuthAnimations.enter(self.ids.get("field_stack"), 0.30, 0.30)
-        AuthAnimations.enter(self.ids.get("action_stack"), 0.45, 0.30)
+        for name in ("brand_block", "login_card", "field_stack", "action_stack"):
+            widget = self.ids.get(name)
+            if widget is not None:
+                widget.opacity = 1
 
     def _get_text(self, *names: str) -> str:
         for name in names:

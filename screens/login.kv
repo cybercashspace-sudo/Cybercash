@@ -73,15 +73,17 @@
                     spacing: dp(16)
 
                     FitImage:
-                        source: auth_asset_path("03_phone_card_lock_cluster.png")
+                        source: auth_asset_path("23_login_panel_top.png")
                         size_hint_y: None
-                        height: dp(150)
+                        height: dp(235)
                         opacity: .98
 
                     MDBoxLayout:
                         id: action_stack
                         orientation: "vertical"
-                        adaptive_height: True
+                        size_hint_y: None
+                        height: dp(46)
+                        opacity: 0
                         spacing: dp(12)
 
                         MDSegmentedButton:
@@ -212,3 +214,9 @@
                             source: auth_asset_path("25_security_feature_bar.png")
                             size_hint_y: None
                             height: dp(84)
+
+                        FitImage:
+                            source: auth_asset_path("26_bottom_signup_prompt.png")
+                            size_hint_y: None
+                            height: dp(38)
+                            opacity: .98
