@@ -158,6 +158,7 @@ if [ "$p4a_needs_clone" -eq 1 ]; then
   for attempt in 1 2 3 4 5; do
     echo "python-for-android clone attempt $attempt/5"
     if git clone --depth 1 --single-branch --branch "$p4a_ref" https://github.com/kivy/python-for-android.git "$p4a_dir"; then
+      git config --global --add safe.directory "$(pwd)/$p4a_dir" || true
       git -C "$p4a_dir" describe --tags --exact-match HEAD || git -C "$p4a_dir" rev-parse --short HEAD
       break
     fi
@@ -169,6 +170,8 @@ if [ "$p4a_needs_clone" -eq 1 ]; then
     sleep $((attempt * 10))
   done
 fi
+
+git config --global --add safe.directory "$(pwd)/$p4a_dir" || true
 
 # Normalize the checkout to a real local branch so Buildozer keeps the patched recipe.
 git -C "$p4a_dir" checkout -B "$p4a_ref"

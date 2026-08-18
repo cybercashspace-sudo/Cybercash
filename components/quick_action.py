@@ -9,8 +9,7 @@ from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
-from kivymd.uix.icon import MDIcon
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 
 from core.animation_helpers import AnimationManager
 from components.animated_card import AnimatedCard

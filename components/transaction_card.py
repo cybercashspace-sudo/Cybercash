@@ -6,8 +6,7 @@ from kivy.properties import BooleanProperty, ListProperty, NumericProperty, Stri
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
-from kivymd.uix.icon import MDIcon
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 from kivy.uix.widget import Widget
 
 from components.amount_label import AmountLabel

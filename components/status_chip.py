@@ -5,8 +5,7 @@ from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
-from kivymd.uix.icon import MDIcon
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 
 from theme import ERROR, GLASS_BG, INFO, PRIMARY, PILL_RADIUS, SUCCESS, TEXT_PRIMARY, WARNING
 

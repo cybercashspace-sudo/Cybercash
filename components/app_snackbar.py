@@ -4,8 +4,7 @@ from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
-from kivymd.uix.icon import MDIcon
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 
 try:
     from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
