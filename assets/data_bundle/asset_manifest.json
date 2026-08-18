@@ -1,0 +1,800 @@
+[
+  {
+    "group": "01_header",
+    "asset": "back_arrow",
+    "filename": "01_header/back_arrow.png",
+    "source_bbox": [
+      35,
+      78,
+      106,
+      142
+    ],
+    "width": 71,
+    "height": 64,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "01_header",
+    "asset": "notification_bell",
+    "filename": "01_header/notification_bell.png",
+    "source_bbox": [
+      610,
+      55,
+      690,
+      135
+    ],
+    "width": 80,
+    "height": 80,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "01_header",
+    "asset": "notification_badge",
+    "filename": "01_header/notification_badge.png",
+    "source_bbox": [
+      650,
+      68,
+      686,
+      104
+    ],
+    "width": 36,
+    "height": 36,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "01_header",
+    "asset": "profile_avatar",
+    "filename": "01_header/profile_avatar.png",
+    "source_bbox": [
+      687,
+      58,
+      771,
+      148
+    ],
+    "width": 84,
+    "height": 90,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "01_header",
+    "asset": "status_bar_reference",
+    "filename": "01_header/status_bar_reference.png",
+    "source_bbox": [
+      0,
+      0,
+      853,
+      70
+    ],
+    "width": 853,
+    "height": 70,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "01_header",
+    "asset": "header_reference",
+    "filename": "01_header/header_reference.png",
+    "source_bbox": [
+      25,
+      55,
+      810,
+      155
+    ],
+    "width": 785,
+    "height": 100,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "02_wallet_hero",
+    "asset": "wallet_hero_full",
+    "filename": "02_wallet_hero/wallet_hero_full.png",
+    "source_bbox": [
+      35,
+      161,
+      758,
+      382
+    ],
+    "width": 723,
+    "height": 221,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "02_wallet_hero",
+    "asset": "wallet_balance_text_reference",
+    "filename": "02_wallet_hero/wallet_balance_text_reference.png",
+    "source_bbox": [
+      55,
+      190,
+      390,
+      365
+    ],
+    "width": 335,
+    "height": 175,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "02_wallet_hero",
+    "asset": "wallet_data_shopping_illustration",
+    "filename": "02_wallet_hero/wallet_data_shopping_illustration.png",
+    "source_bbox": [
+      430,
+      160,
+      750,
+      380
+    ],
+    "width": 320,
+    "height": 220,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "02_wallet_hero",
+    "asset": "wallet_eye_icon",
+    "filename": "02_wallet_hero/wallet_eye_icon.png",
+    "source_bbox": [
+      225,
+      198,
+      255,
+      223
+    ],
+    "width": 30,
+    "height": 25,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "mtn_network_card",
+    "filename": "03_networks/mtn_network_card.png",
+    "source_bbox": [
+      39,
+      442,
+      273,
+      559
+    ],
+    "width": 234,
+    "height": 117,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "mtn_logo",
+    "filename": "03_networks/mtn_logo.png",
+    "source_bbox": [
+      110,
+      458,
+      207,
+      507
+    ],
+    "width": 97,
+    "height": 49,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "network_selected_check",
+    "filename": "03_networks/network_selected_check.png",
+    "source_bbox": [
+      241,
+      438,
+      274,
+      471
+    ],
+    "width": 33,
+    "height": 33,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "telecel_network_card",
+    "filename": "03_networks/telecel_network_card.png",
+    "source_bbox": [
+      282,
+      442,
+      516,
+      559
+    ],
+    "width": 234,
+    "height": 117,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "telecel_logo",
+    "filename": "03_networks/telecel_logo.png",
+    "source_bbox": [
+      337,
+      465,
+      462,
+      511
+    ],
+    "width": 125,
+    "height": 46,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "airteltigo_network_card",
+    "filename": "03_networks/airteltigo_network_card.png",
+    "source_bbox": [
+      526,
+      442,
+      758,
+      559
+    ],
+    "width": 232,
+    "height": 117,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "airteltigo_logo",
+    "filename": "03_networks/airteltigo_logo.png",
+    "source_bbox": [
+      573,
+      468,
+      712,
+      507
+    ],
+    "width": 139,
+    "height": 39,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "03_networks",
+    "asset": "network_selection_reference",
+    "filename": "03_networks/network_selection_reference.png",
+    "source_bbox": [
+      30,
+      405,
+      770,
+      566
+    ],
+    "width": 740,
+    "height": 161,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "04_contact_details",
+    "asset": "contact_details_panel",
+    "filename": "04_contact_details/contact_details_panel.png",
+    "source_bbox": [
+      38,
+      606,
+      758,
+      758
+    ],
+    "width": 720,
+    "height": 152,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "04_contact_details",
+    "asset": "phone_icon",
+    "filename": "04_contact_details/phone_icon.png",
+    "source_bbox": [
+      64,
+      626,
+      111,
+      681
+    ],
+    "width": 47,
+    "height": 55,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "04_contact_details",
+    "asset": "contact_person_icon",
+    "filename": "04_contact_details/contact_person_icon.png",
+    "source_bbox": [
+      686,
+      625,
+      729,
+      671
+    ],
+    "width": 43,
+    "height": 46,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "04_contact_details",
+    "asset": "location_pin_icon",
+    "filename": "04_contact_details/location_pin_icon.png",
+    "source_bbox": [
+      64,
+      693,
+      108,
+      744
+    ],
+    "width": 44,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "04_contact_details",
+    "asset": "dropdown_chevron",
+    "filename": "04_contact_details/dropdown_chevron.png",
+    "source_bbox": [
+      702,
+      704,
+      730,
+      730
+    ],
+    "width": 28,
+    "height": 26,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "most_popular_tab",
+    "filename": "05_data_plan_tabs/most_popular_tab.png",
+    "source_bbox": [
+      39,
+      812,
+      219,
+      863
+    ],
+    "width": 180,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "daily_tab",
+    "filename": "05_data_plan_tabs/daily_tab.png",
+    "source_bbox": [
+      224,
+      812,
+      330,
+      863
+    ],
+    "width": 106,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "weekly_tab",
+    "filename": "05_data_plan_tabs/weekly_tab.png",
+    "source_bbox": [
+      336,
+      812,
+      458,
+      863
+    ],
+    "width": 122,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "monthly_tab",
+    "filename": "05_data_plan_tabs/monthly_tab.png",
+    "source_bbox": [
+      463,
+      812,
+      594,
+      863
+    ],
+    "width": 131,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "night_plans_tab",
+    "filename": "05_data_plan_tabs/night_plans_tab.png",
+    "source_bbox": [
+      598,
+      812,
+      758,
+      863
+    ],
+    "width": 160,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "data_plan_tabs_reference",
+    "filename": "05_data_plan_tabs/data_plan_tabs_reference.png",
+    "source_bbox": [
+      35,
+      800,
+      765,
+      870
+    ],
+    "width": 730,
+    "height": 70,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "05_data_plan_tabs",
+    "asset": "fire_icon",
+    "filename": "05_data_plan_tabs/fire_icon.png",
+    "source_bbox": [
+      59,
+      825,
+      80,
+      851
+    ],
+    "width": 21,
+    "height": 26,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "1gb_daily_plan_selected",
+    "filename": "06_data_plans/1gb_daily_plan_selected.png",
+    "source_bbox": [
+      38,
+      875,
+      757,
+      957
+    ],
+    "width": 719,
+    "height": 82,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "2gb_weekly_plan",
+    "filename": "06_data_plans/2gb_weekly_plan.png",
+    "source_bbox": [
+      38,
+      967,
+      757,
+      1052
+    ],
+    "width": 719,
+    "height": 85,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "5gb_monthly_plan",
+    "filename": "06_data_plans/5gb_monthly_plan.png",
+    "source_bbox": [
+      38,
+      1061,
+      757,
+      1146
+    ],
+    "width": 719,
+    "height": 85,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "10gb_monthly_plan",
+    "filename": "06_data_plans/10gb_monthly_plan.png",
+    "source_bbox": [
+      38,
+      1155,
+      757,
+      1240
+    ],
+    "width": 719,
+    "height": 85,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "clock_icon_selected",
+    "filename": "06_data_plans/clock_icon_selected.png",
+    "source_bbox": [
+      208,
+      894,
+      236,
+      922
+    ],
+    "width": 28,
+    "height": 28,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "radio_selected",
+    "filename": "06_data_plans/radio_selected.png",
+    "source_bbox": [
+      697,
+      895,
+      729,
+      927
+    ],
+    "width": 32,
+    "height": 32,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "06_data_plans",
+    "asset": "radio_unselected",
+    "filename": "06_data_plans/radio_unselected.png",
+    "source_bbox": [
+      697,
+      986,
+      729,
+      1018
+    ],
+    "width": 32,
+    "height": 32,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "07_summary_checkout",
+    "asset": "summary_panel",
+    "filename": "07_summary_checkout/summary_panel.png",
+    "source_bbox": [
+      38,
+      1295,
+      757,
+      1382
+    ],
+    "width": 719,
+    "height": 87,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "07_summary_checkout",
+    "asset": "buy_now_button",
+    "filename": "07_summary_checkout/buy_now_button.png",
+    "source_bbox": [
+      43,
+      1383,
+      751,
+      1465
+    ],
+    "width": 708,
+    "height": 82,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "07_summary_checkout",
+    "asset": "shopping_cart_icon",
+    "filename": "07_summary_checkout/shopping_cart_icon.png",
+    "source_bbox": [
+      69,
+      1400,
+      123,
+      1454
+    ],
+    "width": 54,
+    "height": 54,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "07_summary_checkout",
+    "asset": "checkout_arrow_icon",
+    "filename": "07_summary_checkout/checkout_arrow_icon.png",
+    "source_bbox": [
+      681,
+      1399,
+      734,
+      1453
+    ],
+    "width": 53,
+    "height": 54,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "08_security_features",
+    "asset": "security_features_bar",
+    "filename": "08_security_features/security_features_bar.png",
+    "source_bbox": [
+      38,
+      1485,
+      758,
+      1573
+    ],
+    "width": 720,
+    "height": 88,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "08_security_features",
+    "asset": "secure_payment_icon",
+    "filename": "08_security_features/secure_payment_icon.png",
+    "source_bbox": [
+      68,
+      1505,
+      109,
+      1548
+    ],
+    "width": 41,
+    "height": 43,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "08_security_features",
+    "asset": "instant_delivery_icon",
+    "filename": "08_security_features/instant_delivery_icon.png",
+    "source_bbox": [
+      304,
+      1505,
+      346,
+      1548
+    ],
+    "width": 42,
+    "height": 43,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "08_security_features",
+    "asset": "support_headset_icon",
+    "filename": "08_security_features/support_headset_icon.png",
+    "source_bbox": [
+      552,
+      1505,
+      598,
+      1549
+    ],
+    "width": 46,
+    "height": 44,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "bottom_navigation_bar",
+    "filename": "09_bottom_navigation/bottom_navigation_bar.png",
+    "source_bbox": [
+      0,
+      1573,
+      853,
+      1844
+    ],
+    "width": 853,
+    "height": 271,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "home_nav_icon",
+    "filename": "09_bottom_navigation/home_nav_icon.png",
+    "source_bbox": [
+      82,
+      1624,
+      130,
+      1676
+    ],
+    "width": 48,
+    "height": 52,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "wallet_nav_icon",
+    "filename": "09_bottom_navigation/wallet_nav_icon.png",
+    "source_bbox": [
+      235,
+      1625,
+      281,
+      1674
+    ],
+    "width": 46,
+    "height": 49,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "buy_data_nav_active",
+    "filename": "09_bottom_navigation/buy_data_nav_active.png",
+    "source_bbox": [
+      356,
+      1580,
+      492,
+      1721
+    ],
+    "width": 136,
+    "height": 141,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "wifi_icon_active",
+    "filename": "09_bottom_navigation/wifi_icon_active.png",
+    "source_bbox": [
+      374,
+      1595,
+      444,
+      1660
+    ],
+    "width": 70,
+    "height": 65,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "transactions_nav_icon",
+    "filename": "09_bottom_navigation/transactions_nav_icon.png",
+    "source_bbox": [
+      522,
+      1624,
+      570,
+      1675
+    ],
+    "width": 48,
+    "height": 51,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "09_bottom_navigation",
+    "asset": "profile_nav_icon",
+    "filename": "09_bottom_navigation/profile_nav_icon.png",
+    "source_bbox": [
+      676,
+      1624,
+      728,
+      1676
+    ],
+    "width": 52,
+    "height": 52,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "10_section_references",
+    "asset": "select_network_section",
+    "filename": "10_section_references/select_network_section.png",
+    "source_bbox": [
+      30,
+      405,
+      770,
+      570
+    ],
+    "width": 740,
+    "height": 165,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "10_section_references",
+    "asset": "enter_details_section",
+    "filename": "10_section_references/enter_details_section.png",
+    "source_bbox": [
+      30,
+      575,
+      770,
+      765
+    ],
+    "width": 740,
+    "height": 190,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "10_section_references",
+    "asset": "choose_data_plan_section",
+    "filename": "10_section_references/choose_data_plan_section.png",
+    "source_bbox": [
+      30,
+      770,
+      770,
+      1250
+    ],
+    "width": 740,
+    "height": 480,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "10_section_references",
+    "asset": "summary_section",
+    "filename": "10_section_references/summary_section.png",
+    "source_bbox": [
+      30,
+      1260,
+      770,
+      1470
+    ],
+    "width": 740,
+    "height": 210,
+    "source": "direct crop from supplied 853x1844 reference"
+  },
+  {
+    "group": "10_section_references",
+    "asset": "full_data_bundle_screen",
+    "filename": "10_section_references/full_data_bundle_screen.png",
+    "source_bbox": [
+      0,
+      0,
+      853,
+      1844
+    ],
+    "width": 853,
+    "height": 1844,
+    "source": "direct crop from supplied 853x1844 reference"
+  }
+]
