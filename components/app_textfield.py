@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from kivy.properties import BooleanProperty, StringProperty
+from kivy.properties import BooleanProperty, NumericProperty, StringProperty
+from kivy.metrics import dp
 from kivymd.uix.textfield import MDTextField
 
 from theme import GLASS_BORDER, GREEN, PRIMARY, RED, TEXT_PRIMARY, TEXT_SECONDARY
@@ -13,6 +14,7 @@ class AppTextField(MDTextField):
     error_message = StringProperty("")
     success_message = StringProperty("")
     password_visible = BooleanProperty(False)
+    field_height = NumericProperty(dp(56))
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -28,10 +30,16 @@ class AppTextField(MDTextField):
         self.icon_right_color_normal = list(TEXT_SECONDARY)
         self.icon_right_color_focus = list(PRIMARY)
         self.bind(validation_state=self._apply_validation_state)
+        self.bind(field_height=self._apply_height)
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
+        self._apply_height()
         self._apply_validation_state()
+
+    def _apply_height(self, *_args):
+        self.size_hint_y = None
+        self.height = float(self.field_height or dp(56))
 
     def toggle_password_visibility(self):
         if not hasattr(self, "password"):
@@ -94,4 +102,3 @@ try:
     Factory.register("AppTextField", cls=AppTextField)
 except Exception:
     pass
-

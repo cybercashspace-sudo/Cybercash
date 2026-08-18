@@ -27,8 +27,10 @@ class LoginScreen(MDScreen):
 
     def on_pre_enter(self, *_args):
         self.remember_me = True
+        self.password_visible = False
         self._set_text("", "username", "identifier", "password")
         self._restore_remembered_identity()
+        self._sync_auth_controls()
 
     def on_enter(self):
         self.start_animation()
@@ -70,14 +72,27 @@ class LoginScreen(MDScreen):
         self.remember_me = True
         self._set_text(identifier, "username", "identifier")
 
+    def _sync_auth_controls(self) -> None:
+        password_toggle = self.ids.get("password_toggle")
+        if password_toggle is not None:
+            if hasattr(password_toggle, "visible"):
+                password_toggle.visible = self.password_visible
+            elif hasattr(password_toggle, "icon"):
+                password_toggle.icon = "eye" if self.password_visible else "eye-off"
+
+        remember_toggle = self.ids.get("remember_toggle")
+        if remember_toggle is not None:
+            if hasattr(remember_toggle, "checked"):
+                remember_toggle.checked = self.remember_me
+            elif hasattr(remember_toggle, "active"):
+                remember_toggle.active = self.remember_me
+
     def toggle_password(self):
         self.password_visible = not self.password_visible
         password = self.ids.get("password")
         if password is not None:
             password.password = not self.password_visible
-        eye = self.ids.get("password_toggle") or self.ids.get("eye_icon")
-        if eye is not None:
-            eye.icon = "eye-off" if self.password_visible else "eye"
+        self._sync_auth_controls()
 
     def toggle_remember(self, *args):
         active = False
@@ -94,6 +109,7 @@ class LoginScreen(MDScreen):
                 session.clear_remember_me()
             except Exception:
                 pass
+        self._sync_auth_controls()
 
     def login(self):
         if self.loading:
