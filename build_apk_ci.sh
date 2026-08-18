@@ -41,6 +41,7 @@ copy_paths=(
   services
   storage.py
   sitecustomize.py
+  widgets.py
   theme
   theme.py
   utils
