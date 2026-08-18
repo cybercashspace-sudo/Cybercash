@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
 from threading import Thread
 
 from kivy.clock import Clock
+from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
@@ -267,3 +269,6 @@ class LoginScreen(MDScreen):
 
     def show_message(self, text):
         show_app_snackbar(text)
+
+
+Builder.load_file(str(Path(__file__).with_name("login.kv")))

@@ -786,6 +786,5 @@ class CyberCashApp(MDApp):
         sm = AppScreenManager(transition=NoTransition())
         sm.add_widget(SplashScreen(name="splash"))
         sm.current = "splash"
-        Clock.schedule_once(self._load_startup_layouts, 0)
 
         return sm
