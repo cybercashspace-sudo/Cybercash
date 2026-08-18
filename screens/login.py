@@ -286,4 +286,7 @@ class LoginScreen(MDScreen):
         show_app_snackbar(text)
 
 
-Builder.load_file(str(Path(__file__).with_name("login.kv")))
+_LOGIN_KV = str(Path(__file__).with_name("login.kv"))
+_LOADED_KV_FILES = list(getattr(Builder, "files", []) or [])
+if _LOGIN_KV not in _LOADED_KV_FILES:
+    Builder.load_file(_LOGIN_KV)
