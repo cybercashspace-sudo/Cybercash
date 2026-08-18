@@ -5,7 +5,6 @@ from kivy.clock import Clock
 from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
-from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.relativelayout import RelativeLayout
 
 from core.auth_assets import auth_asset_path
@@ -52,7 +51,7 @@ class GlassCard(MDCard):
             )
 
 
-class GoldButton(ButtonBehavior, MDCard):
+class GoldButton(MDCard):
     """
     Primary gold action button that matches the auth screen artwork.
     """
@@ -125,7 +124,7 @@ class GoldButton(ButtonBehavior, MDCard):
         Animation(md_bg_color=list(self.base_color), d=0.12).start(self)
 
 
-class SocialButton(ButtonBehavior, MDCard):
+class SocialButton(MDCard):
     """
     Social login tile with the exact auth assets.
     """
