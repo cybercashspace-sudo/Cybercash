@@ -6,9 +6,10 @@ from kivy.metrics import dp, sp
 from kivy.properties import StringProperty
 from kivymd.app import MDApp
 
+from core.config import config as app_config
 from core.responsive_screen import ResponsiveScreen
 
-STARTUP_ROUTE_DELAY_SECONDS = 0.20
+STARTUP_ROUTE_DELAY_SECONDS = float(app_config.startup_splash_seconds)
 
 KV = """
 #:import dp kivy.metrics.dp

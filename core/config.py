@@ -11,6 +11,7 @@ class Config:
     request_timeout: int = 15
     app_name: str = "CYBER CASH"
     cache_ttl: int = 300
+    startup_splash_seconds: float = 5.0
     environment: Environment = Environment.DEVELOPMENT
     debug: bool = True
 
@@ -22,6 +23,7 @@ class Config:
             request_timeout=15,
             app_name="CYBER CASH",
             cache_ttl=300,
+            startup_splash_seconds=5.0,
             environment=environment,
             debug=environment != Environment.PRODUCTION,
         )

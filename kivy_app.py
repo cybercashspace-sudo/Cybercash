@@ -26,6 +26,7 @@ from kivymd.app import MDApp
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
+from core.config import config as app_config
 from core.logger import get_logger
 from core.session import session
 from core.event_bus import EventBus
@@ -226,12 +227,17 @@ class CyberCashApp(MDApp):
         # Kick off startup routing only after the first frame has been scheduled.
         self.request_startup_route()
 
-    def request_startup_route(self, delay: float = 0.20) -> None:
+    def request_startup_route(self, delay: float | None = None) -> None:
         if self._startup_complete:
             return
         if self._startup_request_event is not None:
             return
-        self._startup_request_event = Clock.schedule_once(self._run_startup_route, delay)
+        startup_delay = (
+            float(app_config.startup_splash_seconds)
+            if delay is None
+            else float(delay)
+        )
+        self._startup_request_event = Clock.schedule_once(self._run_startup_route, startup_delay)
 
     def _run_startup_route(self, *_args) -> None:
         self._startup_request_event = None
