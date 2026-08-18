@@ -1,0 +1,937 @@
+{
+  "source": "592483.png",
+  "source_size": [
+    864,
+    1768
+  ],
+  "assets": [
+    {
+      "asset": "cyber_cash_full_reference",
+      "file": "10_ui_composites/cyber_cash_full_reference.png",
+      "category": "10_ui_composites",
+      "description": "Original supplied home dashboard",
+      "bbox": [
+        0,
+        0,
+        864,
+        1768
+      ],
+      "size": [
+        864,
+        1768
+      ]
+    },
+    {
+      "asset": "header_menu",
+      "file": "02_header/header_menu.png",
+      "category": "02_header",
+      "description": "Hamburger menu",
+      "bbox": [
+        28,
+        36,
+        82,
+        86
+      ],
+      "size": [
+        54,
+        50
+      ]
+    },
+    {
+      "asset": "cyber_cash_shield_logo",
+      "file": "01_branding/cyber_cash_shield_logo.png",
+      "category": "01_branding",
+      "description": "CYBER CASH shield logo",
+      "bbox": [
+        92,
+        12,
+        224,
+        108
+      ],
+      "size": [
+        132,
+        96
+      ]
+    },
+    {
+      "asset": "cyber_cash_wordmark",
+      "file": "01_branding/cyber_cash_wordmark.png",
+      "category": "01_branding",
+      "description": "CYBER CASH wordmark",
+      "bbox": [
+        229,
+        24,
+        481,
+        73
+      ],
+      "size": [
+        252,
+        49
+      ]
+    },
+    {
+      "asset": "cyber_cash_tagline",
+      "file": "01_branding/cyber_cash_tagline.png",
+      "category": "01_branding",
+      "description": "Your Money. Your Goal. Your World.",
+      "bbox": [
+        231,
+        74,
+        493,
+        96
+      ],
+      "size": [
+        262,
+        22
+      ]
+    },
+    {
+      "asset": "notification_bell",
+      "file": "02_header/notification_bell.png",
+      "category": "02_header",
+      "description": "Notification bell with badge",
+      "bbox": [
+        640,
+        22,
+        720,
+        104
+      ],
+      "size": [
+        80,
+        82
+      ]
+    },
+    {
+      "asset": "notification_badge_3",
+      "file": "02_header/notification_badge_3.png",
+      "category": "02_header",
+      "description": "Unread notification count",
+      "bbox": [
+        687,
+        25,
+        718,
+        58
+      ],
+      "size": [
+        31,
+        33
+      ]
+    },
+    {
+      "asset": "profile_avatar",
+      "file": "02_header/profile_avatar.png",
+      "category": "02_header",
+      "description": "Circular profile avatar",
+      "bbox": [
+        735,
+        12,
+        841,
+        117
+      ],
+      "size": [
+        106,
+        105
+      ]
+    },
+    {
+      "asset": "greeting_text",
+      "file": "02_header/greeting_text.png",
+      "category": "02_header",
+      "description": "Good Morning greeting",
+      "bbox": [
+        30,
+        140,
+        220,
+        169
+      ],
+      "size": [
+        190,
+        29
+      ]
+    },
+    {
+      "asset": "username",
+      "file": "02_header/username.png",
+      "category": "02_header",
+      "description": "Username display",
+      "bbox": [
+        30,
+        175,
+        275,
+        207
+      ],
+      "size": [
+        245,
+        32
+      ]
+    },
+    {
+      "asset": "verified_user_badge",
+      "file": "02_header/verified_user_badge.png",
+      "category": "02_header",
+      "description": "Verified User badge",
+      "bbox": [
+        278,
+        173,
+        438,
+        210
+      ],
+      "size": [
+        160,
+        37
+      ]
+    },
+    {
+      "asset": "wallet_card_composite",
+      "file": "10_ui_composites/wallet_card_composite.png",
+      "category": "10_ui_composites",
+      "description": "Complete wallet hero card",
+      "bbox": [
+        27,
+        221,
+        838,
+        592
+      ],
+      "size": [
+        811,
+        371
+      ]
+    },
+    {
+      "asset": "ghana_flag",
+      "file": "03_wallet_hero/ghana_flag.png",
+      "category": "03_wallet_hero",
+      "description": "Ghana flag",
+      "bbox": [
+        54,
+        252,
+        107,
+        303
+      ],
+      "size": [
+        53,
+        51
+      ]
+    },
+    {
+      "asset": "wallet_world_map",
+      "file": "03_wallet_hero/wallet_world_map.png",
+      "category": "03_wallet_hero",
+      "description": "Gold dotted world map",
+      "bbox": [
+        385,
+        231,
+        691,
+        370
+      ],
+      "size": [
+        306,
+        139
+      ]
+    },
+    {
+      "asset": "wallet_shield",
+      "file": "03_wallet_hero/wallet_shield.png",
+      "category": "03_wallet_hero",
+      "description": "Gold CYBER CASH shield",
+      "bbox": [
+        478,
+        269,
+        655,
+        462
+      ],
+      "size": [
+        177,
+        193
+      ]
+    },
+    {
+      "asset": "wallet_trophy",
+      "file": "03_wallet_hero/wallet_trophy.png",
+      "category": "03_wallet_hero",
+      "description": "Football trophy",
+      "bbox": [
+        684,
+        268,
+        813,
+        510
+      ],
+      "size": [
+        129,
+        242
+      ]
+    },
+    {
+      "asset": "wallet_soccer_ball",
+      "file": "03_wallet_hero/wallet_soccer_ball.png",
+      "category": "03_wallet_hero",
+      "description": "Soccer ball",
+      "bbox": [
+        615,
+        407,
+        747,
+        531
+      ],
+      "size": [
+        132,
+        124
+      ]
+    },
+    {
+      "asset": "add_money_button_icon",
+      "file": "03_wallet_hero/add_money_button_icon.png",
+      "category": "03_wallet_hero",
+      "description": "Add Money plus icon",
+      "bbox": [
+        75,
+        518,
+        111,
+        553
+      ],
+      "size": [
+        36,
+        35
+      ]
+    },
+    {
+      "asset": "withdraw_button_icon",
+      "file": "03_wallet_hero/withdraw_button_icon.png",
+      "category": "03_wallet_hero",
+      "description": "Withdraw up-arrow icon",
+      "bbox": [
+        284,
+        520,
+        319,
+        554
+      ],
+      "size": [
+        35,
+        34
+      ]
+    },
+    {
+      "asset": "virtual_card_arrow",
+      "file": "03_wallet_hero/virtual_card_arrow.png",
+      "category": "03_wallet_hero",
+      "description": "Virtual Visa Card arrow",
+      "bbox": [
+        765,
+        531,
+        795,
+        558
+      ],
+      "size": [
+        30,
+        27
+      ]
+    },
+    {
+      "asset": "quick_send_money",
+      "file": "04_quick_actions/quick_send_money.png",
+      "category": "04_quick_actions",
+      "description": "Send Money Telegram-style icon",
+      "bbox": [
+        62,
+        623,
+        143,
+        705
+      ],
+      "size": [
+        81,
+        82
+      ]
+    },
+    {
+      "asset": "quick_buy_airtime",
+      "file": "04_quick_actions/quick_buy_airtime.png",
+      "category": "04_quick_actions",
+      "description": "Buy Airtime phone icon",
+      "bbox": [
+        194,
+        624,
+        274,
+        704
+      ],
+      "size": [
+        80,
+        80
+      ]
+    },
+    {
+      "asset": "quick_buy_data",
+      "file": "04_quick_actions/quick_buy_data.png",
+      "category": "04_quick_actions",
+      "description": "Buy Data Wi-Fi icon",
+      "bbox": [
+        327,
+        624,
+        407,
+        705
+      ],
+      "size": [
+        80,
+        81
+      ]
+    },
+    {
+      "asset": "quick_pay_bills",
+      "file": "04_quick_actions/quick_pay_bills.png",
+      "category": "04_quick_actions",
+      "description": "Pay Bills receipt icon",
+      "bbox": [
+        460,
+        624,
+        541,
+        705
+      ],
+      "size": [
+        81,
+        81
+      ]
+    },
+    {
+      "asset": "quick_crypto",
+      "file": "04_quick_actions/quick_crypto.png",
+      "category": "04_quick_actions",
+      "description": "Crypto Bitcoin icon",
+      "bbox": [
+        594,
+        624,
+        675,
+        705
+      ],
+      "size": [
+        81,
+        81
+      ]
+    },
+    {
+      "asset": "quick_more",
+      "file": "04_quick_actions/quick_more.png",
+      "category": "04_quick_actions",
+      "description": "More grid icon",
+      "bbox": [
+        727,
+        624,
+        808,
+        705
+      ],
+      "size": [
+        81,
+        81
+      ]
+    },
+    {
+      "asset": "promo_banner",
+      "file": "05_promo/promo_banner.png",
+      "category": "05_promo",
+      "description": "Complete promotional banner",
+      "bbox": [
+        27,
+        765,
+        837,
+        919
+      ],
+      "size": [
+        810,
+        154
+      ]
+    },
+    {
+      "asset": "promo_gift_box",
+      "file": "05_promo/promo_gift_box.png",
+      "category": "05_promo",
+      "description": "Gold gift box",
+      "bbox": [
+        44,
+        783,
+        175,
+        902
+      ],
+      "size": [
+        131,
+        119
+      ]
+    },
+    {
+      "asset": "promo_ghana_flag",
+      "file": "05_promo/promo_ghana_flag.png",
+      "category": "05_promo",
+      "description": "Small Ghana flag",
+      "bbox": [
+        571,
+        780,
+        628,
+        812
+      ],
+      "size": [
+        57,
+        32
+      ]
+    },
+    {
+      "asset": "promo_sponsor_panel",
+      "file": "05_promo/promo_sponsor_panel.png",
+      "category": "05_promo",
+      "description": "Cyber World Store sponsor panel",
+      "bbox": [
+        530,
+        824,
+        818,
+        900
+      ],
+      "size": [
+        288,
+        76
+      ]
+    },
+    {
+      "asset": "service_transfer",
+      "file": "06_services/service_transfer.png",
+      "category": "06_services",
+      "description": "Transfer icon",
+      "bbox": [
+        55,
+        1000,
+        112,
+        1053
+      ],
+      "size": [
+        57,
+        53
+      ]
+    },
+    {
+      "asset": "service_withdraw",
+      "file": "06_services/service_withdraw.png",
+      "category": "06_services",
+      "description": "Withdraw wallet icon",
+      "bbox": [
+        246,
+        1000,
+        302,
+        1055
+      ],
+      "size": [
+        56,
+        55
+      ]
+    },
+    {
+      "asset": "service_virtual_card",
+      "file": "06_services/service_virtual_card.png",
+      "category": "06_services",
+      "description": "Virtual card icon",
+      "bbox": [
+        392,
+        1000,
+        447,
+        1050
+      ],
+      "size": [
+        55,
+        50
+      ]
+    },
+    {
+      "asset": "service_airtime2cash",
+      "file": "06_services/service_airtime2cash.png",
+      "category": "06_services",
+      "description": "Airtime2Cash recycle icon",
+      "bbox": [
+        553,
+        997,
+        614,
+        1057
+      ],
+      "size": [
+        61,
+        60
+      ]
+    },
+    {
+      "asset": "service_savings",
+      "file": "06_services/service_savings.png",
+      "category": "06_services",
+      "description": "Savings piggy bank",
+      "bbox": [
+        733,
+        998,
+        788,
+        1056
+      ],
+      "size": [
+        55,
+        58
+      ]
+    },
+    {
+      "asset": "service_investment",
+      "file": "06_services/service_investment.png",
+      "category": "06_services",
+      "description": "Investment chart",
+      "bbox": [
+        59,
+        1110,
+        116,
+        1167
+      ],
+      "size": [
+        57,
+        57
+      ]
+    },
+    {
+      "asset": "service_loans",
+      "file": "06_services/service_loans.png",
+      "category": "06_services",
+      "description": "Loans money bag",
+      "bbox": [
+        250,
+        1108,
+        309,
+        1168
+      ],
+      "size": [
+        59,
+        60
+      ]
+    },
+    {
+      "asset": "service_insurance",
+      "file": "06_services/service_insurance.png",
+      "category": "06_services",
+      "description": "Insurance shield",
+      "bbox": [
+        391,
+        1107,
+        449,
+        1167
+      ],
+      "size": [
+        58,
+        60
+      ]
+    },
+    {
+      "asset": "service_qr_pay",
+      "file": "06_services/service_qr_pay.png",
+      "category": "06_services",
+      "description": "QR Pay icon",
+      "bbox": [
+        547,
+        1107,
+        609,
+        1167
+      ],
+      "size": [
+        62,
+        60
+      ]
+    },
+    {
+      "asset": "service_history",
+      "file": "06_services/service_history.png",
+      "category": "06_services",
+      "description": "History clock",
+      "bbox": [
+        731,
+        1107,
+        788,
+        1167
+      ],
+      "size": [
+        57,
+        60
+      ]
+    },
+    {
+      "asset": "transaction_received_icon",
+      "file": "07_transactions/transaction_received_icon.png",
+      "category": "07_transactions",
+      "description": "Money received icon",
+      "bbox": [
+        64,
+        1273,
+        121,
+        1329
+      ],
+      "size": [
+        57,
+        56
+      ]
+    },
+    {
+      "asset": "transaction_sent_icon",
+      "file": "07_transactions/transaction_sent_icon.png",
+      "category": "07_transactions",
+      "description": "Money sent icon",
+      "bbox": [
+        64,
+        1343,
+        121,
+        1400
+      ],
+      "size": [
+        57,
+        57
+      ]
+    },
+    {
+      "asset": "transaction_airtime_icon",
+      "file": "07_transactions/transaction_airtime_icon.png",
+      "category": "07_transactions",
+      "description": "Airtime purchase icon",
+      "bbox": [
+        64,
+        1420,
+        121,
+        1477
+      ],
+      "size": [
+        57,
+        57
+      ]
+    },
+    {
+      "asset": "market_btc_coin",
+      "file": "08_market/market_btc_coin.png",
+      "category": "08_market",
+      "description": "Bitcoin market coin",
+      "bbox": [
+        44,
+        1563,
+        87,
+        1608
+      ],
+      "size": [
+        43,
+        45
+      ]
+    },
+    {
+      "asset": "market_btc_chart",
+      "file": "08_market/market_btc_chart.png",
+      "category": "08_market",
+      "description": "BTC chart",
+      "bbox": [
+        318,
+        1571,
+        404,
+        1614
+      ],
+      "size": [
+        86,
+        43
+      ]
+    },
+    {
+      "asset": "market_us_flag",
+      "file": "08_market/market_us_flag.png",
+      "category": "08_market",
+      "description": "US flag",
+      "bbox": [
+        442,
+        1560,
+        485,
+        1607
+      ],
+      "size": [
+        43,
+        47
+      ]
+    },
+    {
+      "asset": "market_usd_chart",
+      "file": "08_market/market_usd_chart.png",
+      "category": "08_market",
+      "description": "USD/GHS chart",
+      "bbox": [
+        722,
+        1570,
+        810,
+        1615
+      ],
+      "size": [
+        88,
+        45
+      ]
+    },
+    {
+      "asset": "chatbot_button",
+      "file": "08_market/chatbot_button.png",
+      "category": "08_market",
+      "description": "Floating support chatbot",
+      "bbox": [
+        751,
+        1456,
+        827,
+        1532
+      ],
+      "size": [
+        76,
+        76
+      ]
+    },
+    {
+      "asset": "nav_home_icon",
+      "file": "09_navigation/nav_home_icon.png",
+      "category": "09_navigation",
+      "description": "Home icon",
+      "bbox": [
+        86,
+        1664,
+        137,
+        1710
+      ],
+      "size": [
+        51,
+        46
+      ]
+    },
+    {
+      "asset": "nav_wallet_icon",
+      "file": "09_navigation/nav_wallet_icon.png",
+      "category": "09_navigation",
+      "description": "Wallet icon",
+      "bbox": [
+        240,
+        1662,
+        286,
+        1709
+      ],
+      "size": [
+        46,
+        47
+      ]
+    },
+    {
+      "asset": "nav_scan_pay_qr",
+      "file": "09_navigation/nav_scan_pay_qr.png",
+      "category": "09_navigation",
+      "description": "Center Scan & Pay QR",
+      "bbox": [
+        382,
+        1620,
+        466,
+        1706
+      ],
+      "size": [
+        84,
+        86
+      ]
+    },
+    {
+      "asset": "nav_cards_icon",
+      "file": "09_navigation/nav_cards_icon.png",
+      "category": "09_navigation",
+      "description": "Cards icon",
+      "bbox": [
+        555,
+        1660,
+        605,
+        1707
+      ],
+      "size": [
+        50,
+        47
+      ]
+    },
+    {
+      "asset": "nav_profile_icon",
+      "file": "09_navigation/nav_profile_icon.png",
+      "category": "09_navigation",
+      "description": "Profile icon",
+      "bbox": [
+        713,
+        1658,
+        766,
+        1710
+      ],
+      "size": [
+        53,
+        52
+      ]
+    },
+    {
+      "asset": "bottom_nav_bar",
+      "file": "10_ui_composites/bottom_nav_bar.png",
+      "category": "10_ui_composites",
+      "description": "Complete bottom navigation",
+      "bbox": [
+        35,
+        1638,
+        828,
+        1753
+      ],
+      "size": [
+        793,
+        115
+      ]
+    },
+    {
+      "asset": "quick_actions_bar",
+      "file": "10_ui_composites/quick_actions_bar.png",
+      "category": "10_ui_composites",
+      "description": "Complete quick action bar",
+      "bbox": [
+        27,
+        609,
+        837,
+        752
+      ],
+      "size": [
+        810,
+        143
+      ]
+    },
+    {
+      "asset": "services_panel",
+      "file": "10_ui_composites/services_panel.png",
+      "category": "10_ui_composites",
+      "description": "Complete My Services panel",
+      "bbox": [
+        27,
+        931,
+        837,
+        1205
+      ],
+      "size": [
+        810,
+        274
+      ]
+    },
+    {
+      "asset": "transactions_panel",
+      "file": "10_ui_composites/transactions_panel.png",
+      "category": "10_ui_composites",
+      "description": "Complete Recent Transactions panel",
+      "bbox": [
+        27,
+        1210,
+        837,
+        1492
+      ],
+      "size": [
+        810,
+        282
+      ]
+    },
+    {
+      "asset": "market_updates_panel",
+      "file": "10_ui_composites/market_updates_panel.png",
+      "category": "10_ui_composites",
+      "description": "Complete Market Updates panel",
+      "bbox": [
+        27,
+        1499,
+        837,
+        1631
+      ],
+      "size": [
+        810,
+        132
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+asset,file,category,description,bbox,size
+cyber_cash_full_reference,10_ui_composites/cyber_cash_full_reference.png,10_ui_composites,Original supplied home dashboard,"0,0,864,1768",864x1768
+header_menu,02_header/header_menu.png,02_header,Hamburger menu,"28,36,82,86",54x50
+cyber_cash_shield_logo,01_branding/cyber_cash_shield_logo.png,01_branding,CYBER CASH shield logo,"92,12,224,108",132x96
+cyber_cash_wordmark,01_branding/cyber_cash_wordmark.png,01_branding,CYBER CASH wordmark,"229,24,481,73",252x49
+cyber_cash_tagline,01_branding/cyber_cash_tagline.png,01_branding,Your Money. Your Goal. Your World.,"231,74,493,96",262x22
+notification_bell,02_header/notification_bell.png,02_header,Notification bell with badge,"640,22,720,104",80x82
+notification_badge_3,02_header/notification_badge_3.png,02_header,Unread notification count,"687,25,718,58",31x33
+profile_avatar,02_header/profile_avatar.png,02_header,Circular profile avatar,"735,12,841,117",106x105
+greeting_text,02_header/greeting_text.png,02_header,Good Morning greeting,"30,140,220,169",190x29
+username,02_header/username.png,02_header,Username display,"30,175,275,207",245x32
+verified_user_badge,02_header/verified_user_badge.png,02_header,Verified User badge,"278,173,438,210",160x37
+wallet_card_composite,10_ui_composites/wallet_card_composite.png,10_ui_composites,Complete wallet hero card,"27,221,838,592",811x371
+ghana_flag,03_wallet_hero/ghana_flag.png,03_wallet_hero,Ghana flag,"54,252,107,303",53x51
+wallet_world_map,03_wallet_hero/wallet_world_map.png,03_wallet_hero,Gold dotted world map,"385,231,691,370",306x139
+wallet_shield,03_wallet_hero/wallet_shield.png,03_wallet_hero,Gold CYBER CASH shield,"478,269,655,462",177x193
+wallet_trophy,03_wallet_hero/wallet_trophy.png,03_wallet_hero,Football trophy,"684,268,813,510",129x242
+wallet_soccer_ball,03_wallet_hero/wallet_soccer_ball.png,03_wallet_hero,Soccer ball,"615,407,747,531",132x124
+add_money_button_icon,03_wallet_hero/add_money_button_icon.png,03_wallet_hero,Add Money plus icon,"75,518,111,553",36x35
+withdraw_button_icon,03_wallet_hero/withdraw_button_icon.png,03_wallet_hero,Withdraw up-arrow icon,"284,520,319,554",35x34
+virtual_card_arrow,03_wallet_hero/virtual_card_arrow.png,03_wallet_hero,Virtual Visa Card arrow,"765,531,795,558",30x27
+quick_send_money,04_quick_actions/quick_send_money.png,04_quick_actions,Send Money Telegram-style icon,"62,623,143,705",81x82
+quick_buy_airtime,04_quick_actions/quick_buy_airtime.png,04_quick_actions,Buy Airtime phone icon,"194,624,274,704",80x80
+quick_buy_data,04_quick_actions/quick_buy_data.png,04_quick_actions,Buy Data Wi-Fi icon,"327,624,407,705",80x81
+quick_pay_bills,04_quick_actions/quick_pay_bills.png,04_quick_actions,Pay Bills receipt icon,"460,624,541,705",81x81
+quick_crypto,04_quick_actions/quick_crypto.png,04_quick_actions,Crypto Bitcoin icon,"594,624,675,705",81x81
+quick_more,04_quick_actions/quick_more.png,04_quick_actions,More grid icon,"727,624,808,705",81x81
+promo_banner,05_promo/promo_banner.png,05_promo,Complete promotional banner,"27,765,837,919",810x154
+promo_gift_box,05_promo/promo_gift_box.png,05_promo,Gold gift box,"44,783,175,902",131x119
+promo_ghana_flag,05_promo/promo_ghana_flag.png,05_promo,Small Ghana flag,"571,780,628,812",57x32
+promo_sponsor_panel,05_promo/promo_sponsor_panel.png,05_promo,Cyber World Store sponsor panel,"530,824,818,900",288x76
+service_transfer,06_services/service_transfer.png,06_services,Transfer icon,"55,1000,112,1053",57x53
+service_withdraw,06_services/service_withdraw.png,06_services,Withdraw wallet icon,"246,1000,302,1055",56x55
+service_virtual_card,06_services/service_virtual_card.png,06_services,Virtual card icon,"392,1000,447,1050",55x50
+service_airtime2cash,06_services/service_airtime2cash.png,06_services,Airtime2Cash recycle icon,"553,997,614,1057",61x60
+service_savings,06_services/service_savings.png,06_services,Savings piggy bank,"733,998,788,1056",55x58
+service_investment,06_services/service_investment.png,06_services,Investment chart,"59,1110,116,1167",57x57
+service_loans,06_services/service_loans.png,06_services,Loans money bag,"250,1108,309,1168",59x60
+service_insurance,06_services/service_insurance.png,06_services,Insurance shield,"391,1107,449,1167",58x60
+service_qr_pay,06_services/service_qr_pay.png,06_services,QR Pay icon,"547,1107,609,1167",62x60
+service_history,06_services/service_history.png,06_services,History clock,"731,1107,788,1167",57x60
+transaction_received_icon,07_transactions/transaction_received_icon.png,07_transactions,Money received icon,"64,1273,121,1329",57x56
+transaction_sent_icon,07_transactions/transaction_sent_icon.png,07_transactions,Money sent icon,"64,1343,121,1400",57x57
+transaction_airtime_icon,07_transactions/transaction_airtime_icon.png,07_transactions,Airtime purchase icon,"64,1420,121,1477",57x57
+market_btc_coin,08_market/market_btc_coin.png,08_market,Bitcoin market coin,"44,1563,87,1608",43x45
+market_btc_chart,08_market/market_btc_chart.png,08_market,BTC chart,"318,1571,404,1614",86x43
+market_us_flag,08_market/market_us_flag.png,08_market,US flag,"442,1560,485,1607",43x47
+market_usd_chart,08_market/market_usd_chart.png,08_market,USD/GHS chart,"722,1570,810,1615",88x45
+chatbot_button,08_market/chatbot_button.png,08_market,Floating support chatbot,"751,1456,827,1532",76x76
+nav_home_icon,09_navigation/nav_home_icon.png,09_navigation,Home icon,"86,1664,137,1710",51x46
+nav_wallet_icon,09_navigation/nav_wallet_icon.png,09_navigation,Wallet icon,"240,1662,286,1709",46x47
+nav_scan_pay_qr,09_navigation/nav_scan_pay_qr.png,09_navigation,Center Scan & Pay QR,"382,1620,466,1706",84x86
+nav_cards_icon,09_navigation/nav_cards_icon.png,09_navigation,Cards icon,"555,1660,605,1707",50x47
+nav_profile_icon,09_navigation/nav_profile_icon.png,09_navigation,Profile icon,"713,1658,766,1710",53x52
+bottom_nav_bar,10_ui_composites/bottom_nav_bar.png,10_ui_composites,Complete bottom navigation,"35,1638,828,1753",793x115
+quick_actions_bar,10_ui_composites/quick_actions_bar.png,10_ui_composites,Complete quick action bar,"27,609,837,752",810x143
+services_panel,10_ui_composites/services_panel.png,10_ui_composites,Complete My Services panel,"27,931,837,1205",810x274
+transactions_panel,10_ui_composites/transactions_panel.png,10_ui_composites,Complete Recent Transactions panel,"27,1210,837,1492",810x282
+market_updates_panel,10_ui_composites/market_updates_panel.png,10_ui_composites,Complete Market Updates panel,"27,1499,837,1631",810x132

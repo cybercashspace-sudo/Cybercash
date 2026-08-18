@@ -28,6 +28,7 @@ from components.balance_label import BalanceLabel
 from components.pressable_card import PressableCard
 from components.wallet_card import WalletCard
 from components.transaction_card import TransactionCard
+from core.home_assets import home_asset_path
 from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
 from core.dashboard_state import DashboardState
@@ -1962,9 +1963,22 @@ class HomeScreen(ResponsiveScreen):
         self.market_service = MarketService()
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
-        self.background_source = self._resolve_asset_source("kivy_frontend/assets/background.png")
-        self.brand_logo_source = self._resolve_asset_source("assets/cybercash_logo.png", "assets/cybercash_icon.png")
-        self.hero_art_source = self._resolve_asset_source("assets/cybercash_icon.png", "assets/cybercash_logo.png")
+        self.background_source = self._resolve_asset_source(
+            home_asset_path("03_wallet_hero/wallet_world_map.png"),
+            "kivy_frontend/assets/background.png",
+        )
+        self.brand_logo_source = self._resolve_asset_source(
+            home_asset_path("01_branding/cyber_cash_shield_logo.png"),
+            home_asset_path("01_branding/cyber_cash_wordmark.png"),
+            "assets/cybercash_logo.png",
+            "assets/cybercash_icon.png",
+        )
+        self.hero_art_source = self._resolve_asset_source(
+            home_asset_path("10_ui_composites/wallet_card_composite.png"),
+            home_asset_path("03_wallet_hero/wallet_shield.png"),
+            "assets/cybercash_icon.png",
+            "assets/cybercash_logo.png",
+        )
         self._update_balance_display()
 
     def on_kv_post(self, _base_widget):
@@ -2159,6 +2173,7 @@ class HomeScreen(ResponsiveScreen):
     @staticmethod
     def _resolve_avatar_source() -> str:
         return HomeScreen._resolve_asset_source(
+            home_asset_path("02_header/profile_avatar.png"),
             "assets/avatar.png",
             "assets/profile.png",
             "kivy_frontend/assets/avatar.png",
