@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from kivy.animation import Animation
-from kivy.clock import Clock
-from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
 from kivy.uix.behaviors import ButtonBehavior
@@ -34,22 +32,6 @@ class GlassCard(MDCard):
         self.elevation = 0
         self.md_bg_color = GLASS_BG
         self.line_color = GLASS_BORDER
-        Clock.schedule_once(self._bind_shadow, 0)
-
-    def _bind_shadow(self, *_):
-        self.bind(pos=self._update_canvas, size=self._update_canvas)
-        self._update_canvas()
-
-    def _update_canvas(self, *_):
-        self.canvas.before.clear()
-
-        with self.canvas.before:
-            Color(0, 0, 0, self.shadow_opacity)
-            RoundedRectangle(
-                pos=(self.x, self.y - self.shadow_y_offset),
-                size=self.size,
-                radius=[self.corner_radius],
-            )
 
 
 class GoldButton(MDCard):

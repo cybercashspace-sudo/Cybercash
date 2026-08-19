@@ -136,6 +136,7 @@ class ShimmerEffect:
         self.opacity = float(opacity)
         self.position = -self.width * 3
         self._event = None
+        self._color = None
         self._stripe = None
 
     def start(self):
@@ -151,23 +152,29 @@ class ShimmerEffect:
             except Exception:
                 pass
         self._event = None
-        if self.widget is not None:
+        if self._stripe is not None:
             try:
-                self.widget.canvas.after.clear()
+                self._stripe.opacity = 0
             except Exception:
                 pass
         self._stripe = None
+        self._color = None
 
     def _sync_canvas(self):
         if self.widget is None:
             return
-        try:
-            self.widget.canvas.after.clear()
-        except Exception:
+        if self._stripe is None or self._color is None:
+            with self.widget.canvas.after:
+                self._color = Color(1, 0.78, 0.15, self.opacity)
+                self._stripe = Rectangle(
+                    pos=(self.widget.x + self.position, self.widget.y),
+                    size=(self.width, self.widget.height),
+                )
             return
-        with self.widget.canvas.after:
-            Color(1, 0.78, 0.15, self.opacity)
-            self._stripe = Rectangle(pos=(self.widget.x + self.position, self.widget.y), size=(self.width, self.widget.height))
+
+        self._color.rgba = (1, 0.78, 0.15, self.opacity)
+        self._stripe.pos = (self.widget.x + self.position, self.widget.y)
+        self._stripe.size = (self.width, self.widget.height)
 
     def _step(self, _dt):
         if self.widget is None:
