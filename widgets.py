@@ -26,7 +26,7 @@ class GlassCard(MDCard):
 
     corner_radius = NumericProperty(dp(28))
     shadow_opacity = NumericProperty(0.22)
-    shadow_offset = NumericProperty(dp(3))
+    shadow_y_offset = NumericProperty(dp(3))
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -46,7 +46,7 @@ class GlassCard(MDCard):
         with self.canvas.before:
             Color(0, 0, 0, self.shadow_opacity)
             RoundedRectangle(
-                pos=(self.x, self.y - self.shadow_offset),
+                pos=(self.x, self.y - self.shadow_y_offset),
                 size=self.size,
                 radius=[self.corner_radius],
             )
