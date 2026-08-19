@@ -36,7 +36,7 @@ class LoginScreen(MDScreen):
         self.start_animation()
 
     def start_animation(self, *_args):
-        for name in ("brand_block", "login_card", "field_stack", "action_stack"):
+        for name in ("brand_block", "login_card", "field_stack"):
             widget = self.ids.get(name)
             if widget is not None:
                 widget.opacity = 1

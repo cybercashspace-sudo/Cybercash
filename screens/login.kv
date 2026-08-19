@@ -70,7 +70,7 @@
                     orientation: "vertical"
                     adaptive_height: True
                     padding: dp(20)
-                    spacing: dp(14)
+                    spacing: dp(12)
 
                     FitImage:
                         source: auth_asset_path("23_login_panel_top.png")
@@ -78,16 +78,11 @@
                         height: dp(295)
                         opacity: .98
 
-                    Widget:
-                        id: action_stack
-                        size_hint_y: None
-                        height: dp(32)
-
                     MDBoxLayout:
                         id: field_stack
                         orientation: "vertical"
                         adaptive_height: True
-                        spacing: dp(14)
+                        spacing: dp(12)
 
                         MDRelativeLayout:
                             size_hint_y: None
@@ -146,7 +141,7 @@
                     MDBoxLayout:
                         id: remember_row
                         adaptive_height: True
-                        spacing: dp(10)
+                        spacing: dp(8)
 
                         RememberCheckButton:
                             id: remember_toggle
