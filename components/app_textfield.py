@@ -18,7 +18,7 @@ class AppTextField(MDTextField):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.mode = str(getattr(self, "mode", "") or "outlined")
+        self.mode = str(getattr(self, "mode", "") or "rectangle")
         self.helper_text_mode = str(getattr(self, "helper_text_mode", "") or "on_focus")
         self.line_color_normal = list(GLASS_BORDER)
         self.line_color_focus = list(PRIMARY)
