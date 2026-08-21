@@ -36,10 +36,7 @@ class LoginScreen(MDScreen):
         self.start_animation()
 
     def start_animation(self, *_args):
-        for name in ("brand_block", "login_card", "field_stack"):
-            widget = self.ids.get(name)
-            if widget is not None:
-                widget.opacity = 1
+        return
 
     def _get_text(self, *names: str) -> str:
         for name in names:
@@ -119,11 +116,11 @@ class LoginScreen(MDScreen):
         password = self._get_text("password")
 
         if username == "":
-            self.show_message("Please enter username.")
+            self.show_message("Please enter your username or email.")
             return
 
         if password == "":
-            self.show_message("Please enter password.")
+            self.show_message("Please enter your password.")
             return
 
         try:

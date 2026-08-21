@@ -1,230 +1,180 @@
-#:import dp kivy.metrics.dp
-#:import theme theme
-#:import FitImage kivymd.uix.fitimage.FitImage
-#:import AppTextField components.app_textfield.AppTextField
-#:import GlassCard widgets.GlassCard
-#:import GoldButton widgets.GoldButton
-#:import PasswordToggleButton widgets.PasswordToggleButton
-#:import RememberCheckButton widgets.RememberCheckButton
-#:import SocialButton widgets.SocialButton
 #:import auth_asset_path core.auth_assets.auth_asset_path
-#:import MDGridLayout kivymd.uix.gridlayout.MDGridLayout
+#:import dp kivy.metrics.dp
 
 <LoginScreen>:
-    MDFloatLayout:
-        canvas.before:
-            Color:
-                rgba: theme.BACKGROUND
-            Rectangle:
-                pos: self.pos
-                size: self.size
+    canvas.before:
+        Color:
+            rgba: 0, 0, 0, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Rectangle:
+            source: auth_asset_path("00_full_reference.png")
+            pos: self.pos
+            size: self.size
 
-        FitImage:
-            source: auth_asset_path("02_world_map_header.png")
-            size_hint: 1, None
-            height: dp(315)
-            pos_hint: {"top": 1}
-            opacity: .16
+    FloatLayout:
+        TextInput:
+            id: username
+            multiline: False
+            background_normal: ""
+            background_active: ""
+            background_color: 0, 0, 0, 0
+            foreground_color: 0.91, 0.91, 0.91, 1
+            cursor_color: 0.96, 0.77, 0.11, 1
+            selection_color: 0.42, 0.34, 0.06, 1
+            font_size: dp(19)
+            padding: [dp(0), dp(0), dp(0), dp(0)]
+            size_hint: 0.80, None
+            height: dp(66)
+            pos_hint: {"x": 0.145, "y": 0.513}
+            on_text_validate: root.login()
 
-        ScrollView:
-            do_scroll_x: False
-            bar_width: 0
+        TextInput:
+            id: password
+            multiline: False
+            password: True
+            background_normal: ""
+            background_active: ""
+            background_color: 0, 0, 0, 0
+            foreground_color: 0.91, 0.91, 0.91, 1
+            cursor_color: 0.96, 0.77, 0.11, 1
+            selection_color: 0.42, 0.34, 0.06, 1
+            font_size: dp(19)
+            padding: [dp(0), dp(0), dp(0), dp(0)]
+            size_hint: 0.80, None
+            height: dp(66)
+            pos_hint: {"x": 0.145, "y": 0.390}
+            on_text_validate: root.login()
 
-            MDBoxLayout:
-                orientation: "vertical"
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(18)
-                padding: dp(20)
+        Button:
+            id: remember_toggle
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(32), dp(32)
+            pos_hint: {"x": 0.078, "y": 0.413}
+            on_release: root.toggle_remember(not root.remember_me)
 
-                Widget:
-                    size_hint_y: None
-                    height: dp(12)
+        Button:
+            id: password_toggle
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(58), dp(58)
+            pos_hint: {"x": 0.845, "y": 0.394}
+            on_release: root.toggle_password()
 
-                MDBoxLayout:
-                    id: brand_block
-                    orientation: "vertical"
-                    adaptive_height: True
-                    spacing: dp(6)
+        Button:
+            id: login_tab
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(145), dp(65)
+            pos_hint: {"x": 0.075, "y": 0.590}
+            on_release: root.username.focus = True
 
-                    FitImage:
-                        source: auth_asset_path("01_cyber_cash_shield_logo.png")
-                        size_hint_y: None
-                        height: dp(126)
-                        opacity: .98
+        Button:
+            id: signup_tab
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(150), dp(65)
+            pos_hint: {"x": 0.285, "y": 0.590}
+            on_release: root.signup()
 
-                    FitImage:
-                        source: auth_asset_path("21_cyber_cash_wordmark.png")
-                        size_hint_y: None
-                        height: dp(62)
-                        opacity: .98
+        Button:
+            id: forgot_password_button
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(190), dp(48)
+            pos_hint: {"x": 0.68, "y": 0.408}
+            on_release: root.forgot_password()
 
-                    FitImage:
-                        source: auth_asset_path("22_tagline.png")
-                        size_hint_y: None
-                        height: dp(24)
-                        opacity: .95
+        Button:
+            id: login_button
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: 0.80, None
+            height: dp(82)
+            pos_hint: {"x": 0.10, "y": 0.315}
+            on_release: root.login()
 
-                GlassCard:
-                    id: login_card
-                    orientation: "vertical"
-                    adaptive_height: True
-                    padding: dp(20)
-                    spacing: dp(12)
+        Button:
+            id: google_login
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: 0.185, None
+            height: dp(135)
+            pos_hint: {"x": 0.080, "y": 0.181}
+            on_release: root.google_login()
 
-                    FitImage:
-                        source: auth_asset_path("23_login_panel_top.png")
-                        size_hint_y: None
-                        height: dp(295)
-                        opacity: .98
+        Button:
+            id: facebook_login
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: 0.185, None
+            height: dp(135)
+            pos_hint: {"x": 0.294, "y": 0.181}
+            on_release: root.facebook_login()
 
-                    MDBoxLayout:
-                        id: field_stack
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(12)
+        Button:
+            id: apple_login
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: 0.185, None
+            height: dp(135)
+            pos_hint: {"x": 0.510, "y": 0.181}
+            on_release: root.apple_login()
 
-                        MDRelativeLayout:
-                            size_hint_y: None
-                            height: dp(72)
+        Button:
+            id: phone_login
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: 0.185, None
+            height: dp(135)
+            pos_hint: {"x": 0.724, "y": 0.181}
+            on_release: root.phone_login()
 
-                            FitImage:
-                                source: auth_asset_path("08_username_user_icon.png")
-                                size_hint: None, None
-                                size: dp(28), dp(28)
-                                pos_hint: {"x": .03, "center_y": .5}
-                                opacity: .98
-
-                            AppTextField:
-                                id: username
-                                hint_text: "Username or Email"
-                                mode: "rectangle"
-                                field_height: dp(72)
-                                helper_text: "Enter your username or email"
-                                helper_text_mode: "on_focus"
-                                icon_left: "account"
-                                icon_left_color_normal: 0, 0, 0, 0
-                                icon_left_color_focus: 0, 0, 0, 0
-
-                        MDRelativeLayout:
-                            size_hint_y: None
-                            height: dp(72)
-
-                            FitImage:
-                                source: auth_asset_path("09_password_lock_icon.png")
-                                size_hint: None, None
-                                size: dp(28), dp(28)
-                                pos_hint: {"x": .03, "center_y": .5}
-                                opacity: .98
-
-                            AppTextField:
-                                id: password
-                                hint_text: "Password"
-                                password: True
-                                mode: "rectangle"
-                                field_height: dp(72)
-                                icon_left: "lock"
-                                icon_left_color_normal: 0, 0, 0, 0
-                                icon_left_color_focus: 0, 0, 0, 0
-                                icon_right: "eye-off"
-                                icon_right_color_normal: 0, 0, 0, 0
-                                icon_right_color_focus: 0, 0, 0, 0
-                                size_hint: 1, None
-                                pos_hint: {"center_y": .5}
-
-                            PasswordToggleButton:
-                                id: password_toggle
-                                visible: root.password_visible
-                                pos_hint: {"right": .955, "center_y": .5}
-                                on_release: root.toggle_password()
-
-                    MDBoxLayout:
-                        id: remember_row
-                        adaptive_height: True
-                        spacing: dp(8)
-
-                        RememberCheckButton:
-                            id: remember_toggle
-                            checked: root.remember_me
-                            on_release: root.toggle_remember(not root.remember_me)
-
-                        MDLabel:
-                            text: "Remember Me"
-                            theme_text_color: "Custom"
-                            text_color: theme.TEXT_PRIMARY
-                            valign: "middle"
-                            adaptive_height: True
-
-                        Widget:
-
-                        MDTextButton:
-                            text: "Forgot Password?"
-                            theme_text_color: "Custom"
-                            text_color: theme.PRIMARY
-                            on_release: root.forgot_password()
-
-                    GoldButton:
-                        id: login_button
-                        text: "Login"
-                        on_release: root.login()
-
-                    MDBoxLayout:
-                        adaptive_height: True
-                        spacing: dp(12)
-
-                        MDSeparator:
-                            orientation: "horizontal"
-                            size_hint_y: None
-                            height: dp(1)
-
-                        MDLabel:
-                            text: "OR"
-                            adaptive_size: True
-                            theme_text_color: "Hint"
-                            halign: "center"
-
-                        MDSeparator:
-                            orientation: "horizontal"
-                            size_hint_y: None
-                            height: dp(1)
-
-                    MDGridLayout:
-                        cols: 4
-                        adaptive_height: True
-                        spacing: dp(10)
-
-                        SocialButton:
-                            text: "Google"
-                            source: auth_asset_path("13_google_icon.png")
-                            on_release: root.google_login()
-
-                        SocialButton:
-                            text: "Facebook"
-                            source: auth_asset_path("14_facebook_icon.png")
-                            on_release: root.facebook_login()
-
-                        SocialButton:
-                            text: "Apple"
-                            source: auth_asset_path("15_apple_icon.png")
-                            on_release: root.apple_login()
-
-                        SocialButton:
-                            text: "Phone"
-                            source: auth_asset_path("16_phone_icon.png")
-                            on_release: root.phone_login()
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(8)
-
-                        FitImage:
-                            source: auth_asset_path("25_security_feature_bar.png")
-                            size_hint_y: None
-                            height: dp(145)
-
-                        FitImage:
-                            source: auth_asset_path("26_bottom_signup_prompt.png")
-                            size_hint_y: None
-                            height: dp(65)
-                            opacity: .98
+        Button:
+            id: bottom_signup
+            background_normal: ""
+            background_down: ""
+            background_color: 0, 0, 0, 0
+            border: 0, 0, 0, 0
+            color: 0, 0, 0, 0
+            size_hint: None, None
+            size: dp(300), dp(65)
+            pos_hint: {"x": 0.43, "y": 0.055}
+            on_release: root.signup()
