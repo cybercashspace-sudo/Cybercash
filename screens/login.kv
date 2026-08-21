@@ -2,18 +2,14 @@
 #:import dp kivy.metrics.dp
 
 <LoginScreen>:
-    canvas.before:
-        Color:
-            rgba: 0, 0, 0, 1
-        Rectangle:
-            pos: self.pos
-            size: self.size
-        Rectangle:
-            source: auth_asset_path("00_full_reference.png")
-            pos: self.pos
-            size: self.size
-
     FloatLayout:
+        Image:
+            source: auth_asset_path("00_full_reference.png")
+            allow_stretch: True
+            keep_ratio: False
+            size_hint: 1, 1
+            pos: self.pos
+
         TextInput:
             id: username
             multiline: False
