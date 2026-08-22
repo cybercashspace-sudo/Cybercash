@@ -1,5 +1,6 @@
 import re
 import threading
+from pathlib import Path
 
 from kivy.clock import Clock
 from kivy.lang import Builder
@@ -8,7 +9,7 @@ from kivymd.app import MDApp
 from kivymd.uix.fitimage import FitImage
 
 from api.auth import lookup_registered_name, register
-from core.auth_assets import asset_path
+from core.auth_assets import auth_asset_path
 from core.message_sanitizer import extract_backend_message
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
@@ -467,8 +468,8 @@ class RegisterScreen(ResponsiveScreen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.hero_source = asset_path("cybercash_logo.png")
-        self.card_art_source = asset_path("cybercash_icon.png")
+        self.hero_source = auth_asset_path("00_full_reference.png")
+        self.card_art_source = auth_asset_path("03_phone_card_lock_cluster.png")
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -637,4 +638,7 @@ class RegisterScreen(ResponsiveScreen):
         self._show_popup("Registration Failed", error_message)
 
 
-Builder.load_string(KV)
+_REGISTER_KV = str(Path(__file__).with_name("register.kv"))
+_LOADED_KV_FILES = list(getattr(Builder, "files", []) or [])
+if _REGISTER_KV not in _LOADED_KV_FILES:
+    Builder.load_file(_REGISTER_KV)
