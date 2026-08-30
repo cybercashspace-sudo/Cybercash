@@ -117,6 +117,7 @@ SCREEN_SPECS = {
     "notifications": ("features.notifications.notification_screen", "NotificationScreen"),
     "profile": ("screens.profile", "ProfileScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
+    "agent_dashboard": ("features.agent.agent_dashboard", "AgentDashboard"),
     "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
     "admin_agents": ("screens.admin_agents", "AdminAgentsScreen"),
@@ -160,6 +161,8 @@ class CyberCashApp(MDApp):
     theme_mode = StringProperty("Dark")
     privacy_mode = BooleanProperty(True)
     is_admin = BooleanProperty(False)
+    is_agent_active = BooleanProperty(False)
+    user_role = StringProperty("user")
     user_name = StringProperty("Cyber Cash User")
     user_email = StringProperty("support@cybercash.app")
     gold = ColorProperty(CyberTheme.GOLD)
@@ -391,6 +394,8 @@ class CyberCashApp(MDApp):
         self.pending_momo = ""
         self.user_name = "Cyber Cash User"
         self.is_admin = False
+        self.is_agent_active = False
+        self.user_role = "user"
         try:
             session.clear_auth()
         except Exception:
@@ -481,14 +486,22 @@ class CyberCashApp(MDApp):
 
     def _open_authenticated_start_screen(self, *_args) -> None:
         if self.access_token:
-            self.go_to_screen("home", fallback="login")
+            self.go_to_screen(self.get_authenticated_target(), fallback="login")
+
+    def get_authenticated_target(self) -> str:
+        role = str(getattr(self, "user_role", "") or "").strip().lower()
+        if bool(getattr(self, "is_admin", False)) or role in {"admin", "super_admin"}:
+            return "admin_dashboard"
+        if bool(getattr(self, "is_agent_active", False)) or role == "agent":
+            return "agent_dashboard"
+        return "home"
 
     def complete_startup(self, *_args) -> bool:
         sm = getattr(self, "root", None)
         if not sm:
             return False
 
-        target = "home" if self.access_token else "login"
+        target = self.get_authenticated_target() if self.access_token else "login"
         if not self.go_to_screen(target, fallback="login"):
             logger.warning("Startup route to %s is not ready yet; retrying.", target)
             return False
@@ -777,6 +790,13 @@ class CyberCashApp(MDApp):
         self.privacy_mode = snapshot.privacy_mode
         snapshot_user = snapshot.user if isinstance(snapshot.user, dict) else {}
         if snapshot_user:
+            snapshot_role = str(snapshot_user.get("role") or "").strip().lower()
+            snapshot_is_admin = bool(snapshot_user.get("is_admin") or snapshot_role in {"admin", "super_admin"})
+            snapshot_is_agent = bool(
+                snapshot_user.get("is_agent")
+                or snapshot_user.get("agent_active")
+                or snapshot_role == "agent"
+            )
             try:
                 self.app_state.set_user(snapshot_user)
             except Exception:
@@ -788,6 +808,9 @@ class CyberCashApp(MDApp):
                 or self.user_name
                 or ""
             ).strip() or self.user_name
+            self.is_admin = snapshot_is_admin
+            self.is_agent_active = snapshot_is_agent
+            self.user_role = snapshot_role or ("admin" if snapshot_is_admin else "agent" if snapshot_is_agent else "user")
         self.set_privacy_mode(self.privacy_mode)
 
         self.theme_manager = ThemeManager(self)

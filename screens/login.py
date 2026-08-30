@@ -18,7 +18,6 @@ class LoginScreen(MDScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
-    agent_mode = BooleanProperty(False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -27,9 +26,13 @@ class LoginScreen(MDScreen):
     def on_pre_enter(self, *_args):
         self.remember_me = True
         self.password_visible = False
-        self.agent_mode = False
         self._set_text("", "momo_input", "username", "identifier", "pin_input", "password")
         self._restore_remembered_identity()
+        pin_input = self.ids.get("pin_input") or self.ids.get("password")
+        if pin_input is not None and hasattr(pin_input, "password"):
+            pin_input.password = True
+        if pin_input is not None and hasattr(pin_input, "password_visible"):
+            pin_input.password_visible = False
         self._sync_auth_controls()
 
     def on_enter(self):
@@ -54,7 +57,6 @@ class LoginScreen(MDScreen):
             if widget is None or not hasattr(widget, "text"):
                 continue
             widget.text = str(value or "")
-            return
 
     def _restore_remembered_identity(self) -> None:
         try:
@@ -77,6 +79,13 @@ class LoginScreen(MDScreen):
             elif hasattr(password_toggle, "icon"):
                 password_toggle.icon = "eye" if self.password_visible else "eye-off"
 
+        password_field = self.ids.get("pin_input") or self.ids.get("password")
+        if password_field is not None:
+            if hasattr(password_field, "password_visible"):
+                password_field.password_visible = self.password_visible
+            if hasattr(password_field, "password"):
+                password_field.password = not self.password_visible
+
         remember_toggle = self.ids.get("remember_toggle")
         if remember_toggle is not None:
             if hasattr(remember_toggle, "checked"):
@@ -84,30 +93,13 @@ class LoginScreen(MDScreen):
             elif hasattr(remember_toggle, "active"):
                 remember_toggle.active = self.remember_me
 
-        agent_toggle = self.ids.get("agent_toggle")
-        if agent_toggle is not None:
-            if hasattr(agent_toggle, "checked"):
-                agent_toggle.checked = self.agent_mode
-            elif hasattr(agent_toggle, "active"):
-                agent_toggle.active = self.agent_mode
-
     def toggle_password(self):
         self.password_visible = not self.password_visible
         password = self.ids.get("pin_input") or self.ids.get("password")
         if password is not None:
+            if hasattr(password, "password_visible"):
+                password.password_visible = self.password_visible
             password.password = not self.password_visible
-        self._sync_auth_controls()
-
-    def toggle_agent_mode(self, *args):
-        active = False
-        for value in reversed(args):
-            if isinstance(value, bool):
-                active = value
-                break
-            if hasattr(value, "active"):
-                active = bool(getattr(value, "active"))
-                break
-        self.agent_mode = bool(active)
         self._sync_auth_controls()
 
     def toggle_remember(self, *args):
@@ -145,7 +137,7 @@ class LoginScreen(MDScreen):
         self._set_loading(True)
         Thread(
             target=self._login_worker,
-            args=(momo_number, pin, self.agent_mode),
+            args=(momo_number, pin),
             daemon=True,
         ).start()
 
@@ -161,9 +153,9 @@ class LoginScreen(MDScreen):
             else:
                 button.disabled = bool(value)
 
-    def _login_worker(self, momo_number: str, pin: str, is_agent: bool) -> None:
+    def _login_worker(self, momo_number: str, pin: str) -> None:
         try:
-            result = self.controller.login(momo_number, pin, is_agent=is_agent)
+            result = self.controller.login(momo_number, pin)
         except Exception as exc:
             message = extract_backend_message(
                 exc,
@@ -214,7 +206,15 @@ class LoginScreen(MDScreen):
                         pass
                 self.show_message("Login successful.")
                 app = MDApp.get_running_app()
-                target_screen = "admin_dashboard" if app is not None and bool(getattr(app, "is_admin", False)) else "home"
+                target_screen = "home"
+                if app is not None:
+                    get_target = getattr(app, "get_authenticated_target", None)
+                    if callable(get_target):
+                        target_screen = str(get_target() or "home")
+                    elif bool(getattr(app, "is_admin", False)):
+                        target_screen = "admin_dashboard"
+                    elif bool(getattr(app, "is_agent_active", False)):
+                        target_screen = "agent_dashboard"
                 self._go_to_screen(target_screen, fallback="login")
                 return
 

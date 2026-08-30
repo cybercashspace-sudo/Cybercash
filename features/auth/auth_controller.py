@@ -3,6 +3,7 @@ from __future__ import annotations
 from kivy.app import App
 from kivymd.app import MDApp
 
+from api.client import FAST_TIMEOUT, api_client
 from core.app_state import AppState
 from core.exceptions import AuthenticationError, ValidationError
 from core.session import session
@@ -14,6 +15,14 @@ from utils.network import normalize_ghana_number
 class AuthController:
     def __init__(self, service: AuthService | None = None):
         self.service = service or AuthService()
+
+    @staticmethod
+    def _response_data(response: dict | None) -> dict:
+        if isinstance(response, dict):
+            data = response.get("data")
+            if isinstance(data, dict):
+                return dict(data)
+        return {}
 
     @staticmethod
     def _normalize_momo_number(value: str) -> str:
@@ -31,37 +40,78 @@ class AuthController:
         user_payload = result.get("user") if isinstance(result.get("user"), dict) else {}
 
         if token:
+            auth_headers = {"Authorization": f"Bearer {token}"}
+            profile_payload = dict(user_payload or {})
+            current_role = str(profile_payload.get("role") or result.get("role") or "").strip().lower()
+            if not current_role or (not profile_payload.get("is_admin") and not profile_payload.get("is_agent")):
+                try:
+                    me_response = api_client.get("/auth/me", headers=auth_headers, timeout=FAST_TIMEOUT)
+                    me_payload = self._response_data(me_response)
+                    if me_payload:
+                        profile_payload = {**profile_payload, **me_payload}
+                        current_role = str(profile_payload.get("role") or current_role).strip().lower()
+                except Exception:
+                    pass
+                if (
+                    not profile_payload.get("is_admin")
+                    and not profile_payload.get("is_agent")
+                    and current_role not in {"admin", "super_admin", "agent"}
+                ):
+                    try:
+                        agent_response = api_client.get("/agents/me", headers=auth_headers, timeout=FAST_TIMEOUT)
+                        agent_payload = self._response_data(agent_response)
+                        if agent_payload:
+                            profile_payload = {**profile_payload, **agent_payload}
+                            current_role = str(profile_payload.get("role") or current_role).strip().lower()
+                    except Exception:
+                        pass
+
+            is_admin = bool(
+                profile_payload.get("is_admin")
+                or current_role in {"admin", "super_admin"}
+            )
+            is_agent = bool(
+                profile_payload.get("is_agent")
+                or profile_payload.get("agent_active")
+                or current_role == "agent"
+            )
+            resolved_role = current_role or ("admin" if is_admin else "agent" if is_agent else "")
+            if resolved_role:
+                profile_payload["role"] = resolved_role
+            profile_payload["is_admin"] = is_admin
+            profile_payload["is_agent"] = is_agent
+            profile_payload["agent_active"] = is_agent
+
             session.save(
                 token,
-                user=user_payload,
+                user=profile_payload or user_payload,
                 refresh_token=str(result.get("refresh_token", "") or "").strip(),
             )
+            if profile_payload:
+                try:
+                    session.set_user(profile_payload)
+                except Exception:
+                    pass
 
             app = MDApp.get_running_app()
             if app is not None:
-                role = str(
-                    user_payload.get("role")
-                    or result.get("role")
-                    or ""
-                ).strip().lower()
-                is_admin = bool(user_payload.get("is_admin") or role in {"admin", "super_admin"})
-                is_agent = bool(user_payload.get("is_agent") or role == "agent")
                 app.access_token = token
                 app.user_name = str(
-                    user_payload.get("name")
+                    profile_payload.get("name")
                     or result.get("first_name")
-                    or user_payload.get("full_name")
+                    or profile_payload.get("full_name")
+                    or profile_payload.get("first_name")
                     or app.user_name
                     or ""
                 ).strip() or app.user_name
                 app.is_admin = is_admin
                 app.is_agent_active = is_agent
-                app.user_role = role or ("admin" if is_admin else "agent" if is_agent else "user")
+                app.user_role = resolved_role or ("admin" if is_admin else "agent" if is_agent else "user")
                 app.pending_momo = ""
 
                 app_state = getattr(app, "app_state", None)
                 if isinstance(app_state, AppState):
-                    app_state.set_user(user_payload or {"identifier": momo_number, "name": app.user_name})
+                    app_state.set_user(profile_payload or user_payload or {"identifier": momo_number, "name": app.user_name})
                 if hasattr(app, "start_background_services"):
                     try:
                         app.start_background_services()
@@ -82,9 +132,9 @@ class AuthController:
         status = str(result.get("status", "") or "").strip().lower()
 
         if token:
-            self.apply_login_result(result, identifier=momo_number)
+            self.apply_login_result(result, momo_number=momo_number)
 
-        if not token and status not in {"verify_required", "verification_required"}:
+        if not token and status not in {"verify_required", "verification_required", "registered", "pending_kyc"}:
             raise AuthenticationError("Token missing from login response.")
 
         return result
