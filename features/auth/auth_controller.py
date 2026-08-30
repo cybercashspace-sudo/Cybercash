@@ -39,6 +39,13 @@ class AuthController:
 
             app = MDApp.get_running_app()
             if app is not None:
+                role = str(
+                    user_payload.get("role")
+                    or result.get("role")
+                    or ""
+                ).strip().lower()
+                is_admin = bool(user_payload.get("is_admin") or role in {"admin", "super_admin"})
+                is_agent = bool(user_payload.get("is_agent") or role == "agent")
                 app.access_token = token
                 app.user_name = str(
                     user_payload.get("name")
@@ -47,6 +54,9 @@ class AuthController:
                     or app.user_name
                     or ""
                 ).strip() or app.user_name
+                app.is_admin = is_admin
+                app.is_agent_active = is_agent
+                app.user_role = role or ("admin" if is_admin else "agent" if is_agent else "user")
                 app.pending_momo = ""
 
                 app_state = getattr(app, "app_state", None)

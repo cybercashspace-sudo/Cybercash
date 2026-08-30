@@ -213,7 +213,9 @@ class LoginScreen(MDScreen):
                     except Exception:
                         pass
                 self.show_message("Login successful.")
-                self._go_to_screen("home", fallback="login")
+                app = MDApp.get_running_app()
+                target_screen = "admin_dashboard" if app is not None and bool(getattr(app, "is_admin", False)) else "home"
+                self._go_to_screen(target_screen, fallback="login")
                 return
 
             detail = extract_backend_message(
