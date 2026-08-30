@@ -301,13 +301,10 @@
                                 MDCheckbox:
                                     id: agent_checkbox
                                     active: False
-                                    disabled: True
-                                    opacity: 0
-                                    size_hint: None, None
-                                    size: dp(0), dp(0)
+                                    on_active: root.toggle_agent_mode(*args)
 
                                 MDLabel:
-                                    text: "Verification will finish setup after the OTP step."
+                                    text: "Agent account"
                                     valign: "center"
                                     theme_text_color: "Custom"
                                     text_color: 0.95, 0.95, 0.96, 1
@@ -341,25 +338,3 @@
                                 height: dp(88 * root.layout_scale)
                                 allow_stretch: True
                                 keep_ratio: True
-
-                            MDBoxLayout:
-                                size_hint_y: None
-                                height: dp(34 * root.layout_scale)
-                                spacing: dp(8 * root.layout_scale)
-                                pos_hint: {"center_x": 0.5}
-
-                                MDLabel:
-                                    text: "Already have an account?"
-                                    halign: "right"
-                                    theme_text_color: "Custom"
-                                    text_color: 0.95, 0.95, 0.96, 1
-                                    font_size: sp(12.5 * root.text_scale)
-                                    size_hint_x: None
-                                    width: self.texture_size[0]
-
-                                MDTextButton:
-                                    text: "Login"
-                                    theme_text_color: "Custom"
-                                    text_color: 0.95, 0.79, 0.27, 1
-                                    font_size: sp(12.5 * root.text_scale)
-                                    on_release: app.go_to_screen("login")

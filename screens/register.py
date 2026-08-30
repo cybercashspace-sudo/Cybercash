@@ -463,6 +463,7 @@ class RegisterScreen(ResponsiveScreen):
     card_art_source = StringProperty("")
     brand_tagline = StringProperty("YOUR MONEY. YOUR GOAL. YOUR WORLD.")
     pin_visible = BooleanProperty(False)
+    agent_mode = BooleanProperty(False)
     _registering = False
     _lookup_event = None
 
@@ -470,6 +471,12 @@ class RegisterScreen(ResponsiveScreen):
         super().__init__(**kwargs)
         self.hero_source = auth_asset_path("00_full_reference.png")
         self.card_art_source = auth_asset_path("03_phone_card_lock_cluster.png")
+
+    def on_pre_enter(self, *_args):
+        self.agent_mode = False
+        agent_checkbox = self.ids.get("agent_checkbox")
+        if agent_checkbox is not None:
+            agent_checkbox.active = False
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -490,6 +497,17 @@ class RegisterScreen(ResponsiveScreen):
 
     def toggle_pin_visibility(self):
         self.pin_visible = not bool(self.pin_visible)
+
+    def toggle_agent_mode(self, *args):
+        active = False
+        for value in reversed(args):
+            if isinstance(value, bool):
+                active = value
+                break
+            if hasattr(value, "active"):
+                active = bool(getattr(value, "active"))
+                break
+        self.agent_mode = bool(active)
 
     def on_momo_input(self, text: str):
         network = detect_network(text)
@@ -561,7 +579,7 @@ class RegisterScreen(ResponsiveScreen):
         email = self.ids.email_input.text.strip().lower()
         first_name = self.ids.first_name_input.text.strip() or self.detected_first_name.strip() or "Customer"
         pin = self.ids.pin_input.text.strip()
-        agent_mode = False
+        agent_mode = bool(self.agent_mode)
 
         if not momo or len(momo) != 10 or not momo.startswith("0"):
             self._set_feedback("Enter a valid 10-digit Ghana MoMo number.", "error")
@@ -580,11 +598,7 @@ class RegisterScreen(ResponsiveScreen):
 
         self.ids.momo_input.text = momo
         self.ids.email_input.text = email
-        if self.ids.agent_checkbox.active:
-            self.ids.agent_checkbox.active = False
-            self._set_feedback("Creating wallet first. Agent setup opens from your dashboard after verification.", "info")
-        else:
-            self._set_feedback("Creating your account...", "info")
+        self._set_feedback("Creating your agent account..." if agent_mode else "Creating your account...", "info")
 
         self._registering = True
 

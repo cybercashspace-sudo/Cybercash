@@ -23,7 +23,7 @@ class AuthController:
             raise ValidationError("Enter a valid MoMo number.")
         return digits
 
-    def apply_login_result(self, result: dict, identifier: str = ""):
+    def apply_login_result(self, result: dict, momo_number: str = ""):
         if not isinstance(result, dict):
             raise AuthenticationError("Unexpected login response.")
 
@@ -51,7 +51,7 @@ class AuthController:
 
                 app_state = getattr(app, "app_state", None)
                 if isinstance(app_state, AppState):
-                    app_state.set_user(user_payload or {"identifier": identifier, "name": app.user_name})
+                    app_state.set_user(user_payload or {"identifier": momo_number, "name": app.user_name})
                 if hasattr(app, "start_background_services"):
                     try:
                         app.start_background_services()
@@ -60,9 +60,9 @@ class AuthController:
 
         return result
 
-    def login(self, identifier: str, password: str, is_agent: bool = False):
-        momo_number = self._normalize_momo_number(identifier)
-        pin = validate_pin(password)
+    def login(self, momo_number: str, pin: str, is_agent: bool = False):
+        momo_number = self._normalize_momo_number(momo_number)
+        pin = validate_pin(pin)
 
         result = self.service.login(momo_number, pin, is_agent=is_agent)
         if not isinstance(result, dict):

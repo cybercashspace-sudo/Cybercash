@@ -127,7 +127,7 @@
                                         theme_text_color: "Custom"
                                         text_color: 0.95, 0.79, 0.27, 1
                                         font_size: sp(15)
-                                        on_release: root.ids.username.focus = True
+                                        on_release: root.ids.momo_input.focus = True
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -184,7 +184,7 @@
                                     disabled: True
 
                                 MDTextField:
-                                    id: username
+                                    id: momo_input
                                     hint_text: "MoMo number"
                                     helper_text: "Enter your mobile money number."
                                     helper_text_mode: "on_focus"
@@ -200,7 +200,7 @@
                                     font_size: sp(13.5)
                                     multiline: False
                                     input_filter: "int"
-                                    on_text_validate: password.focus = True
+                                    on_text_validate: pin_input.focus = True
 
                             MDBoxLayout:
                                 orientation: "horizontal"
@@ -217,7 +217,7 @@
                                     disabled: True
 
                                 MDTextField:
-                                    id: password
+                                    id: pin_input
                                     hint_text: "PIN"
                                     helper_text: "Enter your 4-digit PIN."
                                     helper_text_mode: "on_focus"
@@ -274,6 +274,25 @@
                                     text_color: 0.95, 0.79, 0.27, 1
                                     font_size: sp(12.5)
                                     on_release: root.forgot_password()
+
+                            MDBoxLayout:
+                                size_hint_y: None
+                                height: dp(30)
+                                spacing: dp(8)
+
+                                MDCheckbox:
+                                    id: agent_toggle
+                                    active: False
+                                    on_active: root.toggle_agent_mode(*args)
+
+                                MDLabel:
+                                    text: "Agent mode"
+                                    valign: "middle"
+                                    theme_text_color: "Custom"
+                                    text_color: 0.95, 0.95, 0.96, 1
+                                    font_size: sp(12.2)
+                                    size_hint_y: None
+                                    height: self.texture_size[1] if self.text else 0
 
                             MDFillRoundFlatIconButton:
                                 id: login_button
@@ -353,32 +372,3 @@
                                 height: dp(92)
                                 allow_stretch: True
                                 keep_ratio: True
-
-                            MDBoxLayout:
-                                size_hint_y: None
-                                height: dp(34)
-                                spacing: dp(8)
-                                pos_hint: {"center_x": 0.5}
-
-                                MDLabel:
-                                    text: "Don't have an account?"
-                                    halign: "right"
-                                    theme_text_color: "Custom"
-                                    text_color: 0.95, 0.95, 0.96, 1
-                                    font_size: sp(12.5)
-                                    size_hint_x: None
-                                    width: self.texture_size[0]
-
-                                MDTextButton:
-                                    text: "Sign Up"
-                                    theme_text_color: "Custom"
-                                    text_color: 0.95, 0.79, 0.27, 1
-                                    font_size: sp(12.5)
-                                    on_release: root.signup()
-
-                                Image:
-                                    source: auth_asset_path("20_bottom_signup_arrow.png")
-                                    size_hint: None, None
-                                    size: dp(18), dp(18)
-                                    allow_stretch: True
-                                    keep_ratio: True

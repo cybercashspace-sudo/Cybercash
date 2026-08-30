@@ -18,6 +18,7 @@ class LoginScreen(MDScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
+    agent_mode = BooleanProperty(False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -26,7 +27,8 @@ class LoginScreen(MDScreen):
     def on_pre_enter(self, *_args):
         self.remember_me = True
         self.password_visible = False
-        self._set_text("", "username", "identifier", "password")
+        self.agent_mode = False
+        self._set_text("", "momo_input", "username", "identifier", "pin_input", "password")
         self._restore_remembered_identity()
         self._sync_auth_controls()
 
@@ -65,7 +67,7 @@ class LoginScreen(MDScreen):
             return
 
         self.remember_me = True
-        self._set_text(identifier, "username", "identifier")
+        self._set_text(identifier, "momo_input", "username", "identifier")
 
     def _sync_auth_controls(self) -> None:
         password_toggle = self.ids.get("password_toggle")
@@ -82,11 +84,30 @@ class LoginScreen(MDScreen):
             elif hasattr(remember_toggle, "active"):
                 remember_toggle.active = self.remember_me
 
+        agent_toggle = self.ids.get("agent_toggle")
+        if agent_toggle is not None:
+            if hasattr(agent_toggle, "checked"):
+                agent_toggle.checked = self.agent_mode
+            elif hasattr(agent_toggle, "active"):
+                agent_toggle.active = self.agent_mode
+
     def toggle_password(self):
         self.password_visible = not self.password_visible
-        password = self.ids.get("password")
+        password = self.ids.get("pin_input") or self.ids.get("password")
         if password is not None:
             password.password = not self.password_visible
+        self._sync_auth_controls()
+
+    def toggle_agent_mode(self, *args):
+        active = False
+        for value in reversed(args):
+            if isinstance(value, bool):
+                active = value
+                break
+            if hasattr(value, "active"):
+                active = bool(getattr(value, "active"))
+                break
+        self.agent_mode = bool(active)
         self._sync_auth_controls()
 
     def toggle_remember(self, *args):
@@ -110,8 +131,8 @@ class LoginScreen(MDScreen):
         if self.loading:
             return
 
-        momo_number = self._get_text("username", "identifier")
-        pin = self._get_text("password")
+        momo_number = self._get_text("momo_input", "username", "identifier")
+        pin = self._get_text("pin_input", "password")
 
         if momo_number == "":
             self.show_message("Please enter your MoMo number.")
@@ -124,7 +145,7 @@ class LoginScreen(MDScreen):
         self._set_loading(True)
         Thread(
             target=self._login_worker,
-            args=(momo_number, pin),
+            args=(momo_number, pin, self.agent_mode),
             daemon=True,
         ).start()
 
@@ -140,9 +161,9 @@ class LoginScreen(MDScreen):
             else:
                 button.disabled = bool(value)
 
-    def _login_worker(self, momo_number: str, pin: str) -> None:
+    def _login_worker(self, momo_number: str, pin: str, is_agent: bool) -> None:
         try:
-            result = self.controller.login(momo_number, pin)
+            result = self.controller.login(momo_number, pin, is_agent=is_agent)
         except Exception as exc:
             message = extract_backend_message(
                 exc,
