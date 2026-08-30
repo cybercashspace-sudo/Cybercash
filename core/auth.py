@@ -6,8 +6,23 @@ from api.auth import access_account, lookup_registered_name, logout, register, r
 class AuthService:
     """Compatibility service wrapper around the existing auth API layer."""
 
-    def login(self, *args, **kwargs):
-        return access_account(*args, **kwargs)
+    def login(
+        self,
+        momo_number: str,
+        pin: str,
+        is_agent: bool = False,
+        first_name: str = "",
+        device_id: str = "",
+        device_fingerprint: str = "",
+    ):
+        return access_account(
+            momo_number,
+            pin,
+            is_agent,
+            first_name=first_name,
+            device_id=device_id,
+            device_fingerprint=device_fingerprint,
+        )
 
     def lookup_name(self, momo: str):
         return lookup_registered_name(momo)
@@ -29,4 +44,3 @@ class AuthService:
 
     def reset_pin(self, momo: str, otp: str, new_pin: str):
         return reset_pin(momo, otp, new_pin)
-

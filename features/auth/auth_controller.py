@@ -4,15 +4,24 @@ from kivy.app import App
 from kivymd.app import MDApp
 
 from core.app_state import AppState
-from core.exceptions import AuthenticationError
+from core.exceptions import AuthenticationError, ValidationError
 from core.session import session
 from features.auth.auth_service import AuthService
-from features.auth.validators import validate_identifier, validate_password
+from features.auth.validators import validate_pin
+from utils.network import normalize_ghana_number
 
 
 class AuthController:
     def __init__(self, service: AuthService | None = None):
         self.service = service or AuthService()
+
+    @staticmethod
+    def _normalize_momo_number(value: str) -> str:
+        momo = normalize_ghana_number(value)
+        digits = "".join(ch for ch in momo if ch.isdigit())
+        if len(digits) != 10 or not digits.startswith("0"):
+            raise ValidationError("Enter a valid MoMo number.")
+        return digits
 
     def apply_login_result(self, result: dict, identifier: str = ""):
         if not isinstance(result, dict):
@@ -52,10 +61,10 @@ class AuthController:
         return result
 
     def login(self, identifier: str, password: str, is_agent: bool = False):
-        identifier = validate_identifier(identifier)
-        password = validate_password(password)
+        momo_number = self._normalize_momo_number(identifier)
+        pin = validate_pin(password)
 
-        result = self.service.login(identifier, password, is_agent=is_agent)
+        result = self.service.login(momo_number, pin, is_agent=is_agent)
         if not isinstance(result, dict):
             raise AuthenticationError("Unexpected login response.")
 
@@ -63,7 +72,7 @@ class AuthController:
         status = str(result.get("status", "") or "").strip().lower()
 
         if token:
-            self.apply_login_result(result, identifier=identifier)
+            self.apply_login_result(result, identifier=momo_number)
 
         if not token and status not in {"verify_required", "verification_required"}:
             raise AuthenticationError("Token missing from login response.")

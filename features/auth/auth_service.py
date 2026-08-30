@@ -11,16 +11,16 @@ class AuthService:
 
     def login(
         self,
-        identifier: str,
-        password: str,
+        momo_number: str,
+        pin: str,
         is_agent: bool = False,
         first_name: str = "",
         device_id: str = "",
         device_fingerprint: str = "",
     ):
         return self._backend.login(
-            identifier,
-            password,
+            momo_number,
+            pin,
             bool(is_agent),
             first_name=first_name,
             device_id=device_id,

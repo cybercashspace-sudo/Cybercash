@@ -8,12 +8,10 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
-from core.exceptions import AuthenticationError, ValidationError
 from core.message_sanitizer import extract_backend_message
 from core.session import session
 from components.app_snackbar import show_app_snackbar
 from features.auth.auth_controller import AuthController
-from features.auth.validators import validate_identifier, validate_password
 
 
 class LoginScreen(MDScreen):
@@ -112,28 +110,21 @@ class LoginScreen(MDScreen):
         if self.loading:
             return
 
-        username = self._get_text("username", "identifier")
-        password = self._get_text("password")
+        momo_number = self._get_text("username", "identifier")
+        pin = self._get_text("password")
 
-        if username == "":
-            self.show_message("Please enter your username or email.")
+        if momo_number == "":
+            self.show_message("Please enter your MoMo number.")
             return
 
-        if password == "":
-            self.show_message("Please enter your password.")
-            return
-
-        try:
-            validate_identifier(username)
-            validate_password(password)
-        except (AuthenticationError, ValidationError) as exc:
-            self.show_message(str(exc))
+        if pin == "":
+            self.show_message("Please enter your PIN.")
             return
 
         self._set_loading(True)
         Thread(
             target=self._login_worker,
-            args=(username, password),
+            args=(momo_number, pin),
             daemon=True,
         ).start()
 
@@ -149,9 +140,9 @@ class LoginScreen(MDScreen):
             else:
                 button.disabled = bool(value)
 
-    def _login_worker(self, identifier: str, password: str) -> None:
+    def _login_worker(self, momo_number: str, pin: str) -> None:
         try:
-            result = self.controller.service.login(identifier, password)
+            result = self.controller.login(momo_number, pin)
         except Exception as exc:
             message = extract_backend_message(
                 exc,
@@ -161,8 +152,8 @@ class LoginScreen(MDScreen):
             return
 
         Clock.schedule_once(
-            lambda _dt, res=result, ident=identifier: self._apply_login_response(
-                ident,
+            lambda _dt, res=result, momo=momo_number: self._apply_login_response(
+                momo,
                 res,
             )
         )
@@ -171,7 +162,7 @@ class LoginScreen(MDScreen):
         self._set_loading(False)
         self.show_message(message)
 
-    def _apply_login_response(self, identifier: str, result: dict) -> None:
+    def _apply_login_response(self, momo_number: str, result: dict) -> None:
         try:
             if not isinstance(result, dict):
                 self.show_message("Unable to sign in right now.")
@@ -182,7 +173,7 @@ class LoginScreen(MDScreen):
             if status in {"verify_required", "verification_required", "registered"}:
                 app = MDApp.get_running_app()
                 if app is not None:
-                    app.pending_momo = identifier
+                    app.pending_momo = momo_number
                 self.show_message("Verify your account to continue.")
                 self._go_to_screen("otp", fallback="login")
                 return
@@ -193,9 +184,8 @@ class LoginScreen(MDScreen):
 
             token = str(result.get("access_token", "") or "").strip()
             if token:
-                self.controller.apply_login_result(result, identifier=identifier)
                 if self.remember_me:
-                    self._save_remember_me(identifier, result)
+                    self._save_remember_me(momo_number, result)
                 else:
                     try:
                         session.clear_remember_me()
@@ -215,7 +205,7 @@ class LoginScreen(MDScreen):
         finally:
             self._set_loading(False)
 
-    def _save_remember_me(self, identifier: str, result: dict) -> None:
+    def _save_remember_me(self, momo_number: str, result: dict) -> None:
         first_name = ""
         if isinstance(result, dict):
             user = result.get("user")
@@ -231,7 +221,7 @@ class LoginScreen(MDScreen):
 
         try:
             # The app only needs a truthy marker to restore the biometric prompt flow.
-            session.set_remember_me(identifier, first_name=first_name, pin="1")
+            session.set_remember_me(momo_number, first_name=first_name, pin="1")
         except Exception:
             pass
 
