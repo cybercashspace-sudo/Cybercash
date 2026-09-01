@@ -3148,7 +3148,10 @@ class HomeScreen(ResponsiveScreen):
             save_token("")
             self._apply_signed_out_state()
             self._set_loading_guard(False)
-            if self.manager and self.manager.has_screen("login"):
+            app = MDApp.get_running_app()
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen("login", fallback="", transition_style="fade")
+            elif self.manager and self.manager.has_screen("login"):
                 self.manager.current = "login"
             return
         if greeting_name:
@@ -3571,9 +3574,10 @@ class HomeScreen(ResponsiveScreen):
     def go_to(self, screen_name: str) -> None:
         tap_feedback()
         app = MDApp.get_running_app()
-        if hasattr(app, "go_to_screen"):
+        if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen(screen_name)
-        elif self.manager:
+            return
+        if self.manager:
             self.manager.current = screen_name
 
 

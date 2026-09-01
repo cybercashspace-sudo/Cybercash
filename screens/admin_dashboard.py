@@ -609,6 +609,10 @@ class AdminDashboardScreen(ActionScreen):
         if not manager or not manager.has_screen(screen_name):
             self._show_popup(title, f"Screen '{screen_name}' is not available in this build.")
             return
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen(screen_name, fallback="admin_dashboard", transition_style="fade")
+            return
         manager.current = screen_name
 
     def load_dashboard(self, *, silent: bool = False):

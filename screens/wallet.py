@@ -779,7 +779,7 @@ KV = """
                         opacity: 1 if root.screen_mode == "all" else 0
                         disabled: True if root.screen_mode != "all" else False
                         on_release:
-                            if root.manager: root.manager.current = "transactions"
+                            root.go_to_transactions()
 
                 MDLabel:
                     text: root.feedback_text
@@ -969,6 +969,10 @@ class WalletScreen(ActionScreen):
                 pass
 
     def go_to_transactions(self) -> None:
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("transactions", fallback="wallet", transition_style="fade")
+            return
         if self.manager and self.manager.has_screen("transactions"):
             self.manager.current = "transactions"
 

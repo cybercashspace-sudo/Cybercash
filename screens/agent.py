@@ -939,6 +939,10 @@ class AgentScreen(ResponsiveScreen):
         )
 
     def go_to_transactions(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("transactions", fallback="agent", transition_style="fade")
+            return
         if self.manager and self.manager.has_screen("transactions"):
             self.manager.current = "transactions"
             return
@@ -950,6 +954,10 @@ class AgentScreen(ResponsiveScreen):
         )
 
     def go_to_settings(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("settings", fallback="agent", transition_style="fade")
+            return
         if self.manager and self.manager.has_screen("settings"):
             self.manager.current = "settings"
             return
@@ -2152,6 +2160,10 @@ class AgentScreen(ResponsiveScreen):
         data_bundle_screen = manager.get_screen("data_bundle")
         if hasattr(data_bundle_screen, "configure_agent_mode"):
             data_bundle_screen.configure_agent_mode()
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("data_bundle", fallback="agent", transition_style="fade")
+            return
         manager.current = "data_bundle"
 
     def open_cash_withdraw_dialog(self) -> None:
@@ -2423,7 +2435,15 @@ class AgentScreen(ResponsiveScreen):
             return
         previous = str(getattr(self.manager, "previous_screen", "") or "").strip()
         if previous and previous != self.name and previous != "splash" and self.manager.has_screen(previous):
+            app = MDApp.get_running_app()
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen(previous, fallback="home", transition_style="slide_right")
+                return
             self.manager.current = previous
+            return
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("home", fallback="login", transition_style="slide_right")
             return
         self.manager.current = "home"
 

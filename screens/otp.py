@@ -386,8 +386,9 @@ class OTPScreen(ResponsiveScreen):
             if go_to_screen and go_to_screen("deposit", fallback="wallet"):
                 return
         if go_to_screen:
-            go_to_screen("home")
-        elif self.manager:
+            go_to_screen("home", fallback="login", transition_style="fade")
+            return
+        if self.manager:
             self.manager.current = "home"
 
     @staticmethod

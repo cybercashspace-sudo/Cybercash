@@ -59,24 +59,31 @@ class AgentDashboard(MDScreen):
             self.ids.transaction_list.data = data.get("transactions", [])
 
     def sell_airtime(self):
-        if self.manager:
-            self.manager.current = "airtime"
+        self._go_to_screen("airtime")
 
     def sell_data(self):
-        if self.manager:
-            self.manager.current = "data_bundle"
+        self._go_to_screen("data_bundle")
 
     def view_commission(self):
-        if self.manager and "agent_commissions" in self.manager.screen_names:
-            self.manager.current = "agent_commissions"
+        if self._go_to_screen("agent_commissions"):
+            return
         else:
             self.show_message("Commission dashboard is loading.")
 
     def apply_for_agent(self):
-        if self.manager and "agent_kyc" in self.manager.screen_names:
-            self.manager.current = "agent_kyc"
+        if self._go_to_screen("agent_kyc"):
+            return
         else:
             self.show_message("Agent application is loading.")
+
+    def _go_to_screen(self, screen_name: str) -> bool:
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            return bool(app.go_to_screen(screen_name, fallback="agent_dashboard", transition_style="fade"))
+        if self.manager and self.manager.has_screen(screen_name):
+            self.manager.current = screen_name
+            return True
+        return False
 
     def _publish_event(self, event_name, payload):
         app = MDApp.get_running_app()
