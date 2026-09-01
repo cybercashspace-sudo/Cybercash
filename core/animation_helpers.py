@@ -177,7 +177,8 @@ class ShimmerEffect:
         self._stripe.size = (self.width, self.widget.height)
 
     def _step(self, _dt):
-        if self.widget is None:
+        if self.widget is None or getattr(self.widget, "parent", None) is None:
+            self.stop()
             return False
         self.position += self.speed
         if self.position > self.widget.width + self.width:

@@ -60,6 +60,8 @@ class WalletCard(AnimatedCard):
         self._toggle_button = None
         self._copy_button = None
         self._refresh_button = None
+        self._initialize_scheduled = False
+        self._initialize_done = False
 
         self.bind(
             pos=self._sync_accent,
@@ -78,16 +80,29 @@ class WalletCard(AnimatedCard):
             show_refresh_button=self._sync_summary,
             content_mode=self._sync_layout,
         )
-        Clock.schedule_once(self._initialize_card, 0)
+        self._schedule_initialize()
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
-        Clock.schedule_once(self._initialize_card, 0)
+        self._schedule_initialize()
+
+    def on_parent(self, *_args):
+        if self.parent is None:
+            self.stop_shimmer()
+        return super().on_parent(*_args)
 
     def animate_in(self, *_args):
         HomeAnimations.pop_card(self, delay=0)
 
+    def _schedule_initialize(self):
+        if self._initialize_done or self._initialize_scheduled:
+            return
+        self._initialize_scheduled = True
+        Clock.schedule_once(self._initialize_card, 0)
+
     def _initialize_card(self, *_args):
+        self._initialize_scheduled = False
+        self._initialize_done = True
         self._draw_accent()
         self._sync_layout()
 

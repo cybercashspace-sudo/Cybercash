@@ -93,7 +93,14 @@ class FintechSpinner(Widget):
                 pass
         self._tick_event = None
 
+    def on_parent(self, *_args) -> None:
+        if self.parent is None:
+            self._stop()
+
     def _tick(self, dt: float) -> None:
+        if self.parent is None:
+            self._stop()
+            return False
         self._angle = (self._angle + float(self.speed or 0.0) * float(dt or 0.0)) % 360.0
         self._rot.angle = self._angle
 
