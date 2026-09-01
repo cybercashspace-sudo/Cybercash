@@ -474,9 +474,16 @@ class RegisterScreen(ResponsiveScreen):
 
     def on_pre_enter(self, *_args):
         self.agent_mode = False
+        self.pin_visible = False
         agent_checkbox = self.ids.get("agent_checkbox")
         if agent_checkbox is not None:
             agent_checkbox.active = False
+        pin_input = self.ids.get("pin_input")
+        if pin_input is not None:
+            if hasattr(pin_input, "password_visible"):
+                pin_input.password_visible = False
+            if hasattr(pin_input, "password"):
+                pin_input.password = True
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -497,6 +504,12 @@ class RegisterScreen(ResponsiveScreen):
 
     def toggle_pin_visibility(self):
         self.pin_visible = not bool(self.pin_visible)
+        pin_input = self.ids.get("pin_input")
+        if pin_input is not None:
+            if hasattr(pin_input, "password_visible"):
+                pin_input.password_visible = self.pin_visible
+            if hasattr(pin_input, "password"):
+                pin_input.password = not self.pin_visible
 
     def toggle_agent_mode(self, *args):
         active = False
