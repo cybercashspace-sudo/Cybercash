@@ -20,7 +20,7 @@ os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
-from kivy.uix.screenmanager import ScreenManager, NoTransition
+from kivy.uix.screenmanager import FadeTransition, ScreenManager
 from kivymd.app import MDApp
 
 from kivy.utils import platform
@@ -130,6 +130,10 @@ SCREEN_SPECS = {
 class AppScreenManager(ScreenManager):
     previous_screen = StringProperty("")
     _last_screen = ""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("transition", FadeTransition(duration=0.18))
+        super().__init__(**kwargs)
 
     def has_screen(self, name):
         if super().has_screen(name):
@@ -321,6 +325,8 @@ class CyberCashApp(MDApp):
         sm = getattr(self, "root", None)
         if sm and self.ensure_screen(target):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
+            if getattr(sm, "_cybercash_nav_busy", False):
+                return False
             return navigate(
                 sm,
                 target,
@@ -329,6 +335,8 @@ class CyberCashApp(MDApp):
                 transition_style=transition_style,
             )
         if sm and fallback and self.ensure_screen(fallback):
+            if getattr(sm, "_cybercash_nav_busy", False):
+                return False
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
             return navigate(sm, fallback, previous=previous, fallback="", transition_style="fade")
         logger.warning("Navigation failed: target=%s fallback=%s", target, fallback)
@@ -817,7 +825,7 @@ class CyberCashApp(MDApp):
         self.theme_manager.apply(self.theme_mode, animate=False)
         self._bind_global_event_handlers()
 
-        sm = AppScreenManager(transition=NoTransition())
+        sm = AppScreenManager()
         sm.add_widget(SplashScreen(name="splash"))
         sm.current = "splash"
 

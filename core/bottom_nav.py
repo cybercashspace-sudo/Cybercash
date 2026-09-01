@@ -148,14 +148,18 @@ class BottomNavBar(MDCard):
         if manager is None:
             return
 
-        if app is not None and hasattr(app, "ensure_screen"):
+        if app is not None and hasattr(app, "go_to_screen"):
             try:
-                if app.ensure_screen(target):
-                    manager.current = target
+                if app.go_to_screen(
+                    target,
+                    fallback=str(getattr(manager, "current", "home") or "home"),
+                    transition_style="fade",
+                ):
                     self.active_target = target
                     return
             except Exception:
                 pass
+            return
 
         if hasattr(manager, "has_screen") and manager.has_screen(target):
             manager.current = target

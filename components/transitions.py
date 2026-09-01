@@ -1,11 +1,49 @@
 from __future__ import annotations
 
-from kivy.animation import Animation
 from kivy.clock import Clock
+from kivy.uix.screenmanager import FadeTransition, NoTransition, SlideTransition
+
+DEFAULT_TRANSITION_DURATION = 0.18
 
 
-def smooth_switch_screen(manager, target: str, *, duration: float = 0.25, style: str = "fade_up") -> bool:
-    """Switch screens with a lightweight Kivy animation."""
+def _default_transition(duration: float = DEFAULT_TRANSITION_DURATION):
+    return FadeTransition(duration=max(0.12, float(duration or DEFAULT_TRANSITION_DURATION)))
+
+
+def _build_transition(style: str, duration: float):
+    style = str(style or "").strip().lower()
+    duration = max(0.12, float(duration or DEFAULT_TRANSITION_DURATION))
+
+    if style == "none":
+        return NoTransition()
+    if style == "slide_right":
+        return SlideTransition(direction="right", duration=duration)
+    if style == "slide_left":
+        return SlideTransition(direction="left", duration=duration)
+    if style in {"fade", "fade_up"}:
+        return FadeTransition(duration=duration)
+    return FadeTransition(duration=duration)
+
+
+def _cancel_restore_event(manager) -> None:
+    event = getattr(manager, "_cybercash_restore_event", None)
+    if event is None:
+        return
+    try:
+        event.cancel()
+    except Exception:
+        pass
+    finally:
+        manager._cybercash_restore_event = None
+
+
+def smooth_switch_screen(manager, target: str, *, duration: float = 0.18, style: str = "fade_up") -> bool:
+    """Switch screens with built-in Kivy transitions and a short lock.
+
+    The helper intentionally avoids manual widget animations. That keeps the
+    implementation light on low-end phones and prevents callback buildup when
+    users tap navigation controls repeatedly.
+    """
 
     if manager is None:
         return False
@@ -16,45 +54,46 @@ def smooth_switch_screen(manager, target: str, *, duration: float = 0.25, style:
 
     current = getattr(manager, "current_screen", None)
     if current is None:
-        manager.current = target
+        try:
+            manager.current = target
+        except Exception:
+            return False
         return True
-    if getattr(current, "name", "") == target:
+
+    if str(getattr(current, "name", "") or "") == target:
         return True
+
+    if getattr(manager, "_cybercash_nav_busy", False):
+        pending = str(getattr(manager, "_cybercash_pending_target", "") or "").strip()
+        return pending == target
 
     try:
-        target_screen = manager.get_screen(target)
+        manager.get_screen(target)
     except Exception:
-        manager.current = target
+        try:
+            manager.current = target
+        except Exception:
+            return False
         return True
 
-    if style == "none":
+    _cancel_restore_event(manager)
+    manager._cybercash_nav_busy = True
+    manager._cybercash_pending_target = target
+    manager.transition = _build_transition(style, duration)
+
+    try:
         manager.current = target
-        target_screen.opacity = 1
-        return True
+    except Exception:
+        manager._cybercash_nav_busy = False
+        manager._cybercash_pending_target = ""
+        manager.transition = _default_transition(duration)
+        return False
 
-    def _complete(*_args):
-        manager.current = target
-        target_screen.opacity = 0
-        if style == "slide_right":
-            target_screen.x = manager.width
-            Animation(x=0, opacity=1, duration=duration, transition="out_cubic").start(target_screen)
-        elif style == "slide_left":
-            target_screen.x = -manager.width
-            Animation(x=0, opacity=1, duration=duration, transition="out_cubic").start(target_screen)
-        elif style == "fade":
-            Animation(opacity=1, duration=duration, transition="out_quad").start(target_screen)
-        else:
-            target_screen.y = target_screen.y - 18
-            Animation(y=0, opacity=1, duration=duration, transition="out_cubic").start(target_screen)
+    def _restore_default(_dt):
+        manager._cybercash_nav_busy = False
+        manager._cybercash_pending_target = ""
+        manager.transition = _default_transition(duration)
+        manager._cybercash_restore_event = None
 
-    if style == "slide_right":
-        Animation(x=-float(manager.width or 0) * 0.08, opacity=0, duration=duration, transition="out_cubic").start(current)
-    elif style == "slide_left":
-        Animation(x=float(manager.width or 0) * 0.08, opacity=0, duration=duration, transition="out_cubic").start(current)
-    elif style == "fade":
-        Animation(opacity=0, duration=duration, transition="out_quad").start(current)
-    else:
-        Animation(y=getattr(current, "y", 0) + 18, opacity=0, duration=duration, transition="out_cubic").start(current)
-
-    Clock.schedule_once(_complete, duration)
+    manager._cybercash_restore_event = Clock.schedule_once(_restore_default, duration + 0.03)
     return True
