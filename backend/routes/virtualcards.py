@@ -253,7 +253,8 @@ async def authorize_virtual_card_spend(
     x_card_processor_key: str | None = Header(default=None),
 ):
     try:
-        if x_card_processor_key != settings.CARD_PROCESSOR_WEBHOOK_KEY:
+        configured_key = str(getattr(settings, "CARD_PROCESSOR_WEBHOOK_KEY", "") or "").strip()
+        if not configured_key or x_card_processor_key != configured_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid processor key.")
 
         if not request.provider_card_id and not request.card_number:

@@ -8,7 +8,7 @@ class Settings:
 
     SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-    SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-that-no-one-can-guess-and-is-long-enough")
+    SECRET_KEY = os.getenv("SECRET_KEY", "")
     ALGORITHM = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))
 
@@ -74,7 +74,7 @@ class Settings:
     VIRTUAL_CARD_ISSUANCE_FEE_ONETIME: float = float(
         os.getenv("VIRTUAL_CARD_ISSUANCE_FEE_ONETIME", os.getenv("VIRTUAL_CARD_CREATION_FEE_GHS", 25.0))
     )
-    CARD_PROCESSOR_WEBHOOK_KEY: str = os.getenv("CARD_PROCESSOR_WEBHOOK_KEY", "dev-card-processor-key")
+    CARD_PROCESSOR_WEBHOOK_KEY: str = os.getenv("CARD_PROCESSOR_WEBHOOK_KEY", "")
 
     # USSD Settings
     USSD_SHORTCODE: str = os.getenv("USSD_SHORTCODE", "*360#")
