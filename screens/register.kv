@@ -78,7 +78,8 @@
                                 MDBoxLayout:
                                     size_hint_y: None
                                     height: dp(34 * root.layout_scale)
-                                    spacing: dp(18 * root.layout_scale)
+
+                                    Widget:
 
                                     MDTextButton:
                                         text: "Login"
@@ -86,31 +87,6 @@
                                         text_color: 0.74, 0.76, 0.80, 1
                                         font_size: sp(15 * root.text_scale)
                                         on_release: app.go_to_screen("login")
-
-                                    MDBoxLayout:
-                                        orientation: "vertical"
-                                        size_hint_x: None
-                                        width: self.minimum_width
-                                        spacing: dp(4 * root.layout_scale)
-
-                                        MDLabel:
-                                            text: "Sign Up"
-                                            theme_text_color: "Custom"
-                                            text_color: 0.95, 0.79, 0.27, 1
-                                            bold: True
-                                            font_size: sp(17 * root.text_scale)
-                                            size_hint_y: None
-                                            height: self.texture_size[1] if self.text else 0
-
-                                        MDBoxLayout:
-                                            size_hint_y: None
-                                            height: dp(2 * root.layout_scale)
-                                            canvas.before:
-                                                Color:
-                                                    rgba: 0.95, 0.79, 0.27, 1
-                                                Rectangle:
-                                                    pos: self.pos
-                                                    size: self.size
 
                             MDCard:
                                 radius: [dp(20 * root.layout_scale)]
@@ -163,8 +139,6 @@
                                 text_color_focus: 0.95, 0.95, 0.96, 1
                                 font_size: sp(13.5 * root.text_scale)
                                 multiline: False
-                                input_filter: "int"
-                                max_text_length: 10
                                 on_text: root.on_momo_input(self.text)
                                 on_text_validate: email_input.focus = True
 

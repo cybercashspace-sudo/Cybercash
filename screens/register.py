@@ -465,6 +465,7 @@ class RegisterScreen(ResponsiveScreen):
     pin_visible = BooleanProperty(False)
     agent_mode = BooleanProperty(False)
     _registering = False
+    _syncing_momo_input = False
     _lookup_event = None
 
     def __init__(self, **kwargs):
@@ -523,6 +524,18 @@ class RegisterScreen(ResponsiveScreen):
         self.agent_mode = bool(active)
 
     def on_momo_input(self, text: str):
+        if self._syncing_momo_input:
+            return
+        field = self.ids.get("momo_input")
+        if field is not None:
+            normalized = normalize_ghana_number(text)
+            if normalized and normalized != str(text or "").strip():
+                try:
+                    self._syncing_momo_input = True
+                    field.text = normalized
+                finally:
+                    self._syncing_momo_input = False
+
         network = detect_network(text)
         normalized = normalize_ghana_number(text)
         if not normalized or len(normalized) != 10 or not normalized.startswith("0"):

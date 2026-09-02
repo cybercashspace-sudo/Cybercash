@@ -35,6 +35,10 @@ class AppTextField(MDTextField):
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
         self._apply_height()
+        try:
+            self.padding = [dp(16), dp(12), dp(16), dp(12)]
+        except Exception:
+            pass
         self._apply_validation_state()
 
     def _apply_height(self, *_args):

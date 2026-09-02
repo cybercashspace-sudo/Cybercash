@@ -12,12 +12,14 @@ from core.message_sanitizer import extract_backend_message
 from core.session import session
 from components.app_snackbar import show_app_snackbar
 from features.auth.auth_controller import AuthController
+from utils.network import normalize_ghana_number
 
 
 class LoginScreen(MDScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
+    _syncing_momo_input = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -26,9 +28,9 @@ class LoginScreen(MDScreen):
     def on_pre_enter(self, *_args):
         self.remember_me = True
         self.password_visible = False
-        self._set_text("", "momo_input", "username", "identifier", "pin_input", "password")
+        self._set_text("", "momo_input", "pin_input")
         self._restore_remembered_identity()
-        pin_input = self.ids.get("pin_input") or self.ids.get("password")
+        pin_input = self.ids.get("pin_input")
         if pin_input is not None and hasattr(pin_input, "password"):
             pin_input.password = True
         if pin_input is not None and hasattr(pin_input, "password_visible"):
@@ -64,12 +66,12 @@ class LoginScreen(MDScreen):
         except Exception:
             remembered = {}
 
-        identifier = str(remembered.get("momo") or "").strip()
-        if not identifier:
+        momo_number = str(remembered.get("momo") or "").strip()
+        if not momo_number:
             return
 
         self.remember_me = True
-        self._set_text(identifier, "momo_input", "username", "identifier")
+        self._set_text(momo_number, "momo_input")
 
     def _sync_auth_controls(self) -> None:
         password_toggle = self.ids.get("password_toggle")
@@ -79,7 +81,7 @@ class LoginScreen(MDScreen):
             elif hasattr(password_toggle, "icon"):
                 password_toggle.icon = "eye" if self.password_visible else "eye-off"
 
-        password_field = self.ids.get("pin_input") or self.ids.get("password")
+        password_field = self.ids.get("pin_input")
         if password_field is not None:
             if hasattr(password_field, "password_visible"):
                 password_field.password_visible = self.password_visible
@@ -95,12 +97,27 @@ class LoginScreen(MDScreen):
 
     def toggle_password(self):
         self.password_visible = not self.password_visible
-        password = self.ids.get("pin_input") or self.ids.get("password")
-        if password is not None:
-            if hasattr(password, "password_visible"):
-                password.password_visible = self.password_visible
-            password.password = not self.password_visible
+        pin_field = self.ids.get("pin_input")
+        if pin_field is not None:
+            if hasattr(pin_field, "password_visible"):
+                pin_field.password_visible = self.password_visible
+            pin_field.password = not self.password_visible
         self._sync_auth_controls()
+
+    def on_momo_input(self, text: str) -> None:
+        if self._syncing_momo_input:
+            return
+        field = self.ids.get("momo_input")
+        if field is None:
+            return
+
+        normalized = normalize_ghana_number(text)
+        if normalized and normalized != str(text or "").strip():
+            try:
+                self._syncing_momo_input = True
+                field.text = normalized
+            finally:
+                self._syncing_momo_input = False
 
     def toggle_remember(self, *args):
         active = False
@@ -123,8 +140,8 @@ class LoginScreen(MDScreen):
         if self.loading:
             return
 
-        momo_number = self._get_text("momo_input", "username", "identifier")
-        pin = self._get_text("pin_input", "password")
+        momo_number = self._get_text("momo_input")
+        pin = self._get_text("pin_input")
 
         if momo_number == "":
             self.show_message("Please enter your MoMo number.")
@@ -140,9 +157,6 @@ class LoginScreen(MDScreen):
             args=(momo_number, pin),
             daemon=True,
         ).start()
-
-    def login_user(self):
-        self.login()
 
     def _set_loading(self, value: bool) -> None:
         self.loading = bool(value)
