@@ -24,19 +24,73 @@ class ResponsiveScreen(MDScreen):
     quick_action_cols = NumericProperty(4)
 
     def __init__(self, **kwargs):
+        self._layout_refresh_event = None
+        self._window_bound = False
         super().__init__(**kwargs)
-        Window.bind(size=self._on_window_resize)
         self._refresh_responsive_metrics()
+        self._schedule_layout_refresh()
+
+    def _bind_window_resize(self) -> None:
+        if self._window_bound:
+            return
+        Window.bind(size=self._on_window_resize)
+        self._window_bound = True
+
+    def _unbind_window_resize(self) -> None:
+        if not self._window_bound:
+            return
+        try:
+            Window.unbind(size=self._on_window_resize)
+        except Exception:
+            pass
+        finally:
+            self._window_bound = False
+
+    def _cancel_layout_refresh(self) -> None:
+        event = getattr(self, "_layout_refresh_event", None)
+        if event is None:
+            return
+        try:
+            event.cancel()
+        except Exception:
+            pass
+        finally:
+            self._layout_refresh_event = None
+
+    def _schedule_layout_refresh(self, delay: float = 0) -> None:
+        self._cancel_layout_refresh()
+        self._layout_refresh_event = Clock.schedule_once(lambda _dt: self._refresh_and_apply_layout(), delay)
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
-        Clock.schedule_once(lambda _dt: self._refresh_and_apply_layout(), 0)
+        self._schedule_layout_refresh()
 
     def on_size(self, *_args):
-        Clock.schedule_once(lambda _dt: self._refresh_and_apply_layout(), 0)
+        if self._is_screen_active():
+            self._schedule_layout_refresh()
+
+    def on_parent(self, *_args):
+        parent = getattr(self, "parent", None)
+        if parent is None:
+            self._cancel_layout_refresh()
+            self._unbind_window_resize()
+        else:
+            self._bind_window_resize()
+            self._schedule_layout_refresh()
+        parent_on_parent = getattr(super(), "on_parent", None)
+        if callable(parent_on_parent):
+            return parent_on_parent(*_args)
+
+    def _is_screen_active(self) -> bool:
+        manager = getattr(self, "manager", None)
+        if manager is None:
+            return False
+        return getattr(manager, "current_screen", None) is self
 
     def _on_window_resize(self, *_args):
-        Clock.schedule_once(lambda _dt: self._refresh_and_apply_layout(), 0)
+        if not self._is_screen_active():
+            return
+        self._schedule_layout_refresh()
 
     @staticmethod
     def _clamp(value: float, minimum: float, maximum: float) -> float:
@@ -61,6 +115,7 @@ class ResponsiveScreen(MDScreen):
         self.quick_action_cols = 2 if width < 360 else 4
 
     def _refresh_and_apply_layout(self) -> None:
+        self._layout_refresh_event = None
         self._refresh_responsive_metrics()
         self._apply_responsive_layout()
 
@@ -103,3 +158,9 @@ class ResponsiveScreen(MDScreen):
             except Exception:
                 # Keep UI usable even if a specific widget rejects width hints.
                 continue
+
+    def on_leave(self, *_args):
+        self._cancel_layout_refresh()
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
