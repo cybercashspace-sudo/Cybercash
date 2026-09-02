@@ -9,6 +9,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 
 from core.screen_actions import ActionScreen
+from core.navigation import navigate
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -613,7 +614,7 @@ class AdminDashboardScreen(ActionScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen(screen_name, fallback="admin_dashboard", transition_style="fade")
             return
-        manager.current = screen_name
+        navigate(manager, screen_name, fallback="admin_dashboard", transition_style="fade")
 
     def load_dashboard(self, *, silent: bool = False):
         if not silent:

@@ -14,6 +14,7 @@ from kivymd.uix.label import MDLabel
 
 from components.notification_badge import NotificationBadge
 from core.feedback_engine import tap_feedback
+from core.navigation import navigate
 
 
 class BottomNavBar(MDCard):
@@ -162,8 +163,14 @@ class BottomNavBar(MDCard):
             return
 
         if hasattr(manager, "has_screen") and manager.has_screen(target):
-            manager.current = target
-            self.active_target = target
+            if navigate(
+                manager,
+                target,
+                previous=str(getattr(manager, "current", "home") or "home"),
+                fallback=str(getattr(manager, "current", "home") or "home"),
+                transition_style="fade",
+            ):
+                self.active_target = target
 
     def _animate_active_item(self):
         if not self.animate_selection:

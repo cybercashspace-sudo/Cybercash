@@ -12,6 +12,7 @@ from kivymd.app import MDApp
 
 from core.screen_actions import ActionScreen
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
+from core.navigation import navigate
 from utils.network import normalize_ghana_number
 
 MIN_PAYSTACK_DEPOSIT_GHS = 1.0
@@ -973,8 +974,8 @@ class WalletScreen(ActionScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen("transactions", fallback="wallet", transition_style="fade")
             return
-        if self.manager and self.manager.has_screen("transactions"):
-            self.manager.current = "transactions"
+        if self.manager:
+            navigate(self.manager, "transactions", fallback="wallet", transition_style="fade")
 
     def show_deposit_help(self) -> None:
         self._show_popup(

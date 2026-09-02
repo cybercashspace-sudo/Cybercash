@@ -9,6 +9,7 @@ from kivymd.uix.fitimage import FitImage
 from api.auth import resend_otp, verify_account
 from core.auth_assets import asset_path
 from core.message_sanitizer import extract_backend_message
+from core.navigation import navigate
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from storage import save_token
@@ -389,7 +390,7 @@ class OTPScreen(ResponsiveScreen):
             go_to_screen("home", fallback="login", transition_style="fade")
             return
         if self.manager:
-            self.manager.current = "home"
+            navigate(self.manager, "home", fallback="login", transition_style="fade")
 
     @staticmethod
     def _extract_detail(response: dict) -> str:

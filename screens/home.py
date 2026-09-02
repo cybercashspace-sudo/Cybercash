@@ -33,6 +33,7 @@ from core.feedback_engine import tap_feedback
 from core.fintech_widgets import GradientMDCard
 from core.dashboard_state import DashboardState
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
+from core.navigation import navigate
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
@@ -3151,8 +3152,8 @@ class HomeScreen(ResponsiveScreen):
             app = MDApp.get_running_app()
             if app is not None and hasattr(app, "go_to_screen"):
                 app.go_to_screen("login", fallback="", transition_style="fade")
-            elif self.manager and self.manager.has_screen("login"):
-                self.manager.current = "login"
+            elif self.manager:
+                navigate(self.manager, "login", fallback="", transition_style="fade")
             return
         if greeting_name:
             self._set_greeting(greeting_name)
@@ -3578,7 +3579,12 @@ class HomeScreen(ResponsiveScreen):
             app.go_to_screen(screen_name)
             return
         if self.manager:
-            self.manager.current = screen_name
+            navigate(
+                self.manager,
+                screen_name,
+                fallback=str(getattr(self.manager, "current", "home") or "home"),
+                transition_style="fade",
+            )
 
 
 class MoreActionsContent(MDBoxLayout):

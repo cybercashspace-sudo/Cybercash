@@ -20,6 +20,7 @@ from kivymd.uix.textfield import MDTextField
 
 from api.client import API_URL
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
+from core.navigation import navigate
 from core.popup_manager import show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from utils.network import detect_network, normalize_ghana_number
@@ -943,8 +944,8 @@ class AgentScreen(ResponsiveScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen("transactions", fallback="agent", transition_style="fade")
             return
-        if self.manager and self.manager.has_screen("transactions"):
-            self.manager.current = "transactions"
+        if self.manager:
+            navigate(self.manager, "transactions", fallback="agent", transition_style="fade")
             return
         show_message_dialog(
             self,
@@ -958,8 +959,8 @@ class AgentScreen(ResponsiveScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen("settings", fallback="agent", transition_style="fade")
             return
-        if self.manager and self.manager.has_screen("settings"):
-            self.manager.current = "settings"
+        if self.manager:
+            navigate(self.manager, "settings", fallback="agent", transition_style="fade")
             return
         show_message_dialog(
             self,
@@ -2164,7 +2165,7 @@ class AgentScreen(ResponsiveScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen("data_bundle", fallback="agent", transition_style="fade")
             return
-        manager.current = "data_bundle"
+        navigate(manager, "data_bundle", fallback="agent", transition_style="fade")
 
     def open_cash_withdraw_dialog(self) -> None:
         content = MDBoxLayout(orientation="vertical", spacing=dp(10), size_hint_y=None)
@@ -2439,13 +2440,13 @@ class AgentScreen(ResponsiveScreen):
             if app is not None and hasattr(app, "go_to_screen"):
                 app.go_to_screen(previous, fallback="home", transition_style="slide_right")
                 return
-            self.manager.current = previous
+            navigate(self.manager, previous, fallback="home", transition_style="slide_right")
             return
         app = MDApp.get_running_app()
         if app is not None and hasattr(app, "go_to_screen"):
             app.go_to_screen("home", fallback="login", transition_style="slide_right")
             return
-        self.manager.current = "home"
+        navigate(self.manager, "home", fallback="login", transition_style="slide_right")
 
 
 Builder.load_string(KV)
