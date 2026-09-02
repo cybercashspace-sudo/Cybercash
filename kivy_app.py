@@ -316,6 +316,8 @@ class CyberCashApp(MDApp):
         transition_style: str | None = None,
     ) -> bool:
         target = str(screen_name or "").strip()
+        if not target:
+            return False
 
         # Centralized Role-Based Access Control (RBAC)
         if target.startswith("admin_") and not self.is_admin:
@@ -323,10 +325,16 @@ class CyberCashApp(MDApp):
             target = "home" if self.access_token else "login"
 
         sm = getattr(self, "root", None)
+        if sm is not None:
+            current = str(getattr(sm, "current", "") or "").strip()
+            if current == target:
+                return True
+            if getattr(sm, "_cybercash_nav_busy", False):
+                pending = str(getattr(sm, "_cybercash_pending_target", "") or "").strip()
+                return pending == target
+
         if sm and self.ensure_screen(target):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
-            if getattr(sm, "_cybercash_nav_busy", False):
-                return False
             return navigate(
                 sm,
                 target,
@@ -335,8 +343,6 @@ class CyberCashApp(MDApp):
                 transition_style=transition_style,
             )
         if sm and fallback and self.ensure_screen(fallback):
-            if getattr(sm, "_cybercash_nav_busy", False):
-                return False
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
             return navigate(sm, fallback, previous=previous, fallback="", transition_style="fade")
         logger.warning("Navigation failed: target=%s fallback=%s", target, fallback)

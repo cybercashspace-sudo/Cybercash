@@ -37,7 +37,13 @@ def _cancel_restore_event(manager) -> None:
         manager._cybercash_restore_event = None
 
 
-def smooth_switch_screen(manager, target: str, *, duration: float = 0.18, style: str = "fade_up") -> bool:
+def smooth_switch_screen(
+    manager,
+    target: str,
+    *,
+    duration: float = DEFAULT_TRANSITION_DURATION,
+    style: str = "fade_up",
+) -> bool:
     """Switch screens with built-in Kivy transitions and a short lock.
 
     The helper intentionally avoids manual widget animations. That keeps the
@@ -95,5 +101,5 @@ def smooth_switch_screen(manager, target: str, *, duration: float = 0.18, style:
         manager.transition = _default_transition(duration)
         manager._cybercash_restore_event = None
 
-    manager._cybercash_restore_event = Clock.schedule_once(_restore_default, duration + 0.03)
+    manager._cybercash_restore_event = Clock.schedule_once(_restore_default, duration + 0.02)
     return True

@@ -159,6 +159,11 @@ class BottomNavBar(MDCard):
         if manager is None:
             return
 
+        current = str(getattr(manager, "current", "") or "").strip()
+        if current == target:
+            self.active_target = target
+            return
+
         if app is not None and hasattr(app, "go_to_screen"):
             try:
                 if app.go_to_screen(
