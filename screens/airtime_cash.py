@@ -401,6 +401,7 @@ class AirtimeCashScreen(ActionScreen):
     sale_id = StringProperty("")
     sale_status = StringProperty("")
     sale_status_display = StringProperty("Not submitted")
+    _syncing_network_input = False
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
@@ -408,9 +409,15 @@ class AirtimeCashScreen(ActionScreen):
         self._update_rate_hint()
 
     def _sync_network_input(self) -> None:
+        if getattr(self, "_syncing_network_input", False):
+            return
         field = self.ids.get("network_input")
         if field is not None:
-            field.text = self.selected_network or ""
+            try:
+                self._syncing_network_input = True
+                field.text = self.selected_network or ""
+            finally:
+                self._syncing_network_input = False
 
     def _parse_amount(self, raw: str | None = None) -> float:
         if raw is None:
@@ -456,8 +463,12 @@ class AirtimeCashScreen(ActionScreen):
             self.network_helper_text = "Enter a valid Ghana number to auto-detect the network."
 
     def on_manual_network(self, value: str) -> None:
+        if getattr(self, "_syncing_network_input", False):
+            return
         raw = str(value or "").strip().upper()
         if not raw:
+            self.selected_network = ""
+            self.network_helper_text = "We will auto-detect the network from the phone number."
             return
         if "MTN" in raw:
             self.selected_network = "MTN"

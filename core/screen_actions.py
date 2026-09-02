@@ -4,6 +4,7 @@ from kivy.properties import ColorProperty, StringProperty
 from kivymd.app import MDApp
 
 from api.client import api_client
+from core.navigation import navigate
 from core.popup_manager import show_message_dialog
 from core.message_sanitizer import extract_backend_message
 from core.responsive_screen import ResponsiveScreen
@@ -77,8 +78,8 @@ class ActionScreen(ResponsiveScreen):
         self._set_feedback(message, "warning")
 
         def _go_login(*_args):
-            if self.manager and self.manager.has_screen("login"):
-                self.manager.current = "login"
+            if self.manager:
+                navigate(self.manager, "login", fallback="", transition_style="fade")
 
         self._show_popup("Sign In Required", message, on_close=_go_login)
 
@@ -145,21 +146,21 @@ class ActionScreen(ResponsiveScreen):
         if previous and previous != self.name and previous not in disallow and manager.has_screen(previous):
             app = MDApp.get_running_app()
             if app is not None and hasattr(app, "go_to_screen"):
-                app.go_to_screen(previous, fallback="login", transition_style="slide_right")
-            else:
-                manager.current = previous
+                if app.go_to_screen(previous, fallback="login", transition_style="slide_right"):
+                    return
+            navigate(manager, previous, fallback="login", transition_style="slide_right")
             return
 
         app = MDApp.get_running_app()
         token = str(getattr(app, "access_token", "") or "").strip()
         if token and manager.has_screen("home"):
             if app is not None and hasattr(app, "go_to_screen"):
-                app.go_to_screen("home", fallback="login", transition_style="slide_right")
-            else:
-                manager.current = "home"
+                if app.go_to_screen("home", fallback="login", transition_style="slide_right"):
+                    return
+            navigate(manager, "home", fallback="login", transition_style="slide_right")
             return
         if manager.has_screen("login"):
             if app is not None and hasattr(app, "go_to_screen"):
-                app.go_to_screen("login", fallback="")
-            else:
-                manager.current = "login"
+                if app.go_to_screen("login", fallback=""):
+                    return
+            navigate(manager, "login", fallback="")
