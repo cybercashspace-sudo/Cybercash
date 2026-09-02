@@ -3,23 +3,23 @@ from __future__ import annotations
 from kivy.clock import Clock
 from kivy.uix.screenmanager import FadeTransition, NoTransition, SlideTransition
 
-DEFAULT_TRANSITION_DURATION = 0.18
+DEFAULT_TRANSITION_DURATION = 0.12
 
 
 def _default_transition(duration: float = DEFAULT_TRANSITION_DURATION):
-    return FadeTransition(duration=max(0.12, float(duration or DEFAULT_TRANSITION_DURATION)))
+    return FadeTransition(duration=max(0.10, float(duration or DEFAULT_TRANSITION_DURATION)))
 
 
 def _build_transition(style: str, duration: float):
     style = str(style or "").strip().lower()
-    duration = max(0.12, float(duration or DEFAULT_TRANSITION_DURATION))
+    duration = max(0.10, float(duration or DEFAULT_TRANSITION_DURATION))
 
     if style == "none":
         return NoTransition()
     if style == "slide_right":
-        return SlideTransition(direction="right", duration=duration)
+        return SlideTransition(direction="right", duration=min(duration, 0.14))
     if style == "slide_left":
-        return SlideTransition(direction="left", duration=duration)
+        return SlideTransition(direction="left", duration=min(duration, 0.14))
     if style in {"fade", "fade_up"}:
         return FadeTransition(duration=duration)
     return FadeTransition(duration=duration)

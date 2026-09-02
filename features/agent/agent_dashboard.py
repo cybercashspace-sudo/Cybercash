@@ -6,6 +6,7 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from components.app_snackbar import show_app_snackbar
+from core.navigation import navigate
 
 from features.agent.agent_controller import AgentController
 
@@ -81,8 +82,7 @@ class AgentDashboard(MDScreen):
         if app is not None and hasattr(app, "go_to_screen"):
             return bool(app.go_to_screen(screen_name, fallback="agent_dashboard", transition_style="fade"))
         if self.manager and self.manager.has_screen(screen_name):
-            self.manager.current = screen_name
-            return True
+            return bool(navigate(self.manager, screen_name, fallback="agent_dashboard", transition_style="fade"))
         return False
 
     def _publish_event(self, event_name, payload):

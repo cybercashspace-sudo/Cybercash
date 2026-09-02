@@ -11,6 +11,7 @@ from kivy.uix.behaviors import ButtonBehavior
 from api.auth import logout
 from api.client import api_client
 from core.bottom_nav import BottomNavBar
+from core.navigation import navigate
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
 
@@ -295,7 +296,7 @@ class SettingsScreen(ActionScreen):
             app.go_to_screen(screen_name, fallback="settings", transition_style="slide_left")
             return
         if self.manager is not None and self.manager.has_screen(screen_name):
-            self.manager.current = screen_name
+            navigate(self.manager, screen_name, fallback="settings", transition_style="slide_left")
 
     def open_security_dialog(self):
         """Special handling for Security to include Privacy Mode toggle."""
@@ -497,7 +498,7 @@ class SettingsScreen(ActionScreen):
         if hasattr(app, "go_to_screen"):
             app.go_to_screen("admin_dashboard")
         elif self.manager:
-            self.manager.current = "admin_dashboard"
+            navigate(self.manager, "admin_dashboard", fallback="settings", transition_style="fade")
 
     def open_change_pin_help(self):
         self._show_popup(

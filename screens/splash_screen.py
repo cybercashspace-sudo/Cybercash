@@ -7,6 +7,7 @@ from kivy.properties import StringProperty
 from kivymd.app import MDApp
 
 from core.config import config as app_config
+from core.navigation import navigate
 from core.responsive_screen import ResponsiveScreen
 
 STARTUP_ROUTE_DELAY_SECONDS = float(app_config.startup_splash_seconds)
@@ -303,7 +304,7 @@ class SplashScreen(ResponsiveScreen):
             )
             return
         if self.manager and self.manager.has_screen("login"):
-            self.manager.current = "login"
+            navigate(self.manager, "login", fallback="", transition_style="fade")
 
 
 Builder.load_string(KV)

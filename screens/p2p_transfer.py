@@ -1,7 +1,9 @@
 from kivy.lang import Builder
+from kivymd.app import MDApp
 from kivy.properties import StringProperty
 
 from core.screen_actions import ActionScreen
+from core.navigation import navigate
 from core.popup_manager import show_confirm_dialog
 from utils.network import normalize_ghana_number
 
@@ -197,7 +199,7 @@ KV = """
                         size_hint_y: None
                         height: dp(48 * root.layout_scale)
                         on_release:
-                            if root.manager: root.manager.current = "transactions"
+                            if root.manager: root.go_to_history()
 
                 MDLabel:
                     text: root.feedback_text
@@ -438,6 +440,14 @@ class P2PTransferScreen(ActionScreen):
             confirm_label="Send",
             cancel_label="Cancel",
         )
+
+    def go_to_history(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            if app.go_to_screen("transactions", fallback="p2p_transfer", transition_style="fade"):
+                return
+        if self.manager and self.manager.has_screen("transactions"):
+            navigate(self.manager, "transactions", fallback="p2p_transfer", transition_style="fade")
 
 
 Builder.load_string(KV)

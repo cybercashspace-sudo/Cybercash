@@ -8,6 +8,7 @@ from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
 
 from features.auth.animations import AuthAnimations
+from core.navigation import navigate
 from core.screen_actions import ActionScreen
 from core.refresh_mixin import RefreshableScreenMixin
 
@@ -364,4 +365,4 @@ class ProfileScreen(RefreshableScreenMixin, ActionScreen):
             app.go_to_screen(screen_name, fallback="settings", transition_style="slide_left")
             return
         if self.manager is not None and self.manager.has_screen(screen_name):
-            self.manager.current = screen_name
+            navigate(self.manager, screen_name, fallback="settings", transition_style="slide_left")

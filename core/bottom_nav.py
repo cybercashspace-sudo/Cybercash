@@ -76,6 +76,7 @@ class BottomNavBar(MDCard):
         self.size_hint_y = None
         self.elevation = 1
         self._item_widgets: dict[str, MDCard] = {}
+        self._rebuild_event = None
         self.bind(
             active_target=self._on_active_target_changed,
             nav_variant=self._schedule_rebuild,
@@ -91,7 +92,13 @@ class BottomNavBar(MDCard):
         Clock.schedule_once(self._rebuild, 0)
 
     def _schedule_rebuild(self, *_args):
-        Clock.schedule_once(self._rebuild, 0)
+        event = getattr(self, "_rebuild_event", None)
+        if event is not None:
+            try:
+                event.cancel()
+            except Exception:
+                pass
+        self._rebuild_event = Clock.schedule_once(self._rebuild, 0)
 
     def _items(self) -> list[dict]:
         return list(self._variants.get(self.nav_variant, self._variants["default"]))
@@ -143,6 +150,9 @@ class BottomNavBar(MDCard):
         self._schedule_rebuild()
 
     def _navigate(self, target: str) -> None:
+        target = str(target or "").strip()
+        if not target or target == str(self.active_target or ""):
+            return
         tap_feedback()
         app = MDApp.get_running_app()
         manager = getattr(app, "root", None)
@@ -186,6 +196,7 @@ class BottomNavBar(MDCard):
             pass
 
     def _rebuild(self, *_args) -> None:
+        self._rebuild_event = None
         self.clear_widgets()
         self._item_widgets = {}
         layout_scale = float(self.layout_scale or 1.0)

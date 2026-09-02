@@ -6,6 +6,7 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from components.app_snackbar import show_app_snackbar
+from core.navigation import navigate
 
 from features.loans.loan_controller import LoanController
 
@@ -93,7 +94,7 @@ class LoanScreen(MDScreen):
 
     def go_to_repayments(self):
         if self.manager and "loan_repayments" in self.manager.screen_names:
-            self.manager.current = "loan_repayments"
+            navigate(self.manager, "loan_repayments", fallback="loans", transition_style="slide_left")
         else:
             self.show_message("Repayment history is not available yet.")
 

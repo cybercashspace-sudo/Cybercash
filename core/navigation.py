@@ -20,8 +20,17 @@ def navigate(
     fallback: str = "login",
     transition_style: str | None = None,
 ) -> bool:
-    if getattr(manager, "_cybercash_nav_busy", False):
+    if manager is None:
         return False
+
+    target = str(target or "").strip()
+    if not target:
+        return False
+
+    if getattr(manager, "_cybercash_nav_busy", False):
+        pending = str(getattr(manager, "_cybercash_pending_target", "") or "").strip()
+        return pending == target
+
     style = str(transition_style or "").strip() or resolve_transition_style(target, previous)
     if smooth_switch_screen(manager, target, style=style):
         return True

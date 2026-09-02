@@ -132,7 +132,7 @@ class AppScreenManager(ScreenManager):
     _last_screen = ""
 
     def __init__(self, **kwargs):
-        kwargs.setdefault("transition", FadeTransition(duration=0.18))
+        kwargs.setdefault("transition", FadeTransition(duration=0.12))
         super().__init__(**kwargs)
 
     def has_screen(self, name):
