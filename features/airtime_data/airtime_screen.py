@@ -3,21 +3,19 @@ from threading import Thread
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.airtime_controller import AirtimeController
 from features.airtime_data.network_detector import NetworkDetector
+from features.airtime_data.request_guard import RequestGuardMixin
 
 
 Builder.load_file(str(Path(__file__).with_name("airtime_screen.kv")))
 
 
-class AirtimeScreen(MDScreen):
-    loading = BooleanProperty(False)
-
+class AirtimeScreen(RequestGuardMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AirtimeController()
@@ -53,7 +51,8 @@ class AirtimeScreen(MDScreen):
         amount = self.ids.amount.text.strip()
         network = self.ids.network.text.strip()
         self._set_loading(True)
-        Thread(target=self._submit_worker, args=(phone, amount, network), daemon=True).start()
+        request_id = self._next_request_generation()
+        Thread(target=self._submit_worker, args=(request_id, phone, amount, network), daemon=True).start()
 
     def _set_loading(self, value: bool) -> None:
         self.loading = bool(value)
@@ -61,22 +60,26 @@ class AirtimeScreen(MDScreen):
         if button is not None:
             button.loading = bool(value)
 
-    def _submit_worker(self, phone, amount, network):
+    def _submit_worker(self, request_id, phone, amount, network):
         try:
             result = self.controller.purchase(phone, amount, network)
         except Exception as exc:
             Clock.schedule_once(
-                lambda dt, msg=str(exc): self._finish_purchase_request(msg or "Airtime purchase failed.")
+                lambda dt, msg=str(exc), req=request_id: self._finish_purchase_request(req, msg or "Airtime purchase failed.")
             )
             return
 
-        Clock.schedule_once(lambda dt, res=result: self._apply_purchase_result(res))
+        Clock.schedule_once(lambda dt, res=result, req=request_id: self._apply_purchase_result(req, res))
 
-    def _finish_purchase_request(self, message: str) -> None:
+    def _finish_purchase_request(self, request_id: int, message: str) -> None:
+        if not self._is_current_request(request_id):
+            return
         self._set_loading(False)
         self.show_message(message)
 
-    def _apply_purchase_result(self, result: dict) -> None:
+    def _apply_purchase_result(self, request_id: int, result: dict) -> None:
+        if not self._is_current_request(request_id):
+            return
         try:
             self.show_message(self._success_text(result))
             self._publish_event("TransactionCreated", result)

@@ -13,6 +13,7 @@ from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.data_controller import DataController
 from features.airtime_data.network_detector import NetworkDetector
+from features.airtime_data.request_guard import RequestGuardMixin
 from widgets import GlassCard
 
 
@@ -40,9 +41,7 @@ class DataPackageCard(ButtonBehavior, GlassCard):
             self.callback(self.package_id)
 
 
-class DataScreen(MDScreen):
-    loading = BooleanProperty(False)
-
+class DataScreen(RequestGuardMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = DataController()
@@ -81,16 +80,29 @@ class DataScreen(MDScreen):
                 self._set_packages([])
 
     def load_packages(self, network):
-        Thread(target=self._load_packages_worker, args=(network,), daemon=True).start()
+        request_id = self._next_request_generation()
+        Thread(target=self._load_packages_worker, args=(request_id, network), daemon=True).start()
 
-    def _load_packages_worker(self, network):
+    def _load_packages_worker(self, request_id, network):
         try:
             packages = self.controller.load_packages(network)
         except Exception as exc:
-            Clock.schedule_once(lambda dt, msg=str(exc): self.show_message(msg or "Unable to load packages."))
+            Clock.schedule_once(
+                lambda dt, msg=str(exc), req=request_id: self._finish_load_packages_request(req, msg or "Unable to load packages.")
+            )
             return
 
-        Clock.schedule_once(lambda dt, res=packages: self._set_packages(res))
+        Clock.schedule_once(lambda dt, res=packages, req=request_id: self._apply_packages_result(req, res))
+
+    def _finish_load_packages_request(self, request_id, message: str) -> None:
+        if not self._is_current_request(request_id):
+            return
+        self.show_message(message)
+
+    def _apply_packages_result(self, request_id, packages):
+        if not self._is_current_request(request_id):
+            return
+        self._set_packages(packages)
 
     def _set_packages(self, packages):
         normalized = []
@@ -145,7 +157,8 @@ class DataScreen(MDScreen):
             return
 
         self._set_loading(True)
-        Thread(target=self._submit_worker, args=(phone, package, network), daemon=True).start()
+        request_id = self._next_request_generation()
+        Thread(target=self._submit_worker, args=(request_id, phone, package, network), daemon=True).start()
 
     def _set_loading(self, value: bool) -> None:
         self.loading = bool(value)
@@ -153,22 +166,26 @@ class DataScreen(MDScreen):
         if button is not None:
             button.loading = bool(value)
 
-    def _submit_worker(self, phone, package, network):
+    def _submit_worker(self, request_id, phone, package, network):
         try:
             result = self.controller.purchase(phone, package, network)
         except Exception as exc:
             Clock.schedule_once(
-                lambda dt, msg=str(exc): self._finish_purchase_request(msg or "Data purchase failed.")
+                lambda dt, msg=str(exc), req=request_id: self._finish_purchase_request(req, msg or "Data purchase failed.")
             )
             return
 
-        Clock.schedule_once(lambda dt, res=result: self._apply_purchase_result(res))
+        Clock.schedule_once(lambda dt, res=result, req=request_id: self._apply_purchase_result(req, res))
 
-    def _finish_purchase_request(self, message: str) -> None:
+    def _finish_purchase_request(self, request_id, message: str) -> None:
+        if not self._is_current_request(request_id):
+            return
         self._set_loading(False)
         self.show_message(message)
 
-    def _apply_purchase_result(self, result: dict) -> None:
+    def _apply_purchase_result(self, request_id, result: dict) -> None:
+        if not self._is_current_request(request_id):
+            return
         try:
             self.show_message(self._success_text(result))
             self._publish_event("TransactionCreated", result)

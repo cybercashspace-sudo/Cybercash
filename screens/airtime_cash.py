@@ -1,7 +1,11 @@
+from threading import Thread
+
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import NumericProperty, StringProperty
 
 from core.screen_actions import ActionScreen
+from features.airtime_data.request_guard import RequestGuardMixin
 from utils.network import detect_network, normalize_ghana_number
 
 DEFAULT_PAYOUT_RATE = 0.8
@@ -289,6 +293,7 @@ KV = """
                                 icon: "phone-forward"
                                 md_bg_color: GOLD_SOFT
                                 text_color: BG
+                                disabled: root.loading
                                 on_release: root.generate_merchant_number()
 
                             MDFillRoundFlatIconButton:
@@ -296,6 +301,7 @@ KV = """
                                 icon: "check-circle-outline"
                                 md_bg_color: SURFACE_SOFT
                                 text_color: TEXT_MAIN
+                                disabled: root.loading
                                 on_release: root.confirm_transfer()
 
                 MDCard:
@@ -384,7 +390,7 @@ KV = """
 """
 
 
-class AirtimeCashScreen(ActionScreen):
+class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     selected_network = StringProperty("")
     network_helper_text = StringProperty("We will auto-detect the network from the phone number.")
     payout_rate = NumericProperty(DEFAULT_PAYOUT_RATE)
@@ -490,6 +496,8 @@ class AirtimeCashScreen(ActionScreen):
         self._sync_network_input()
 
     def generate_merchant_number(self) -> None:
+        if self.loading:
+            return
         phone = normalize_ghana_number(self.ids.get("phone_input").text if self.ids.get("phone_input") else "")
         amount = self._parse_amount()
         network = self.selected_network or detect_network(phone)
@@ -508,60 +516,120 @@ class AirtimeCashScreen(ActionScreen):
         self._sync_network_input()
         self._update_estimate(str(amount))
         self._set_feedback("Requesting merchant number...", "info")
-        ok, payload = self._request(
-            "POST",
-            "/api/airtime/cash/quote",
-            payload={"phone": phone, "network": network, "amount": amount, "currency": "GHS"},
-        )
-
-        if ok and isinstance(payload, dict):
-            self.sale_id = str(payload.get("sale_id") or "")
-            self._set_sale_status(payload.get("status"))
-            self.merchant_number = payload.get("merchant_number") or MERCHANT_NUMBERS.get(
-                network, MERCHANT_NUMBERS["DEFAULT"]
-            )
-            payout_rate = payload.get("payout_rate")
-            if payout_rate is not None:
-                try:
-                    self.payout_rate = float(payout_rate)
-                except Exception:
-                    pass
-            self._update_estimate(str(amount))
-            self.transfer_instructions = payload.get("instructions") or (
-                f"Send GHS {amount:,.2f} airtime from {phone} to {self.merchant_number}. "
-                f"We will verify the transfer and pay out about {self.payout_estimate} to your MoMo."
-            )
-            self._set_feedback(
-                "Merchant number generated. Transfer the airtime and tap 'I Have Sent Airtime'.",
-                "success",
-            )
-            return
-
-        detail = self._extract_detail(payload) or "Unable to generate a merchant number."
-        self._set_feedback(detail, "error")
+        request_id = self._next_request_generation()
+        self._set_loading(True)
+        Thread(
+            target=self._generate_merchant_number_worker,
+            args=(request_id, phone, network, amount),
+            daemon=True,
+        ).start()
 
     def confirm_transfer(self) -> None:
+        if self.loading:
+            return
         if not self.sale_id:
             self._set_feedback("Generate a merchant number first.", "warning")
             return
 
         self._set_feedback("Submitting transfer confirmation...", "info")
-        ok, payload = self._request(
-            "POST",
-            "/api/airtime/cash/confirm",
-            payload={"sale_id": self.sale_id},
-        )
-        if ok and isinstance(payload, dict):
-            self._set_sale_status(payload.get("status"))
-            status_text = self.sale_status_display or "Submitted"
-            self._set_feedback(
-                f"Transfer noted. Status: {status_text}. Verification is in progress.",
-                "success",
+        request_id = self._next_request_generation()
+        self._set_loading(True)
+        Thread(target=self._confirm_transfer_worker, args=(request_id, self.sale_id), daemon=True).start()
+
+    def _generate_merchant_number_worker(self, request_id, phone, network, amount) -> None:
+        try:
+            ok, payload = self._request(
+                "POST",
+                "/api/airtime/cash/quote",
+                payload={"phone": phone, "network": network, "amount": amount, "currency": "GHS"},
+            )
+        except Exception as exc:
+            Clock.schedule_once(
+                lambda _dt, msg=str(exc), req=request_id: self._finish_request(req, msg or "Unable to generate a merchant number.")
             )
             return
 
-        detail = self._extract_detail(payload) or "Unable to confirm the transfer."
-        self._set_feedback(detail, "error")
+        Clock.schedule_once(
+            lambda _dt, req=request_id, res_ok=ok, res_payload=payload, sale_amount=amount, sale_phone=phone, sale_network=network: self._apply_merchant_number_result(
+                req,
+                res_ok,
+                res_payload,
+                sale_amount,
+                sale_phone,
+                sale_network,
+            )
+        )
+
+    def _confirm_transfer_worker(self, request_id, sale_id) -> None:
+        try:
+            ok, payload = self._request(
+                "POST",
+                "/api/airtime/cash/confirm",
+                payload={"sale_id": sale_id},
+            )
+        except Exception as exc:
+            Clock.schedule_once(
+                lambda _dt, msg=str(exc), req=request_id: self._finish_request(req, msg or "Unable to confirm the transfer.")
+            )
+            return
+
+        Clock.schedule_once(lambda _dt, req=request_id, res_ok=ok, res_payload=payload: self._apply_confirm_result(req, res_ok, res_payload))
+
+    def _finish_request(self, request_id: int, message: str) -> None:
+        if not self._is_current_request(request_id):
+            return
+        self._set_loading(False)
+        self._set_feedback(message, "error")
+
+    def _apply_merchant_number_result(self, request_id, ok, payload, amount, phone, network) -> None:
+        if not self._is_current_request(request_id):
+            return
+        try:
+            if ok and isinstance(payload, dict):
+                self.sale_id = str(payload.get("sale_id") or "")
+                self._set_sale_status(payload.get("status"))
+                self.merchant_number = payload.get("merchant_number") or MERCHANT_NUMBERS.get(
+                    network, MERCHANT_NUMBERS["DEFAULT"]
+                )
+                payout_rate = payload.get("payout_rate")
+                if payout_rate is not None:
+                    try:
+                        self.payout_rate = float(payout_rate)
+                    except Exception:
+                        pass
+                self._update_estimate(str(amount))
+                self.transfer_instructions = payload.get("instructions") or (
+                    f"Send GHS {amount:,.2f} airtime from {phone} to {self.merchant_number}. "
+                    f"We will verify the transfer and pay out about {self.payout_estimate} to your MoMo."
+                )
+                self._set_feedback(
+                    "Merchant number generated. Transfer the airtime and tap 'I Have Sent Airtime'.",
+                    "success",
+                )
+                return
+
+            detail = self._extract_detail(payload) or "Unable to generate a merchant number."
+            self._set_feedback(detail, "error")
+        finally:
+            self._set_loading(False)
+
+    def _apply_confirm_result(self, request_id, ok, payload) -> None:
+        if not self._is_current_request(request_id):
+            return
+        try:
+            if ok and isinstance(payload, dict):
+                self._set_sale_status(payload.get("status"))
+                status_text = self.sale_status_display or "Submitted"
+                self._set_feedback(
+                    f"Transfer noted. Status: {status_text}. Verification is in progress.",
+                    "success",
+                )
+                return
+
+            detail = self._extract_detail(payload) or "Unable to confirm the transfer."
+            self._set_feedback(detail, "error")
+        finally:
+            self._set_loading(False)
 
 
 Builder.load_string(KV)
