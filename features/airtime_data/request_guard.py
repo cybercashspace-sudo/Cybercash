@@ -17,9 +17,10 @@ class RequestGuardMixin:
         return self._request_generation
 
     def _invalidate_pending_requests(self) -> None:
-        if not getattr(self, "_requests_invalidated", False):
-            self._request_generation += 1
-            self._requests_invalidated = True
+        if getattr(self, "_requests_invalidated", False):
+            return
+        self._request_generation += 1
+        self._requests_invalidated = True
         self._set_loading(False)
 
     def _is_current_request(self, request_id: int) -> bool:
