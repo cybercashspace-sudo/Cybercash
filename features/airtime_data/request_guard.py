@@ -24,9 +24,12 @@ class RequestGuardMixin:
         self._set_loading(False)
 
     def _is_current_request(self, request_id: int) -> bool:
+        manager = getattr(self, "manager", None)
+        current_screen = getattr(manager, "current_screen", None) if manager is not None else None
         return (
             int(request_id or 0) == int(getattr(self, "_request_generation", 0) or 0)
             and self.parent is not None
+            and current_screen is self
             and not getattr(self, "_requests_invalidated", False)
         )
 

@@ -409,6 +409,48 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     sale_status_display = StringProperty("Not submitted")
     _syncing_network_input = False
 
+    def _set_selected_network(self, network: str, helper_text: str | None = None, sync_input: bool = True) -> None:
+        self.selected_network = str(network or "").strip().upper()
+        if helper_text is not None:
+            self.network_helper_text = helper_text
+        elif self.selected_network:
+            self.network_helper_text = f"{self.selected_network} selected."
+        else:
+            self.network_helper_text = "We will auto-detect the network from the phone number."
+        if sync_input:
+            self._sync_network_input()
+
+    def _reset_submission_state(self) -> None:
+        self.sale_id = ""
+        self._set_sale_status(None)
+        self.merchant_number = "Tap Generate to get a merchant number."
+        self.transfer_instructions = (
+            "Tap Generate Merchant Number, send airtime, then tap 'I Have Sent Airtime'."
+        )
+        self._set_feedback("", "info")
+
+    def on_pre_enter(self, *_args):
+        parent_on_pre_enter = getattr(super(), "on_pre_enter", None)
+        if callable(parent_on_pre_enter):
+            parent_on_pre_enter(*_args)
+
+        self._syncing_network_input = False
+        phone_field = self.ids.get("phone_input")
+        phone_value = str(phone_field.text if phone_field is not None else "").strip()
+        if phone_value:
+            self.on_phone_change(phone_value)
+        else:
+            self._set_selected_network("", "We will auto-detect the network from the phone number.")
+        amount_field = self.ids.get("amount_input")
+        self._update_estimate(amount_field.text if amount_field is not None else "")
+
+    def on_leave(self, *_args):
+        self._syncing_network_input = False
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            parent_on_leave(*_args)
+        self._reset_submission_state()
+
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
         self._update_estimate()
@@ -462,38 +504,31 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         normalized = normalize_ghana_number(value)
         detected = detect_network(normalized)
         if detected and detected != "UNKNOWN":
-            self.selected_network = detected
-            self.network_helper_text = f"Detected {detected} from {normalized}."
-            self._sync_network_input()
+            self._set_selected_network(detected, f"Detected {detected} from {normalized}.")
         else:
-            self.network_helper_text = "Enter a valid Ghana number to auto-detect the network."
+            self._set_selected_network("", "Enter a valid Ghana number to auto-detect the network.")
 
     def on_manual_network(self, value: str) -> None:
         if getattr(self, "_syncing_network_input", False):
             return
         raw = str(value or "").strip().upper()
         if not raw:
-            self.selected_network = ""
-            self.network_helper_text = "We will auto-detect the network from the phone number."
+            self._set_selected_network("", "We will auto-detect the network from the phone number.", sync_input=False)
             return
         if "MTN" in raw:
-            self.selected_network = "MTN"
+            self._set_selected_network("MTN", "MTN selected.", sync_input=False)
         elif "TELECEL" in raw or "VODAFONE" in raw:
-            self.selected_network = "TELECEL"
+            self._set_selected_network("TELECEL", "TELECEL selected.", sync_input=False)
         elif "AIRTEL" in raw or "TIGO" in raw:
-            self.selected_network = "AIRTELTIGO"
+            self._set_selected_network("AIRTELTIGO", "AIRTELTIGO selected.", sync_input=False)
         else:
-            self.selected_network = raw
-        self.network_helper_text = f"Network set to {self.selected_network}."
+            self._set_selected_network(raw, f"Network set to {raw}.", sync_input=False)
 
     def is_network_selected(self, network: str) -> bool:
         return self.selected_network == network
 
     def select_network(self, network: str) -> None:
-        self.selected_network = str(network or "").strip().upper()
-        if self.selected_network:
-            self.network_helper_text = f"{self.selected_network} selected."
-        self._sync_network_input()
+        self._set_selected_network(network, sync_input=True)
 
     def generate_merchant_number(self) -> None:
         if self.loading:
@@ -512,17 +547,15 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             self._set_feedback("Select a valid network to continue.", "error")
             return
 
-        self.selected_network = network
-        self._sync_network_input()
+        self._set_selected_network(network, sync_input=True)
         self._update_estimate(str(amount))
-        self._set_feedback("Requesting merchant number...", "info")
-        request_id = self._next_request_generation()
-        self._set_loading(True)
-        Thread(
-            target=self._generate_merchant_number_worker,
-            args=(request_id, phone, network, amount),
-            daemon=True,
-        ).start()
+        self._start_request(
+            "Requesting merchant number...",
+            self._generate_merchant_number_worker,
+            phone,
+            network,
+            amount,
+        )
 
     def confirm_transfer(self) -> None:
         if self.loading:
@@ -531,10 +564,17 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             self._set_feedback("Generate a merchant number first.", "warning")
             return
 
-        self._set_feedback("Submitting transfer confirmation...", "info")
+        self._start_request(
+            "Submitting transfer confirmation...",
+            self._confirm_transfer_worker,
+            self.sale_id,
+        )
+
+    def _start_request(self, message: str, worker, *args) -> None:
+        self._set_feedback(message, "info")
         request_id = self._next_request_generation()
         self._set_loading(True)
-        Thread(target=self._confirm_transfer_worker, args=(request_id, self.sale_id), daemon=True).start()
+        Thread(target=worker, args=(request_id, *args), daemon=True).start()
 
     def _generate_merchant_number_worker(self, request_id, phone, network, amount) -> None:
         try:
