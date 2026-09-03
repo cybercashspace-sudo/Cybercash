@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Iterable, Optional, Sequence
 
 import requests
 
@@ -27,20 +27,73 @@ class SMSService:
         self.mnotify_sender = self.sender_id
         self.mnotify_endpoint = os.getenv("MNOTIFY_SMS_URL", "https://api.mnotify.com/api/sms/quick")
 
-    def format_recipient(self, phone: str, provider: Optional[str] = None) -> str:
+    @staticmethod
+    def _digits_only(phone: str) -> str:
+        return "".join(ch for ch in str(phone or "") if ch.isdigit())
+
+    def _normalize_for_provider(self, phone: str, provider: Optional[str] = None) -> str:
+        """
+        Normalize a Ghana mobile number for the target provider.
+
+        MNotify quick SMS expects local Ghana numbers in the 0XXXXXXXXX format.
+        Other providers may prefer E.164-like values, so we keep the provider
+        specific conversion here instead of forcing one global format.
+        """
         provider = (provider or self.provider or "mnotify").lower()
         normalized = normalize_ghana_number(phone or "")
-        digits = "".join(ch for ch in normalized if ch.isdigit())
+        digits = self._digits_only(normalized)
         if not digits:
             return ""
-        if len(digits) == 10 and digits.startswith("0"):
-            digits = f"233{digits[1:]}"
-        elif digits.startswith("233") and len(digits) == 12:
-            digits = digits
+
+        # Keep MNotify recipients in the local format shown in the provider docs.
+        if provider == "mnotify":
+            if len(digits) == 12 and digits.startswith("233"):
+                return f"0{digits[3:]}"
+            if len(digits) == 10 and digits.startswith("0"):
+                return digits
+            if len(digits) == 9:
+                return f"0{digits}"
+            return digits
+
+        # Twilio supports the leading plus sign.
         if provider == "twilio":
-            if not digits.startswith("+"):
-                digits = f"+{digits}"
+            if digits.startswith("0") and len(digits) == 10:
+                return f"+233{digits[1:]}"
+            if digits.startswith("233") and len(digits) == 12:
+                return f"+{digits}"
+            if len(digits) == 9:
+                return f"+233{digits}"
+            return f"+{digits}" if not digits.startswith("+") else digits
+
+        # Hubtel/Arkesel and similar providers generally accept the Ghana local format.
+        if len(digits) == 12 and digits.startswith("233"):
+            return f"0{digits[3:]}"
+        if len(digits) == 9:
+            return f"0{digits}"
         return digits
+
+    def format_recipient(self, phone: str, provider: Optional[str] = None) -> str:
+        return self._normalize_for_provider(phone, provider=provider)
+
+    def _normalize_recipients(
+        self,
+        recipients: str | Sequence[str] | Iterable[str],
+        provider: Optional[str] = None,
+    ) -> list[str]:
+        if isinstance(recipients, str):
+            candidates = [recipients]
+        else:
+            candidates = list(recipients)
+
+        seen: set[str] = set()
+        normalized_recipients: list[str] = []
+        for candidate in candidates:
+            normalized = self.format_recipient(str(candidate or ""), provider=provider)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            normalized_recipients.append(normalized)
+        return normalized_recipients
 
     def send_sms(
         self,
@@ -49,24 +102,79 @@ class SMSService:
         sms_type: Optional[str] = None,
         provider: Optional[str] = None,
         sender_id: Optional[str] = None,
+        is_schedule: bool = False,
+        schedule_date: str = "",
     ) -> dict:
         provider = (provider or self.provider or "mnotify").lower()
         sender_id = (sender_id or self.sender_id or "CyberCash").strip() or "CyberCash"
-        recipient = self.format_recipient(phone, provider=provider)
-        if not recipient:
+        recipients = self._normalize_recipients([phone], provider=provider)
+        if not recipients:
             logger.warning("Invalid phone number for SMS: %s", phone)
             return {"status": "error", "provider": provider, "detail": "Invalid phone number"}
         if provider == "mnotify":
-            return self._send_mnotify(recipient, message, sms_type=sms_type, sender_id=sender_id)
+            return self._send_mnotify(
+                recipients,
+                message,
+                sms_type=sms_type,
+                sender_id=sender_id,
+                is_schedule=is_schedule,
+                schedule_date=schedule_date,
+            )
         if provider == "hubtel":
-            return self._send_hubtel(recipient, message, sender_id=sender_id)
+            return self._send_hubtel(recipients[0], message, sender_id=sender_id)
         if provider == "arkesel":
-            return self._send_arkesel(recipient, message, sender_id=sender_id)
+            return self._send_arkesel(recipients[0], message, sender_id=sender_id)
         if provider == "twilio":
-            return self._send_twilio(recipient, message, sender_id=sender_id)
+            return self._send_twilio(recipients[0], message, sender_id=sender_id)
 
-        logger.info("SMS (%s) queued for %s using sender %s", provider, recipient, sender_id)
-        return {"status": "queued", "provider": provider, "recipient": recipient, "sender_id": sender_id}
+        logger.info("SMS (%s) queued for %s using sender %s", provider, recipients[0], sender_id)
+        return {"status": "queued", "provider": provider, "recipient": recipients[0], "sender_id": sender_id}
+
+    def send_bulk_sms(
+        self,
+        recipients: str | Sequence[str] | Iterable[str],
+        message: str,
+        sms_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        is_schedule: bool = False,
+        schedule_date: str = "",
+    ) -> dict:
+        provider = (provider or self.provider or "mnotify").lower()
+        normalized_recipients = self._normalize_recipients(recipients, provider=provider)
+        if not normalized_recipients:
+            return {"status": "error", "provider": provider, "detail": "No valid recipient numbers"}
+
+        if provider == "mnotify":
+            return self._send_mnotify(
+                normalized_recipients,
+                message,
+                sms_type=sms_type,
+                sender_id=sender_id,
+                is_schedule=is_schedule,
+                schedule_date=schedule_date,
+            )
+
+        results = [
+            self.send_sms(
+                recipient,
+                message,
+                sms_type=sms_type,
+                provider=provider,
+                sender_id=sender_id,
+                is_schedule=is_schedule,
+                schedule_date=schedule_date,
+            )
+            for recipient in normalized_recipients
+        ]
+        queued = [result for result in results if str(result.get("status", "")).lower() == "queued"]
+        errors = [result for result in results if str(result.get("status", "")).lower() == "error"]
+        return {
+            "status": "queued" if queued and not errors else ("partial" if queued else "error"),
+            "provider": provider,
+            "recipients": normalized_recipients,
+            "results": results,
+        }
 
     @staticmethod
     def _mnotify_extract_detail(payload: Any) -> str:
@@ -98,23 +206,32 @@ class SMSService:
                 return True
         return False
 
-    def _send_mnotify(self, phone: str, message: str, sms_type: Optional[str] = None, sender_id: Optional[str] = None) -> dict:
+    def _send_mnotify(
+        self,
+        recipients: Sequence[str],
+        message: str,
+        sms_type: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        is_schedule: bool = False,
+        schedule_date: str = "",
+    ) -> dict:
         if not self.mnotify_api_key:
             logger.warning("MNOTIFY_API_KEY not configured. SMS not sent.")
             return {
                 "status": "error",
                 "provider": "mnotify",
-                "recipient": phone,
+                "recipient": list(recipients),
                 "detail": "MNOTIFY_API_KEY not configured",
             }
 
         sender = (sender_id or self.sender_id or "CyberCash").strip() or "CyberCash"
         url = f"{self.mnotify_endpoint}?key={self.mnotify_api_key}"
         payload = {
-            "recipient": [phone],
+            "recipient": list(recipients),
             "sender": sender,
             "message": message,
-            "is_schedule": False,
+            "is_schedule": bool(is_schedule),
+            "schedule_date": schedule_date or "",
         }
         if sms_type:
             payload["sms_type"] = sms_type
@@ -129,21 +246,21 @@ class SMSService:
 
             if not response.ok:
                 detail = self._mnotify_extract_detail(provider_payload) or (response.text or "")[:300] or "SMS provider request failed"
-                logger.warning("mNotify SMS failed (http=%s) to %s: %s", http_status, phone, detail)
+                logger.warning("mNotify SMS failed (http=%s) to %s: %s", http_status, ",".join(recipients), detail)
                 return {
                     "status": "error",
                     "provider": "mnotify",
-                    "recipient": phone,
+                    "recipient": list(recipients),
                     "http_status": http_status,
                     "detail": detail,
                 }
 
             if provider_payload is None:
-                logger.warning("mNotify SMS returned non-JSON response (http=%s) to %s", http_status, phone)
+                logger.warning("mNotify SMS returned non-JSON response (http=%s) to %s", http_status, ",".join(recipients))
                 return {
                     "status": "error",
                     "provider": "mnotify",
-                    "recipient": phone,
+                    "recipient": list(recipients),
                     "http_status": http_status,
                     "detail": "Invalid SMS provider response",
                     "raw": (response.text or "")[:500],
@@ -151,28 +268,28 @@ class SMSService:
 
             if self._mnotify_looks_like_error(provider_payload):
                 detail = self._mnotify_extract_detail(provider_payload) or "SMS provider rejected request"
-                logger.warning("mNotify SMS rejected (http=%s) to %s: %s", http_status, phone, detail)
+                logger.warning("mNotify SMS rejected (http=%s) to %s: %s", http_status, ",".join(recipients), detail)
                 return {
                     "status": "error",
                     "provider": "mnotify",
-                    "recipient": phone,
+                    "recipient": list(recipients),
                     "http_status": http_status,
                     "detail": detail,
                     "provider_response": provider_payload,
                 }
 
-            logger.info("mNotify SMS queued (http=%s) to %s", http_status, phone)
+            logger.info("mNotify SMS queued (http=%s) to %s", http_status, ",".join(recipients))
             return {
                 "status": "queued",
                 "provider": "mnotify",
-                "recipient": phone,
+                "recipient": list(recipients),
                 "sender_id": sender,
                 "http_status": http_status,
                 "provider_response": provider_payload,
             }
         except Exception as exc:
             logger.warning("mNotify SMS send failed: %s", exc)
-            return {"status": "error", "provider": "mnotify", "recipient": phone, "sender_id": sender, "detail": str(exc)}
+            return {"status": "error", "provider": "mnotify", "recipient": list(recipients), "sender_id": sender, "detail": str(exc)}
 
     def _send_hubtel(self, phone_number: str, message: str, sender_id: Optional[str] = None) -> dict:
         client_id = os.getenv("HUBTEL_CLIENT_ID", "")
