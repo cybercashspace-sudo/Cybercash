@@ -311,6 +311,21 @@ class DataBundleScreen(ActionScreen):
         self._selected_bundle_price: float = 0.0
         self._suspend_network_sync = False
 
+    def _reset_selection_state(self) -> None:
+        self.selected_network = ""
+        self.network_source_manual = False
+        self._catalog_items = []
+        self._selected_bundle_id = None
+        self._selected_bundle_price = 0.0
+        self._suspend_network_sync = False
+        self.catalog_provider = ""
+        self.purchase_path = "/api/bundles/purchase"
+        self.catalog_hint = "Catalog auto-loads when a network is selected."
+        self.bundle_helper_text = "Choose a bundle from the catalog or type a code."
+        self.network_helper_text = "Select your network or type it below."
+        self._render_catalog([])
+        self._set_order_status("")
+
     @staticmethod
     def _friendly_order_status(raw_status: str, fallback: str = "") -> str:
         status = str(raw_status or "").strip().lower()
@@ -404,6 +419,13 @@ class DataBundleScreen(ActionScreen):
             self.configure_agent_mode()
         else:
             self.configure_user_mode()
+
+    def on_leave(self, *_args):
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            parent_on_leave(*_args)
+        self._reset_selection_state()
+        self._clear_form_inputs()
 
     @staticmethod
     def _normalize_network(raw_value: str) -> str:

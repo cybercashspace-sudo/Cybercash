@@ -225,6 +225,15 @@ class AirtimeScreen(ActionScreen):
         if not self.selected_network:
             self.network_source_manual = False
 
+    def on_leave(self, *_args):
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            parent_on_leave(*_args)
+        self.selected_network = ""
+        self.network_source_manual = False
+        self.network_helper_text = "Select your network or type it below."
+        self.feedback_text = ""
+
     def on_phone_change(self, raw_value: str) -> None:
         detected = detect_network(str(raw_value or ""))
         detected_key = "TELECEL" if detected in {"TELECEL", "VODAFONE"} else str(detected or "").strip().upper()
