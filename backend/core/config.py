@@ -10,6 +10,11 @@ load_dotenv(os.path.join(_BACKEND_DIR, ".env"), override=True)
 
 class Settings:
     ENV = os.getenv("ENV", "development")
+    BACKEND_URL = (
+        os.getenv("BACKEND_URL", "")
+        or os.getenv("PUBLIC_BACKEND_URL", "")
+        or ("https://api.cybercash.space" if ENV.lower() in {"prod", "production", "live"} else "http://localhost:8000")
+    )
 
     SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 

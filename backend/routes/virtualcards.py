@@ -163,13 +163,7 @@ async def get_virtual_card_statement(
     Generate a PDF statement for a specific virtual card.
     """
     try:
-        try:
-            from screens.statement_service import StatementService
-        except ImportError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Statement service dependency is unavailable: {exc}",
-            )
+        from backend.services.statement_service import StatementService
 
         card = await _get_owned_virtual_card(db, current_user.id, card_id)
         transactions = await _get_card_transactions(db, current_user.id, card_id)
