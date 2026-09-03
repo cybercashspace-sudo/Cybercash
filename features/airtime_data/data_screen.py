@@ -53,6 +53,18 @@ class DataScreen(RequestGuardMixin, MDScreen):
         self._set_wallet_balance()
         self._update_network_and_packages()
 
+    def on_leave(self, *_args):
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            parent_on_leave(*_args)
+        self.selected_package = None
+        self._packages = {}
+        self._last_network = "Unknown"
+        if "package_list" in self.ids:
+            self.ids.package_list.data = []
+        if "selected_package_label" in self.ids:
+            self.ids.selected_package_label.text = "No package selected"
+
     def _set_wallet_balance(self):
         app = MDApp.get_running_app()
         balance = 0.0

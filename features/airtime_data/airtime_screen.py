@@ -25,6 +25,12 @@ class AirtimeScreen(RequestGuardMixin, MDScreen):
         self._set_wallet_balance()
         self.detect_network(self.ids.phone.text if "phone" in self.ids else "")
 
+    def on_leave(self, *_args):
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            parent_on_leave(*_args)
+        self._last_network = "Unknown"
+
     def _set_wallet_balance(self):
         app = MDApp.get_running_app()
         balance = 0.0
