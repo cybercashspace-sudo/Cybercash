@@ -288,16 +288,28 @@ class LoginScreen(ResponsiveScreen):
         self.show_message("Navigate to Sign Up")
 
     def google_login(self):
-        self.show_message("Google Login")
+        self.show_message("Google sign-in is not available yet.")
 
     def facebook_login(self):
-        self.show_message("Facebook Login")
+        self.show_message("Facebook sign-in is not available yet.")
 
     def apple_login(self):
-        self.show_message("Apple Login")
+        self.show_message("Apple sign-in is not available yet.")
 
     def phone_login(self):
-        self.show_message("Phone Login")
+        momo_number = self._get_text("momo_input")
+        pin = self._get_text("pin_input")
+
+        if momo_number and pin:
+            self.login()
+            return
+
+        target_id = "momo_input" if not momo_number else "pin_input"
+        target = self.ids.get(target_id)
+        if target is not None and hasattr(target, "focus"):
+            target.focus = True
+
+        self.show_message("Use your MoMo number and PIN.")
 
     def biometric_login(self):
         app = MDApp.get_running_app()
