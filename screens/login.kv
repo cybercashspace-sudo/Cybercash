@@ -102,7 +102,7 @@
                                     height: self.texture_size[1] if self.text else 0
 
                                 MDLabel:
-                                    text: "Use your MoMo number and PIN."
+                                    text: "Login to continue to your account"
                                     theme_text_color: "Custom"
                                     text_color: 0.74, 0.76, 0.80, 1
                                     font_size: sp(13.5)
@@ -114,8 +114,33 @@
                                 MDBoxLayout:
                                     size_hint_y: None
                                     height: dp(34)
+                                    spacing: dp(20)
 
-                                    Widget:
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        size_hint_x: None
+                                        width: self.minimum_width
+                                        spacing: dp(4)
+
+                                        MDLabel:
+                                            text: "Login"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.95, 0.79, 0.27, 1
+                                            bold: True
+                                            font_size: sp(15)
+                                            size_hint_y: None
+                                            height: self.texture_size[1] if self.text else 0
+
+                                        MDBoxLayout:
+                                            size_hint_y: None
+                                            height: dp(2)
+                                            width: dp(78)
+                                            canvas.before:
+                                                Color:
+                                                    rgba: 0.95, 0.79, 0.27, 1
+                                                Rectangle:
+                                                    pos: self.pos
+                                                    size: self.size
 
                                     MDTextButton:
                                         id: signup_tab
@@ -315,5 +340,12 @@
                                 source: auth_asset_path("25_security_feature_bar.png")
                                 size_hint_y: None
                                 height: dp(92)
+                                allow_stretch: True
+                                keep_ratio: True
+
+                            Image:
+                                source: auth_asset_path("26_bottom_signup_prompt.png")
+                                size_hint_y: None
+                                height: dp(34)
                                 allow_stretch: True
                                 keep_ratio: True

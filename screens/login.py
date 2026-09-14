@@ -7,16 +7,16 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivymd.app import MDApp
-from kivymd.uix.screen import MDScreen
 from core.message_sanitizer import extract_backend_message
 from core.navigation import navigate
 from core.session import session
 from components.app_snackbar import show_app_snackbar
 from features.auth.auth_controller import AuthController
+from core.responsive_screen import ResponsiveScreen
 from utils.network import normalize_ghana_number
 
 
-class LoginScreen(MDScreen):
+class LoginScreen(ResponsiveScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
