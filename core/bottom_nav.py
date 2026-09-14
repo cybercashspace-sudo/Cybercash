@@ -250,7 +250,7 @@ class BottomNavBar(MDCard):
                 art.add_widget(
                     MDIconButton(
                         icon=item["icon"],
-                        user_font_size=f"{32 * icon_scale:.1f}sp",
+                        icon_size=f"{32 * icon_scale:.1f}sp",
                         pos_hint={"center_x": 0.5, "center_y": 0.58},
                         theme_text_color="Custom",
                         text_color=self.active_color,
@@ -291,7 +291,7 @@ class BottomNavBar(MDCard):
             icon_wrap.add_widget(
                 MDIconButton(
                     icon=item["icon"],
-                    user_font_size=f"{23 * icon_scale:.1f}sp",
+                    icon_size=f"{23 * icon_scale:.1f}sp",
                     pos_hint={"center_x": 0.5, "center_y": 0.5},
                     theme_text_color="Custom",
                     text_color=icon_fg,
@@ -346,7 +346,7 @@ class BottomNavBar(MDCard):
             icon_wrap.add_widget(
                 MDIconButton(
                     icon=item["icon"],
-                    user_font_size=f"{27 * icon_scale:.1f}sp",
+                    icon_size=f"{27 * icon_scale:.1f}sp",
                     pos_hint={"center_x": 0.5, "center_y": 0.5},
                     theme_text_color="Custom",
                     text_color=[0.08, 0.08, 0.08, 1] if is_active else text_color,

@@ -190,7 +190,7 @@ KV = """
                                         icon: "lock-outline"
                                         theme_text_color: "Custom"
                                         text_color: GOLD
-                                        user_font_size: str(23 * root.icon_scale) + "sp"
+                                        icon_size: str(23 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
                                         pos_hint: {"right": 0.98, "top": 0.98}
@@ -200,7 +200,7 @@ KV = """
                                         icon: "shield-check-outline"
                                         theme_text_color: "Custom"
                                         text_color: GOLD
-                                        user_font_size: str(22 * root.icon_scale) + "sp"
+                                        icon_size: str(22 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
                                         pos_hint: {"right": 0.98, "y": 0.04}
@@ -266,7 +266,7 @@ KV = """
                                 icon: "phone-outline"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                user_font_size: str(22 * root.icon_scale) + "sp"
+                                icon_size: str(22 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
                                 disabled: True
@@ -309,7 +309,7 @@ KV = """
                                 icon: "email-outline"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                user_font_size: str(22 * root.icon_scale) + "sp"
+                                icon_size: str(22 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
                                 disabled: True
@@ -340,7 +340,7 @@ KV = """
                                 icon: "account-outline"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                user_font_size: str(22 * root.icon_scale) + "sp"
+                                icon_size: str(22 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
                                 disabled: True
@@ -371,7 +371,7 @@ KV = """
                                 icon: "shield-lock-outline"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                user_font_size: str(22 * root.icon_scale) + "sp"
+                                icon_size: str(22 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
                                 disabled: True
@@ -399,7 +399,7 @@ KV = """
                                 icon: "eye" if root.pin_visible else "eye-off"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                user_font_size: str(22 * root.icon_scale) + "sp"
+                                icon_size: str(22 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
                                 on_release: root.toggle_pin_visibility()

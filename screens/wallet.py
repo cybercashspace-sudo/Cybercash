@@ -268,7 +268,7 @@ KV = """
                                             anchor_y: "center"
                                             MDIconButton:
                                                 icon: "plus"
-                                                user_font_size: str(18 * root.icon_scale) + "sp"
+                                                icon_size: str(18 * root.icon_scale) + "sp"
                                                 size_hint: None, None
                                                 size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                                 theme_text_color: "Custom"
@@ -481,7 +481,7 @@ KV = """
                                             anchor_y: "center"
                                             MDIconButton:
                                                 icon: "cash-minus"
-                                                user_font_size: str(18 * root.icon_scale) + "sp"
+                                                icon_size: str(18 * root.icon_scale) + "sp"
                                                 size_hint: None, None
                                                 size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                                 theme_text_color: "Custom"
@@ -647,7 +647,7 @@ KV = """
 
                             MDIconButton:
                                 icon: "pencil-outline"
-                                user_font_size: str(26 * root.icon_scale) + "sp"
+                                icon_size: str(26 * root.icon_scale) + "sp"
                                 pos_hint: {"center_x": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: GOLD
@@ -667,7 +667,7 @@ KV = """
 
                             MDIconButton:
                                 icon: "refresh-circle"
-                                user_font_size: str(26 * root.icon_scale) + "sp"
+                                icon_size: str(26 * root.icon_scale) + "sp"
                                 pos_hint: {"center_x": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.54, 0.82, 0.67, 1
@@ -687,7 +687,7 @@ KV = """
 
                             MDIconButton:
                                 icon: "history"
-                                user_font_size: str(26 * root.icon_scale) + "sp"
+                                icon_size: str(26 * root.icon_scale) + "sp"
                                 pos_hint: {"center_x": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: GOLD_SOFT
@@ -707,7 +707,7 @@ KV = """
 
                             MDIconButton:
                                 icon: "help-circle-outline"
-                                user_font_size: str(26 * root.icon_scale) + "sp"
+                                icon_size: str(26 * root.icon_scale) + "sp"
                                 pos_hint: {"center_x": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: TEXT_SUB

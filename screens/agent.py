@@ -136,7 +136,7 @@ KV = """
 
                         MDIconButton:
                             icon: "bell-ring-outline"
-                            user_font_size: str(24 * root.icon_scale) + "sp"
+                            icon_size: str(24 * root.icon_scale) + "sp"
                             size_hint: None, None
                             size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
@@ -206,7 +206,7 @@ KV = """
 
                                 MDIconButton:
                                     icon: "account-tie"
-                                    user_font_size: str(18 * root.icon_scale) + "sp"
+                                    icon_size: str(18 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                     theme_text_color: "Custom"
@@ -293,7 +293,7 @@ KV = """
 
                                     MDIconButton:
                                         icon: "wallet-outline"
-                                        user_font_size: str(18 * root.icon_scale) + "sp"
+                                        icon_size: str(18 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                         theme_text_color: "Custom"
@@ -325,7 +325,7 @@ KV = """
 
                                     MDIconButton:
                                         icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
-                                        user_font_size: str(18 * root.icon_scale) + "sp"
+                                        icon_size: str(18 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                                         theme_text_color: "Custom"
@@ -417,7 +417,7 @@ KV = """
 
                                     MDIconButton:
                                         icon: "wallet-plus"
-                                        user_font_size: str(20 * root.icon_scale) + "sp"
+                                        icon_size: str(20 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                         theme_text_color: "Custom"
@@ -465,7 +465,7 @@ KV = """
 
                                     MDIconButton:
                                         icon: "cash-fast"
-                                        user_font_size: str(20 * root.icon_scale) + "sp"
+                                        icon_size: str(20 * root.icon_scale) + "sp"
                                         size_hint: None, None
                                         size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                         theme_text_color: "Custom"
@@ -525,7 +525,7 @@ KV = """
 
                                 MDIconButton:
                                     icon: "wifi"
-                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    icon_size: str(30 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                     theme_text_color: "Custom"
@@ -557,7 +557,7 @@ KV = """
 
                                 MDIconButton:
                                     icon: "history"
-                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    icon_size: str(30 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                     theme_text_color: "Custom"
@@ -589,7 +589,7 @@ KV = """
 
                                 MDIconButton:
                                     icon: "phone-forward"
-                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    icon_size: str(30 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                     theme_text_color: "Custom"
@@ -621,7 +621,7 @@ KV = """
 
                                 MDIconButton:
                                     icon: "view-grid"
-                                    user_font_size: str(30 * root.icon_scale) + "sp"
+                                    icon_size: str(30 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                     theme_text_color: "Custom"
@@ -1061,7 +1061,7 @@ class AgentScreen(ResponsiveScreen):
             )
             icon_btn = MDIconButton(
                 icon=icon_name,
-                user_font_size=f"{30 * icon_scale:.1f}sp",
+                icon_size=f"{30 * icon_scale:.1f}sp",
                 size_hint=(None, None),
                 size=(dp(36 * layout_scale), dp(36 * layout_scale)),
                 theme_text_color="Custom",
@@ -1348,7 +1348,7 @@ class AgentScreen(ResponsiveScreen):
             size=(dp(22 * layout_scale), dp(22 * layout_scale)),
             theme_text_color="Custom",
             text_color=amount_color,
-            user_font_size=f"{20 * icon_scale:.1f}sp",
+            icon_size=f"{20 * icon_scale:.1f}sp",
             disabled=True,
         )
         icon_anchor.add_widget(icon_button)

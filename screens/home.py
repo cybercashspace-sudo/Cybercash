@@ -754,7 +754,7 @@ KV = """
 
                         MDIconButton:
                             icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
-                            user_font_size: str(20 * root.icon_scale) + "sp"
+                            icon_size: str(20 * root.icon_scale) + "sp"
                             size_hint: None, None
                             size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
                             pos_hint: {"center_y": 0.5}
@@ -1691,7 +1691,7 @@ KV = """
 
                             MDIconButton:
                                 icon: "refresh"
-                                user_font_size: str(20 * root.icon_scale) + "sp"
+                                icon_size: str(20 * root.icon_scale) + "sp"
                                 theme_text_color: "Custom"
                                 text_color: app.gold
                                 on_release: root.refresh_market_data()
@@ -1837,14 +1837,14 @@ KV = """
 
                         MDIconButton:
                             icon: "magnify"
-                            user_font_size: str(20 * root.icon_scale) + "sp"
+                            icon_size: str(20 * root.icon_scale) + "sp"
                             theme_text_color: "Custom"
                             text_color: app.ui_text_secondary
                             on_release: root.go_to("transactions")
 
                         MDIconButton:
                             icon: "filter-variant"
-                            user_font_size: str(20 * root.icon_scale) + "sp"
+                            icon_size: str(20 * root.icon_scale) + "sp"
                             theme_text_color: "Custom"
                             text_color: app.ui_text_secondary
                             on_release: root.open_more_actions()
@@ -2534,7 +2534,7 @@ class HomeScreen(ResponsiveScreen):
         icon_shell.add_widget(
             MDIconButton(
                 icon=spec["icon"],
-                user_font_size=f"{24 * icon_scale:.1f}sp",
+                icon_size=f"{24 * icon_scale:.1f}sp",
                 size_hint=(None, None),
                 size=(dp(26 * layout_scale), dp(26 * layout_scale)),
                 pos_hint={"center_x": 0.5, "center_y": 0.5},
@@ -2847,7 +2847,7 @@ class HomeScreen(ResponsiveScreen):
                 size=(dp(22 * layout_scale), dp(22 * layout_scale)),
                 theme_text_color="Custom",
                 text_color=icon_color,
-                user_font_size=f"{20 * icon_scale:.1f}sp",
+                icon_size=f"{20 * icon_scale:.1f}sp",
                 disabled=True,
             )
         )
@@ -2909,7 +2909,7 @@ class HomeScreen(ResponsiveScreen):
             size=(dp(28 * layout_scale), dp(28 * layout_scale)),
             theme_text_color="Custom",
             text_color=[0.74, 0.74, 0.78, 1],
-            user_font_size=f"{18 * icon_scale:.1f}sp",
+            icon_size=f"{18 * icon_scale:.1f}sp",
         )
 
         row.add_widget(icon_wrap)
