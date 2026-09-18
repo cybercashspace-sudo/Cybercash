@@ -150,12 +150,26 @@
                                         font_size: sp(15)
                                         on_release: root.signup()
 
-                            Image:
-                                source: auth_asset_path("03_phone_card_lock_cluster.png")
+                            FloatLayout:
                                 size_hint_x: 0.42
                                 size_hint_y: 1
-                                allow_stretch: True
-                                keep_ratio: True
+
+                                Image:
+                                    source: auth_asset_path("03_phone_card_lock_cluster.png")
+                                    size_hint: 1, 1
+                                    allow_stretch: True
+                                    keep_ratio: True
+
+                                MDLabel:
+                                    text: "MoMo"
+                                    theme_text_color: "Custom"
+                                    text_color: 0.98, 0.80, 0.22, 1
+                                    bold: True
+                                    font_size: sp(14 * root.text_scale)
+                                    halign: "center"
+                                    size_hint: None, None
+                                    size: dp(72 * root.layout_scale), dp(24 * root.layout_scale)
+                                    pos_hint: {"center_x": 0.48, "center_y": 0.58}
 
                         MDBoxLayout:
                             size_hint_y: None
@@ -174,12 +188,12 @@
 
                             AppTextField:
                                 id: momo_input
-                                hint_text: "MoMo number"
-                                helper_text: "Enter your mobile money number."
+                                hint_text: "MoMo Number"
+                                helper_text: "e.g. 024 123 4567"
                                 helper_text_mode: "on_focus"
                                 mode: "fill"
                                 field_height: dp(58 * root.layout_scale)
-                                icon_left: "phone-outline"
+                                icon_left: "cellphone"
                                 icon_left_color_normal: 0.95, 0.79, 0.27, 1
                                 icon_left_color_focus: 0.95, 0.79, 0.27, 1
                                 theme_bg_color: "Custom"
@@ -201,8 +215,8 @@
 
                                 AppTextField:
                                     id: pin_input
-                                    hint_text: "PIN"
-                                    helper_text: "Enter your 4-digit PIN."
+                                    hint_text: "MoMo PIN"
+                                    helper_text: "Enter your 4-digit PIN"
                                     helper_text_mode: "on_focus"
                                     mode: "fill"
                                     field_height: dp(58 * root.layout_scale)
@@ -258,7 +272,7 @@
 
                                 MDTextButton:
                                     id: forgot_password_button
-                                    text: "Forgot Password?"
+                                    text: "Forgot MoMo PIN?"
                                     theme_text_color: "Custom"
                                     text_color: 0.95, 0.79, 0.27, 1
                                     font_size: sp(12.5)
@@ -304,8 +318,8 @@
                                     size_hint_y: None
                                     height: dp(82 * root.layout_scale)
                                     radius: [dp(16 * root.layout_scale)]
-                                    md_bg_color: 0.96, 0.96, 0.97, 1
-                                    line_color: 1, 1, 1, 0.16
+                                    md_bg_color: 0.08, 0.09, 0.10, 1
+                                    line_color: 0.36, 0.38, 0.42, 0.95
                                     elevation: 0
                                     on_release: root.google_login()
 
@@ -325,7 +339,7 @@
                                             text: "Google"
                                             halign: "center"
                                             theme_text_color: "Custom"
-                                            text_color: 0.08, 0.08, 0.09, 1
+                                            text_color: 0.95, 0.95, 0.96, 1
                                             font_size: sp(10.5 * root.text_scale)
                                             bold: True
                                             shorten: True
@@ -334,8 +348,8 @@
                                     size_hint_y: None
                                     height: dp(82 * root.layout_scale)
                                     radius: [dp(16 * root.layout_scale)]
-                                    md_bg_color: 0.09, 0.42, 0.92, 1
-                                    line_color: 1, 1, 1, 0.14
+                                    md_bg_color: 0.08, 0.09, 0.10, 1
+                                    line_color: 0.36, 0.38, 0.42, 0.95
                                     elevation: 0
                                     on_release: root.facebook_login()
 
@@ -364,8 +378,8 @@
                                     size_hint_y: None
                                     height: dp(82 * root.layout_scale)
                                     radius: [dp(16 * root.layout_scale)]
-                                    md_bg_color: 0.92, 0.92, 0.94, 1
-                                    line_color: 1, 1, 1, 0.14
+                                    md_bg_color: 0.08, 0.09, 0.10, 1
+                                    line_color: 0.36, 0.38, 0.42, 0.95
                                     elevation: 0
                                     on_release: root.apple_login()
 
@@ -385,7 +399,7 @@
                                             text: "Apple"
                                             halign: "center"
                                             theme_text_color: "Custom"
-                                            text_color: 0.04, 0.04, 0.05, 1
+                                            text_color: 0.95, 0.95, 0.96, 1
                                             font_size: sp(10.5 * root.text_scale)
                                             bold: True
                                             shorten: True
@@ -394,8 +408,8 @@
                                     size_hint_y: None
                                     height: dp(82 * root.layout_scale)
                                     radius: [dp(16 * root.layout_scale)]
-                                    md_bg_color: 0.98, 0.80, 0.22, 1
-                                    line_color: 1, 1, 1, 0.20
+                                    md_bg_color: 0.08, 0.09, 0.10, 1
+                                    line_color: 0.36, 0.38, 0.42, 0.95
                                     elevation: 0
                                     on_release: root.phone_login()
 
@@ -415,7 +429,7 @@
                                             text: "Phone"
                                             halign: "center"
                                             theme_text_color: "Custom"
-                                            text_color: 0.02, 0.02, 0.03, 1
+                                            text_color: 0.95, 0.95, 0.96, 1
                                             font_size: sp(10.5 * root.text_scale)
                                             bold: True
                                             shorten: True
@@ -427,9 +441,26 @@
                                 allow_stretch: True
                                 keep_ratio: True
 
-                            Image:
-                                source: auth_asset_path("26_bottom_signup_prompt.png")
+                            MDBoxLayout:
                                 size_hint_y: None
                                 height: dp(34)
-                                allow_stretch: True
-                                keep_ratio: True
+                                spacing: dp(8)
+                                padding: [0, dp(4), 0, 0]
+
+                                Widget:
+
+                                MDLabel:
+                                    text: "Don't have a MoMo account?"
+                                    theme_text_color: "Custom"
+                                    text_color: 0.95, 0.95, 0.96, 1
+                                    font_size: sp(13.5 * root.text_scale)
+                                    adaptive_size: True
+
+                                MDTextButton:
+                                    text: "Sign Up  ->"
+                                    theme_text_color: "Custom"
+                                    text_color: 0.98, 0.80, 0.22, 1
+                                    font_size: sp(14 * root.text_scale)
+                                    on_release: root.signup()
+
+                                Widget:
