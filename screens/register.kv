@@ -2,6 +2,7 @@
 #:import sp kivy.metrics.sp
 #:import auth_asset_path core.auth_assets.auth_asset_path
 #:import AppTextField components.app_textfield.AppTextField
+#:import FitImage kivymd.uix.fitimage.FitImage
 
 <RegisterScreen>:
     FloatLayout:
@@ -55,7 +56,7 @@
                                 size_hint_y: 1
 
                                 MDLabel:
-                                    text: "Create Account"
+                                    text: "Create MoMo Account"
                                     theme_text_color: "Custom"
                                     text_color: 0.96, 0.96, 0.97, 1
                                     bold: True
@@ -66,7 +67,7 @@
                                     height: self.texture_size[1] if self.text else 0
 
                                 MDLabel:
-                                    text: "Open your wallet in minutes"
+                                    text: "Register with your MoMo number and email"
                                     theme_text_color: "Custom"
                                     text_color: 0.74, 0.76, 0.80, 1
                                     font_size: sp(13.5 * root.text_scale)
@@ -78,8 +79,7 @@
                                 MDBoxLayout:
                                     size_hint_y: None
                                     height: dp(34 * root.layout_scale)
-
-                                    Widget:
+                                    spacing: dp(18 * root.layout_scale)
 
                                     MDTextButton:
                                         text: "Login"
@@ -87,6 +87,32 @@
                                         text_color: 0.74, 0.76, 0.80, 1
                                         font_size: sp(15 * root.text_scale)
                                         on_release: app.go_to_screen("login")
+
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        size_hint_x: None
+                                        width: dp(72 * root.layout_scale)
+                                        spacing: dp(4 * root.layout_scale)
+
+                                        MDLabel:
+                                            text: "Sign Up"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.95, 0.79, 0.27, 1
+                                            bold: True
+                                            font_size: sp(16 * root.text_scale)
+                                            halign: "center"
+                                            size_hint_y: None
+                                            height: self.texture_size[1] if self.text else 0
+
+                                        MDBoxLayout:
+                                            size_hint_y: None
+                                            height: dp(2 * root.layout_scale)
+                                            canvas.before:
+                                                Color:
+                                                    rgba: 0.95, 0.79, 0.27, 1
+                                                Rectangle:
+                                                    pos: self.pos
+                                                    size: self.size
 
                             MDCard:
                                 radius: [dp(20 * root.layout_scale)]
@@ -121,7 +147,7 @@
 
                             AppTextField:
                                 id: momo_input
-                                hint_text: "MoMo number"
+                                hint_text: "MoMo Number"
                                 helper_text: root.network_text
                                 helper_text_mode: "on_focus"
                                 mode: "fill"
@@ -154,8 +180,8 @@
 
                             AppTextField:
                                 id: email_input
-                                hint_text: "Email address"
-                                helper_text: "This email receives receipts and verification updates."
+                                hint_text: "Email for OTP and notifications"
+                                helper_text: "OTP, receipts, and account alerts are sent here."
                                 helper_text_mode: "on_focus"
                                 mode: "fill"
                                 field_height: dp(58 * root.layout_scale)
@@ -176,7 +202,7 @@
 
                             AppTextField:
                                 id: first_name_input
-                                hint_text: "First name"
+                                hint_text: "First Name"
                                 helper_text: "We use this for your profile name."
                                 helper_text_mode: "on_focus"
                                 mode: "fill"
@@ -202,7 +228,7 @@
 
                                 AppTextField:
                                     id: pin_input
-                                    hint_text: "PIN"
+                                    hint_text: "MoMo PIN"
                                     helper_text: "Create a secure 4-digit PIN."
                                     helper_text_mode: "on_focus"
                                     mode: "fill"

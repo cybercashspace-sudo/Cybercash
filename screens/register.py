@@ -6,7 +6,6 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
-from kivymd.uix.fitimage import FitImage
 
 from api.auth import lookup_registered_name, register
 from core.auth_assets import auth_asset_path
@@ -17,439 +16,8 @@ from utils.network import detect_network, normalize_ghana_number
 
 DEFAULT_NETWORK_TEXT = "Network: Enter your Ghana MoMo number to detect your network."
 DEFAULT_NAME_HINT_TEXT = "We will check whether this number already has a saved profile name."
-DEFAULT_FEEDBACK_TEXT = "Create your wallet with your MoMo number, email, first name, and a secure 4-digit PIN."
+DEFAULT_FEEDBACK_TEXT = "Create your wallet with your MoMo number, email for OTP and notifications, first name, and a secure 4-digit PIN."
 
-KV = """
-#:import dp kivy.metrics.dp
-#:import sp kivy.metrics.sp
-#:set BG (0.02, 0.02, 0.03, 1)
-#:set BG_SOFT (0.08, 0.06, 0.02, 0.92)
-#:set SURFACE (0.07, 0.07, 0.08, 0.96)
-#:set SURFACE_SOFT (0.11, 0.12, 0.14, 0.96)
-#:set GOLD (0.95, 0.79, 0.27, 1)
-#:set GOLD_SOFT (0.98, 0.80, 0.22, 1)
-#:set TEXT_MAIN (0.95, 0.95, 0.96, 1)
-#:set TEXT_SUB (0.75, 0.77, 0.80, 1)
-<RegisterScreen>:
-    MDBoxLayout:
-        orientation: "vertical"
-        canvas.before:
-            Color:
-                rgba: BG
-            Rectangle:
-                pos: self.pos
-                size: self.size
-            Color:
-                rgba: 0.24, 0.17, 0.03, 0.22
-            Ellipse:
-                pos: self.width - dp(310), self.height - dp(260)
-                size: dp(420), dp(420)
-            Color:
-                rgba: BG_SOFT
-            RoundedRectangle:
-                pos: self.x - dp(18), self.y + dp(18)
-                size: self.width + dp(36), self.height * 0.58
-                radius: [dp(38), dp(38), dp(18), dp(18)]
-
-        ScrollView:
-            do_scroll_x: False
-            bar_width: 0
-
-            MDBoxLayout:
-                orientation: "vertical"
-                size_hint_y: None
-                height: self.minimum_height
-                padding: [dp(16 * root.layout_scale), dp(14 * root.layout_scale), dp(16 * root.layout_scale), dp(22 * root.layout_scale)]
-                spacing: dp(12 * root.layout_scale)
-
-                MDBoxLayout:
-                    orientation: "vertical"
-                    size_hint_y: None
-                    height: self.minimum_height
-                    spacing: dp(8 * root.layout_scale)
-
-                    FitImage:
-                        source: root.hero_source
-                        size_hint_x: 1
-                        size_hint_y: None
-                        height: dp(232 * root.layout_scale)
-                        pos_hint: {"center_x": 0.5}
-
-                    MDLabel:
-                        text: "YOUR MONEY. YOUR GOAL. YOUR WORLD."
-                        halign: "center"
-                        theme_text_color: "Custom"
-                        text_color: TEXT_MAIN
-                        font_size: sp(13.5 * root.text_scale)
-                        bold: True
-                        size_hint_y: None
-                        height: self.texture_size[1] if self.text else 0
-
-                MDCard:
-                    radius: [dp(28 * root.layout_scale)]
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    size_hint_y: None
-                    height: self.minimum_height
-                    md_bg_color: SURFACE
-                    line_color: [0.92, 0.73, 0.22, 0.60]
-                    elevation: 0
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(11 * root.layout_scale)
-
-                        MDBoxLayout:
-                            orientation: "horizontal"
-                            spacing: dp(12 * root.layout_scale)
-                            size_hint_y: None
-                            height: dp(170 * root.layout_scale) if not root.compact_mode else dp(118 * root.layout_scale)
-
-                            MDBoxLayout:
-                                orientation: "vertical"
-                                spacing: dp(8 * root.layout_scale)
-                                size_hint_x: 0.56 if not root.compact_mode else 1
-                                size_hint_y: 1
-
-                                MDLabel:
-                                    text: "Create Account"
-                                    theme_text_color: "Custom"
-                                    text_color: TEXT_MAIN
-                                    bold: True
-                                    font_size: sp(25 * root.text_scale)
-                                    text_size: self.width, None
-                                    halign: "left"
-                                    size_hint_y: None
-                                    height: self.texture_size[1] if self.text else 0
-
-                                MDLabel:
-                                    text: "Open your wallet in minutes"
-                                    theme_text_color: "Custom"
-                                    text_color: TEXT_SUB
-                                    font_size: sp(13.5 * root.text_scale)
-                                    text_size: self.width, None
-                                    halign: "left"
-                                    size_hint_y: None
-                                    height: self.texture_size[1] if self.text else 0
-
-                                MDBoxLayout:
-                                    size_hint_y: None
-                                    height: dp(34 * root.layout_scale)
-                                    spacing: dp(18 * root.layout_scale)
-
-                                    MDTextButton:
-                                        text: "Login"
-                                        theme_text_color: "Custom"
-                                        text_color: TEXT_SUB
-                                        font_size: sp(15 * root.text_scale)
-                                        on_release: app.go_to_screen("login")
-
-                                    MDBoxLayout:
-                                        orientation: "vertical"
-                                        size_hint_x: None
-                                        width: self.minimum_width
-                                        spacing: dp(4 * root.layout_scale)
-
-                                        MDLabel:
-                                            text: "Sign Up"
-                                            theme_text_color: "Custom"
-                                            text_color: GOLD
-                                            bold: True
-                                            font_size: sp(17 * root.text_scale)
-                                            size_hint_y: None
-                                            height: self.texture_size[1] if self.text else 0
-
-                                        MDBoxLayout:
-                                            size_hint_y: None
-                                            height: dp(2 * root.layout_scale)
-                                            canvas.before:
-                                                Color:
-                                                    rgba: GOLD
-                                                Rectangle:
-                                                    pos: self.pos
-                                                    size: self.size
-
-                            MDCard:
-                                radius: [dp(20 * root.layout_scale)]
-                                md_bg_color: SURFACE_SOFT
-                                line_color: [0.90, 0.71, 0.16, 0.42]
-                                elevation: 0
-                                padding: dp(10 * root.layout_scale)
-                                size_hint_x: 0.44 if not root.compact_mode else 0
-                                size_hint_y: 1
-                                opacity: 1 if not root.compact_mode else 0
-                                disabled: root.compact_mode
-
-                                FloatLayout:
-                                    FitImage:
-                                        source: root.card_art_source
-                                        size_hint: 0.98, 0.98
-                                        pos_hint: {"center_x": 0.5, "center_y": 0.52}
-
-                                    MDIconButton:
-                                        icon: "lock-outline"
-                                        theme_text_color: "Custom"
-                                        text_color: GOLD
-                                        icon_size: str(23 * root.icon_scale) + "sp"
-                                        size_hint: None, None
-                                        size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                        pos_hint: {"right": 0.98, "top": 0.98}
-                                        disabled: True
-
-                                    MDIconButton:
-                                        icon: "shield-check-outline"
-                                        theme_text_color: "Custom"
-                                        text_color: GOLD
-                                        icon_size: str(22 * root.icon_scale) + "sp"
-                                        size_hint: None, None
-                                        size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                        pos_hint: {"right": 0.98, "y": 0.04}
-                                        disabled: True
-
-                                    MDCard:
-                                        size_hint: None, None
-                                        size: dp(154 * root.layout_scale), dp(82 * root.layout_scale)
-                                        radius: [dp(16 * root.layout_scale)]
-                                        md_bg_color: [0.05, 0.05, 0.06, 0.96]
-                                        line_color: [0.93, 0.75, 0.20, 0.55]
-                                        elevation: 0
-                                        padding: [dp(10 * root.layout_scale)] * 4
-                                        pos_hint: {"right": 0.98, "y": 0.04}
-
-                                        MDBoxLayout:
-                                            orientation: "vertical"
-                                            spacing: dp(1 * root.layout_scale)
-
-                                            MDLabel:
-                                                text: "CYBER CASH"
-                                                theme_text_color: "Custom"
-                                                text_color: GOLD
-                                                bold: True
-                                                font_size: sp(8.8 * root.text_scale)
-                                                size_hint_y: None
-                                                height: self.texture_size[1] if self.text else 0
-
-                                            MDLabel:
-                                                text: "1234 5678 9012 3456"
-                                                theme_text_color: "Custom"
-                                                text_color: TEXT_MAIN
-                                                font_size: sp(7.6 * root.text_scale)
-                                                size_hint_y: None
-                                                height: self.texture_size[1] if self.text else 0
-
-                                            MDLabel:
-                                                text: "VISA"
-                                                halign: "right"
-                                                theme_text_color: "Custom"
-                                                text_color: TEXT_MAIN
-                                                bold: True
-                                                font_size: sp(10 * root.text_scale)
-                                                size_hint_y: None
-                                                height: self.texture_size[1] if self.text else 0
-
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: dp(1 * root.layout_scale)
-                            canvas.before:
-                                Color:
-                                    rgba: 0.90, 0.72, 0.18, 0.34
-                                Rectangle:
-                                    pos: self.pos
-                                    size: self.size
-
-                        MDBoxLayout:
-                            orientation: "horizontal"
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDIconButton:
-                                icon: "phone-outline"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                icon_size: str(22 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
-                                disabled: True
-
-                            MDTextField:
-                                id: momo_input
-                                hint_text: "MoMo number"
-                                helper_text: root.network_text
-                                helper_text_mode: "on_focus"
-                                mode: "fill"
-                                theme_bg_color: "Custom"
-                                fill_color_normal: 0.11, 0.12, 0.14, 1
-                                fill_color_focus: 0.14, 0.15, 0.18, 1
-                                theme_line_color: "Custom"
-                                line_color_normal: 0.28, 0.22, 0.08, 0.76
-                                line_color_focus: GOLD
-                                text_color_normal: TEXT_MAIN
-                                text_color_focus: TEXT_MAIN
-                                font_size: sp(13.5 * root.text_scale)
-                                multiline: False
-                                on_text: root.on_momo_input(self.text)
-
-                        MDLabel:
-                            text: root.name_hint_text if root.detected_first_name else ""
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            font_size: sp(11.5 * root.text_scale)
-                            text_size: self.width, None
-                            halign: "left"
-                            size_hint_y: None
-                            height: self.texture_size[1] if self.text else 0
-                            opacity: 1 if root.detected_first_name else 0
-
-                        MDBoxLayout:
-                            orientation: "horizontal"
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDIconButton:
-                                icon: "email-outline"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                icon_size: str(22 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
-                                disabled: True
-
-                            MDTextField:
-                                id: email_input
-                                hint_text: "Email address"
-                                helper_text: "This email receives receipts and verification updates."
-                                helper_text_mode: "on_focus"
-                                mode: "fill"
-                                theme_bg_color: "Custom"
-                                fill_color_normal: 0.11, 0.12, 0.14, 1
-                                fill_color_focus: 0.14, 0.15, 0.18, 1
-                                theme_line_color: "Custom"
-                                line_color_normal: 0.28, 0.22, 0.08, 0.76
-                                line_color_focus: GOLD
-                                text_color_normal: TEXT_MAIN
-                                text_color_focus: TEXT_MAIN
-                                font_size: sp(13.5 * root.text_scale)
-                                multiline: False
-
-                        MDBoxLayout:
-                            orientation: "horizontal"
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDIconButton:
-                                icon: "account-outline"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                icon_size: str(22 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
-                                disabled: True
-
-                            MDTextField:
-                                id: first_name_input
-                                hint_text: "First name"
-                                helper_text: "We use this for your profile name."
-                                helper_text_mode: "on_focus"
-                                mode: "fill"
-                                theme_bg_color: "Custom"
-                                fill_color_normal: 0.11, 0.12, 0.14, 1
-                                fill_color_focus: 0.14, 0.15, 0.18, 1
-                                theme_line_color: "Custom"
-                                line_color_normal: 0.28, 0.22, 0.08, 0.76
-                                line_color_focus: GOLD
-                                text_color_normal: TEXT_MAIN
-                                text_color_focus: TEXT_MAIN
-                                font_size: sp(13.5 * root.text_scale)
-                                multiline: False
-
-                        MDBoxLayout:
-                            orientation: "horizontal"
-                            adaptive_height: True
-                            spacing: dp(10 * root.layout_scale)
-
-                            MDIconButton:
-                                icon: "shield-lock-outline"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                icon_size: str(22 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
-                                disabled: True
-
-                            MDTextField:
-                                id: pin_input
-                                hint_text: "PIN"
-                                helper_text: "Create a secure 4-digit PIN."
-                                helper_text_mode: "on_focus"
-                                mode: "fill"
-                                theme_bg_color: "Custom"
-                                fill_color_normal: 0.11, 0.12, 0.14, 1
-                                fill_color_focus: 0.14, 0.15, 0.18, 1
-                                theme_line_color: "Custom"
-                                line_color_normal: 0.28, 0.22, 0.08, 0.76
-                                line_color_focus: GOLD
-                                text_color_normal: TEXT_MAIN
-                                text_color_focus: TEXT_MAIN
-                                font_size: sp(13.5 * root.text_scale)
-                                password: not root.pin_visible
-                                max_text_length: 4
-                                multiline: False
-
-                            MDIconButton:
-                                icon: "eye" if root.pin_visible else "eye-off"
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                icon_size: str(22 * root.icon_scale) + "sp"
-                                size_hint: None, None
-                                size: dp(36 * root.layout_scale), dp(36 * root.layout_scale)
-                                on_release: root.toggle_pin_visibility()
-
-                        MDBoxLayout:
-                            adaptive_height: True
-                            spacing: dp(8 * root.layout_scale)
-
-                            MDCheckbox:
-                                id: agent_checkbox
-                                active: False
-                                disabled: True
-                                opacity: 0
-                                size_hint: None, None
-                                size: dp(0), dp(0)
-
-                            MDLabel:
-                                text: "Verification will finish setup after the OTP step."
-                                valign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-                                font_size: sp(12.2 * root.text_scale)
-
-                        MDLabel:
-                            text: root.feedback_text
-                            theme_text_color: "Custom"
-                            text_color: root.feedback_color
-                            font_size: sp(12 * root.text_scale)
-                            text_size: self.width, None
-                            halign: "left"
-                            size_hint_y: None
-                            height: self.texture_size[1] if self.text else 0
-
-                        MDFillRoundFlatIconButton:
-                            text: "Create Account"
-                            icon: "account-check-outline"
-                            md_bg_color: GOLD_SOFT
-                            text_color: BG
-                            size_hint_y: None
-                            height: dp(58 * root.layout_scale)
-                            on_release: root.register_account()
-
-                        MDTextButton:
-                            text: "Back to Login"
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            pos_hint: {"center_x": 0.5}
-                            font_size: sp(12.5 * root.text_scale)
-                            on_release: app.go_to_screen("login")
-"""
 
 
 class RegisterScreen(ResponsiveScreen):
@@ -637,11 +205,11 @@ class RegisterScreen(ResponsiveScreen):
     def _register_account_worker(self, momo: str, email: str, pin: str, agent_mode: bool, first_name: str):
         try:
             response = register(momo, email, pin, agent_mode, first_name=first_name)
-        except Exception as exc:
-            response = {"detail": str(exc) or "Registration failed."}
-        Clock.schedule_once(lambda _dt: self._apply_register_response(momo, first_name, response))
+        except Exception:
+            response = {"detail": "Registration failed. Please check your connection and try again."}
+        Clock.schedule_once(lambda _dt: self._apply_register_response(momo, email, first_name, response))
 
-    def _apply_register_response(self, momo: str, first_name: str, response: dict):
+    def _apply_register_response(self, momo: str, email: str, first_name: str, response: dict):
         self._registering = False
         app = MDApp.get_running_app()
 
@@ -655,6 +223,7 @@ class RegisterScreen(ResponsiveScreen):
             if detected:
                 self.ids.first_name_input.text = detected
             app.user_name = display_name
+            app.user_email = email
             app.pending_momo = momo
             self._set_feedback("OTP sent to your email. Verify your account to continue.", "success")
             if self.manager and self.manager.has_screen("otp"):
@@ -662,13 +231,13 @@ class RegisterScreen(ResponsiveScreen):
                 otp_screen.momo_number = momo
                 self._show_popup(
                     "Registration Successful",
-                    "Your account is ready. Tap Close to continue with email verification.",
+                    "Your account is ready. Check your email for the OTP to continue.",
                     on_close=lambda: setattr(self.manager, "current", "otp") if self.manager else None,
                 )
             elif self.manager:
                 self._show_popup(
                     "Registration Successful",
-                    "Your account is ready. Please sign in to continue and verify by email.",
+                    "Your account is ready. Please sign in and verify with the OTP sent to your email.",
                     on_close=lambda: setattr(self.manager, "current", "login") if self.manager else None,
                 )
             return
