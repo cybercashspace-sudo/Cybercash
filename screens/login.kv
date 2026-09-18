@@ -5,22 +5,12 @@
 
 <LoginScreen>:
     FloatLayout:
-        canvas.before:
-            Color:
-                rgba: 0.02, 0.02, 0.03, 1
-            Rectangle:
-                pos: self.pos
-                size: self.size
-            Color:
-                rgba: 0.24, 0.17, 0.03, 0.18
-            Ellipse:
-                pos: self.width - dp(330), self.height - dp(280)
-                size: dp(430), dp(430)
-            Color:
-                rgba: 0.95, 0.79, 0.27, 0.08
-            Ellipse:
-                pos: -dp(130), self.height - dp(180)
-                size: dp(280), dp(280)
+        Image:
+            source: auth_asset_path("00_full_reference.png")
+            allow_stretch: True
+            keep_ratio: False
+            size_hint: 1, 1
+            pos: self.pos
 
         ScrollView:
             do_scroll_x: False
@@ -35,33 +25,7 @@
 
                 Widget:
                     size_hint_y: None
-                    height: dp(4)
-
-                MDBoxLayout:
-                    orientation: "vertical"
-                    adaptive_height: True
-                    spacing: dp(6)
-
-                    Image:
-                        source: auth_asset_path("01_cyber_cash_shield_logo.png")
-                        size_hint: 1, None
-                        height: dp(150)
-                        allow_stretch: True
-                        keep_ratio: True
-
-                    Image:
-                        source: auth_asset_path("21_cyber_cash_wordmark.png")
-                        size_hint: 1, None
-                        height: dp(54)
-                        allow_stretch: True
-                        keep_ratio: True
-
-                    Image:
-                        source: auth_asset_path("22_tagline.png")
-                        size_hint: 1, None
-                        height: dp(28)
-                        allow_stretch: True
-                        keep_ratio: True
+                    height: dp(170)
 
                 MDCard:
                     radius: [dp(28)]
