@@ -296,45 +296,129 @@
                                     height: dp(1)
 
                             MDGridLayout:
-                                cols: 2
+                                cols: 4
                                 adaptive_height: True
-                                spacing: dp(12)
+                                spacing: dp(8)
 
-                                MDFillRoundFlatIconButton:
-                                    text: "Google"
-                                    icon: "google"
-                                    md_bg_color: 0.96, 0.96, 0.97, 1
-                                    text_color: 0.08, 0.08, 0.09, 1
+                                MDCard:
                                     size_hint_y: None
-                                    height: dp(54)
+                                    height: dp(82 * root.layout_scale)
+                                    radius: [dp(16 * root.layout_scale)]
+                                    md_bg_color: 0.96, 0.96, 0.97, 1
+                                    line_color: 1, 1, 1, 0.16
+                                    elevation: 0
                                     on_release: root.google_login()
 
-                                MDFillRoundFlatIconButton:
-                                    text: "Facebook"
-                                    icon: "facebook"
-                                    md_bg_color: 0.09, 0.42, 0.92, 1
-                                    text_color: 0.95, 0.95, 0.96, 1
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: [0, dp(7 * root.layout_scale), 0, dp(6 * root.layout_scale)]
+                                        spacing: dp(4 * root.layout_scale)
+
+                                        Image:
+                                            source: auth_asset_path("13_google_icon.png")
+                                            size_hint_y: None
+                                            height: dp(30 * root.icon_scale)
+                                            allow_stretch: True
+                                            keep_ratio: True
+
+                                        MDLabel:
+                                            text: "Google"
+                                            halign: "center"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.08, 0.08, 0.09, 1
+                                            font_size: sp(10.5 * root.text_scale)
+                                            bold: True
+                                            shorten: True
+
+                                MDCard:
                                     size_hint_y: None
-                                    height: dp(54)
+                                    height: dp(82 * root.layout_scale)
+                                    radius: [dp(16 * root.layout_scale)]
+                                    md_bg_color: 0.09, 0.42, 0.92, 1
+                                    line_color: 1, 1, 1, 0.14
+                                    elevation: 0
                                     on_release: root.facebook_login()
 
-                                MDFillRoundFlatIconButton:
-                                    text: "Apple"
-                                    icon: "apple"
-                                    md_bg_color: 0.92, 0.92, 0.94, 1
-                                    text_color: 0.04, 0.04, 0.05, 1
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: [0, dp(7 * root.layout_scale), 0, dp(6 * root.layout_scale)]
+                                        spacing: dp(4 * root.layout_scale)
+
+                                        Image:
+                                            source: auth_asset_path("14_facebook_icon.png")
+                                            size_hint_y: None
+                                            height: dp(30 * root.icon_scale)
+                                            allow_stretch: True
+                                            keep_ratio: True
+
+                                        MDLabel:
+                                            text: "Facebook"
+                                            halign: "center"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.95, 0.95, 0.96, 1
+                                            font_size: sp(9.5 * root.text_scale)
+                                            bold: True
+                                            shorten: True
+
+                                MDCard:
                                     size_hint_y: None
-                                    height: dp(54)
+                                    height: dp(82 * root.layout_scale)
+                                    radius: [dp(16 * root.layout_scale)]
+                                    md_bg_color: 0.92, 0.92, 0.94, 1
+                                    line_color: 1, 1, 1, 0.14
+                                    elevation: 0
                                     on_release: root.apple_login()
 
-                                MDFillRoundFlatIconButton:
-                                    text: "Phone"
-                                    icon: "phone"
-                                    md_bg_color: 0.98, 0.80, 0.22, 1
-                                    text_color: 0.02, 0.02, 0.03, 1
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: [0, dp(7 * root.layout_scale), 0, dp(6 * root.layout_scale)]
+                                        spacing: dp(4 * root.layout_scale)
+
+                                        Image:
+                                            source: auth_asset_path("15_apple_icon.png")
+                                            size_hint_y: None
+                                            height: dp(30 * root.icon_scale)
+                                            allow_stretch: True
+                                            keep_ratio: True
+
+                                        MDLabel:
+                                            text: "Apple"
+                                            halign: "center"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.04, 0.04, 0.05, 1
+                                            font_size: sp(10.5 * root.text_scale)
+                                            bold: True
+                                            shorten: True
+
+                                MDCard:
                                     size_hint_y: None
-                                    height: dp(54)
+                                    height: dp(82 * root.layout_scale)
+                                    radius: [dp(16 * root.layout_scale)]
+                                    md_bg_color: 0.98, 0.80, 0.22, 1
+                                    line_color: 1, 1, 1, 0.20
+                                    elevation: 0
                                     on_release: root.phone_login()
+
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        padding: [0, dp(7 * root.layout_scale), 0, dp(6 * root.layout_scale)]
+                                        spacing: dp(4 * root.layout_scale)
+
+                                        Image:
+                                            source: auth_asset_path("16_phone_icon.png")
+                                            size_hint_y: None
+                                            height: dp(30 * root.icon_scale)
+                                            allow_stretch: True
+                                            keep_ratio: True
+
+                                        MDLabel:
+                                            text: "Phone"
+                                            halign: "center"
+                                            theme_text_color: "Custom"
+                                            text_color: 0.02, 0.02, 0.03, 1
+                                            font_size: sp(10.5 * root.text_scale)
+                                            bold: True
+                                            shorten: True
 
                             Image:
                                 source: auth_asset_path("25_security_feature_bar.png")
