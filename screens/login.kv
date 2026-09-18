@@ -113,13 +113,13 @@
 
                                 MDBoxLayout:
                                     size_hint_y: None
-                                    height: dp(34)
-                                    spacing: dp(20)
+                                    height: dp(42)
+                                    spacing: dp(8)
 
                                     MDBoxLayout:
                                         orientation: "vertical"
                                         size_hint_x: None
-                                        width: self.minimum_width
+                                        width: dp(120)
                                         spacing: dp(4)
 
                                         MDLabel:
@@ -128,13 +128,14 @@
                                             text_color: 0.95, 0.79, 0.27, 1
                                             bold: True
                                             font_size: sp(15)
+                                            halign: "center"
+                                            valign: "middle"
                                             size_hint_y: None
-                                            height: self.texture_size[1] if self.text else 0
+                                            height: dp(28)
 
                                         MDBoxLayout:
                                             size_hint_y: None
                                             height: dp(2)
-                                            width: dp(78)
                                             canvas.before:
                                                 Color:
                                                     rgba: 0.95, 0.79, 0.27, 1
@@ -142,13 +143,32 @@
                                                     pos: self.pos
                                                     size: self.size
 
-                                    MDTextButton:
-                                        id: signup_tab
-                                        text: "Sign Up"
-                                        theme_text_color: "Custom"
-                                        text_color: 0.74, 0.76, 0.80, 1
-                                        font_size: sp(15)
+                                    MDCard:
+                                        radius: [dp(16)]
+                                        md_bg_color: 0, 0, 0, 0
+                                        elevation: 0
+                                        size_hint_x: None
+                                        width: dp(120)
                                         on_release: root.signup()
+
+                                        MDBoxLayout:
+                                            orientation: "vertical"
+                                            spacing: dp(4)
+
+                                            MDLabel:
+                                                id: signup_tab
+                                                text: "Sign Up"
+                                                theme_text_color: "Custom"
+                                                text_color: 0.74, 0.76, 0.80, 1
+                                                font_size: sp(15)
+                                                halign: "center"
+                                                valign: "middle"
+                                                size_hint_y: None
+                                                height: dp(28)
+
+                                            Widget:
+                                                size_hint_y: None
+                                                height: dp(2)
 
                             FloatLayout:
                                 size_hint_x: 0.42
