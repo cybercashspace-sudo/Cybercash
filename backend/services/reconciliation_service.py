@@ -179,15 +179,25 @@ async def verify_wallet_balance(
     if lock_wallet:
         wallet_stmt = wallet_stmt.with_for_update()
     wallet_result = await db.execute(wallet_stmt)
-    wallet = wallet_result.scalars().first()
+    wallets = wallet_result.scalars().all()
 
-    if not wallet:
+    if not wallets:
         return False, {
             "user_id": user_id,
             "status": "missing_wallet",
             "error": "Wallet not found. Manual investigation required.",
             "verified_at": datetime.now(timezone.utc).isoformat(),
         }
+    if len(wallets) != 1:
+        logger.critical("Multiple wallets found for user_id=%s; refusing verification or repair", user_id)
+        return False, {
+            "user_id": user_id,
+            "status": "duplicate_wallets",
+            "wallet_ids": [wallet.id for wallet in wallets],
+            "error": "Multiple wallets found. Manual investigation required.",
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+    wallet = wallets[0]
 
     ledger_balance = await get_wallet_ledger_balance(db, user_id)
     wallet_balance = _money(wallet.balance)
@@ -215,8 +225,8 @@ async def repair_wallet_balance(
 ) -> Tuple[bool, dict]:
     is_verified, details = await verify_wallet_balance(db, user_id, lock_wallet=True)
 
-    if details.get("status") == "missing_wallet":
-        logger.critical("Wallet missing for user_id=%s; refusing automatic recreation", user_id)
+    if details.get("status") in {"missing_wallet", "duplicate_wallets"}:
+        logger.critical("Wallet integrity issue for user_id=%s; refusing automatic repair", user_id)
         return False, details
 
     if is_verified:
@@ -269,9 +279,14 @@ async def repair_wallet_balance(
     wallet_result = await db.execute(
         select(Wallet).filter(Wallet.user_id == user_id).with_for_update()
     )
-    wallet = wallet_result.scalars().first()
-    if not wallet:
-        return False, {"user_id": user_id, "status": "missing_wallet", "error": "Wallet not found"}
+    wallets = wallet_result.scalars().all()
+    if len(wallets) != 1:
+        return False, {
+            "user_id": user_id,
+            "status": "duplicate_wallets" if wallets else "missing_wallet",
+            "error": "Wallet count changed during repair. Manual investigation required.",
+        }
+    wallet = wallets[0]
 
     before_balance = _money(wallet.balance)
     ledger_balance = _money(details.get("ledger_balance"))

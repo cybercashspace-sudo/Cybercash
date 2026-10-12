@@ -286,7 +286,7 @@ async def _ensure_default_access_user() -> None:
             session.add(user)
 
         result = await session.execute(select(Wallet).filter(Wallet.user_id == user.id))
-        wallet = result.scalars().first()
+        wallet = result.scalars().one_or_none()
         if not wallet:
             if not created_default_admin:
                 logger.critical("Default admin user %s is missing a wallet; refusing automatic recreation.", user.id)
@@ -334,6 +334,13 @@ async def _run_database_startup() -> None:
         ledger_service = LedgerService(seed_db)
         await ledger_service._initialize_standard_accounts()
         await seed_db.commit()
+
+    from backend.services.reconciliation_service import find_wallet_integrity_issues
+
+    async with async_session() as integrity_db:
+        wallet_issues = await find_wallet_integrity_issues(integrity_db)
+        if wallet_issues:
+            logger.critical("Wallet integrity audit found missing or duplicate wallets: %s", wallet_issues)
 
     _database_startup_ready = True
     _database_startup_error = None

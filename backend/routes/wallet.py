@@ -552,6 +552,11 @@ async def read_user_wallet( # Added async
         _is_verified, verification_details = await verify_wallet_balance(db, current_user.id)
         if verification_details.get("status") == "missing_wallet":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wallet not found for this user.")
+        if verification_details.get("status") == "duplicate_wallets":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Multiple wallets found. Manual investigation required.",
+            )
 
         await loan_service.run_loan_maintenance_for_user(
             db=db,
@@ -559,7 +564,7 @@ async def read_user_wallet( # Added async
             allow_auto_deduction=False,
         )
         result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
-        wallet = result.scalars().first()
+        wallet = result.scalars().one_or_none()
         if not wallet:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wallet not found for this user.")
         return wallet

@@ -112,7 +112,7 @@ def test_initiate_momo_withdrawal_admin_success(client: TestClient, admin_auth_h
     assert response.status_code == 200
     data = response.json()
     assert data["amount"] == 50.0
-    assert data["processor"] == "momo"
+    assert data["processor"] == "flutterwave"
     assert data["status"] == "awaiting_confirmation"
 
     # Verify Payment record
@@ -120,13 +120,13 @@ def test_initiate_momo_withdrawal_admin_success(client: TestClient, admin_auth_h
     assert payment is not None
     assert payment.amount == 50.0
     assert payment.status == "awaiting_confirmation"
-    assert payment.processor_transaction_id == "MOMO_TEST_ID"
+    assert payment.processor_transaction_id == "FLW_TEST_ID"
 
     # Verify Ledger entries
     cash_account = db_session.query(Account).filter_by(name="Cash (External Bank)").first()
-    revenue_payout_account = db_session.query(Account).filter_by(name="Revenue Payout (Expense)").first()
+    customer_wallet_account = db_session.query(Account).filter_by(name="Customer Wallets (Liability)").first()
     assert cash_account.balance == -50.0 # Credited
-    assert revenue_payout_account.balance == 50.0 # Debited
+    assert customer_wallet_account.balance == 50.0 # Debited
 
 # Changed to def from async def, removed await from client calls
 def test_initiate_crypto_withdrawal_admin_success(client: TestClient, admin_auth_headers: dict, db_session: Session): # Changed type hint

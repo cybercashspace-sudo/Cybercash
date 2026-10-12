@@ -997,6 +997,14 @@ async def initiate_bank_withdrawal_admin(
     Admin initiates a bank withdrawal for revenue payout.
     """
     try:
+        result = await db.execute(select(Wallet).filter(Wallet.user_id == admin_user.id))
+        admin_wallet = result.scalars().one_or_none()
+        if not admin_wallet:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Admin wallet missing. Manual investigation required.",
+            )
+
         # Simulate bank withdrawal
         bank_response = await bank_service.initiate_withdrawal(
             amount=request.amount,
@@ -1033,19 +1041,12 @@ async def initiate_bank_withdrawal_admin(
         await db.commit()
         await db.refresh(new_payment)
 
-        result = await db.execute(select(Wallet).filter(Wallet.user_id == admin_user.id))
-        admin_wallet = result.scalars().first()
-        if not admin_wallet:
-            admin_wallet = Wallet(user_id=admin_user.id, balance=0.0, currency=request.currency)
-            db.add(admin_wallet)
-            await db.commit()
-            await db.refresh(admin_wallet)
-
         # Create internal Transaction record for ledger tracking
         new_transaction = Transaction(
             user_id=admin_user.id,
             wallet_id=admin_wallet.id,
             amount=request.amount,
+            entry_type="debit",
             currency=request.currency,
             type="admin_bank_withdrawal_initiate",
             status="pending",

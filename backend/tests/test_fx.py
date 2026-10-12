@@ -48,13 +48,11 @@ def setup_fx_test_user_and_wallets(test_db: Session):
     # Initialize standard accounts via LedgerService
     ledger_service = LedgerService(test_db) # This will create the accounts
 
-    # Create wallets for the user
+    # Each account has one fiat wallet; multiple currency wallets are not supported.
     ghs_wallet = Wallet(user_id=user.id, currency="GHS", balance=1000.0)
-    usd_wallet = Wallet(user_id=user.id, currency="USD", balance=0.0)
-    test_db.add_all([ghs_wallet, usd_wallet])
+    test_db.add(ghs_wallet)
     test_db.commit()
     test_db.refresh(ghs_wallet)
-    test_db.refresh(usd_wallet)
     
     settings.FX_SPREAD_PERCENTAGE = 0.01 # Set a known spread for testing
 
@@ -67,46 +65,18 @@ def setup_fx_test_user_and_wallets(test_db: Session):
     test_db.commit()
 
 
-def test_successful_currency_exchange(test_db: Session):
+def test_currency_exchange_does_not_create_a_second_wallet(test_db: Session):
     response = client.post(
         "/wallet/exchange",
         json={"from_currency": "GHS", "to_currency": "USD", "amount": 100.0}
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["from_currency"] == "GHS"
-    assert data["to_currency"] == "USD"
-    assert data["amount_sent"] == 100.0
-    assert data["amount_received"] > 0
-    assert data["exchange_rate"] > 0
-    assert data["spread_amount"] > 0
+    assert response.status_code == 409
+    assert response.json()["detail"] == "A separate wallet for the target currency is not available."
 
     test_db.expire_all()
-    user = test_db.query(User).filter(User.id == 500).first()
-    ghs_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id, Wallet.currency == "GHS").first()
-    usd_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id, Wallet.currency == "USD").first()
-
-    assert ghs_wallet.balance == 1000.0 - 100.0
-    assert usd_wallet.balance == data["amount_received"]
-
-    # Verify ledger entries
-    transactions_for_user = test_db.query(Transaction).filter(Transaction.user_id == user.id, Transaction.type == "fx_exchange").all()
-    assert len(transactions_for_user) == 1
-    fx_transaction = transactions_for_user[0]
-    assert fx_transaction.fx_rate == data["exchange_rate"]
-    assert fx_transaction.fx_spread_amount == data["spread_amount"]
-
-    journal_entry = test_db.query(JournalEntry).filter(JournalEntry.transaction_id == fx_transaction.id).first()
-    assert journal_entry is not None
-    assert len(journal_entry.ledger_entries) == 3 # Debit GHS Liability, Credit USD Liability, Credit FX Revenue
-
-    ghs_liability_account = test_db.query(Account).filter(Account.name == "Customer Wallets (Liability) - GHS").first()
-    usd_liability_account = test_db.query(Account).filter(Account.name == "Customer Wallets (Liability) - USD").first()
-    fx_revenue_account = test_db.query(Account).filter(Account.name == "Revenue - FX Margins").first()
-
-    assert ghs_liability_account.balance == 100.0
-    assert usd_liability_account.balance == -data["amount_received"]
-    assert fx_revenue_account.balance == -data["spread_amount"]
+    wallet = test_db.query(Wallet).filter(Wallet.user_id == 500).one()
+    assert wallet.balance == 1000.0
+    assert test_db.query(Transaction).filter(Transaction.user_id == 500).count() == 0
 
 
 def test_currency_exchange_insufficient_funds(test_db: Session):

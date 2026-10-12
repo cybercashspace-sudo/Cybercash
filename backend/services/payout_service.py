@@ -261,6 +261,7 @@ class PayoutService:
             user_id=current_user.id,
             wallet_id=wallet.id,
             amount=round(float(amount), 2),
+            entry_type="debit",
             currency="GHS",
             type=TransactionType.MOBILE_MONEY,
             status="awaiting_confirmation",

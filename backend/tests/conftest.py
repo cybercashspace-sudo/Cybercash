@@ -45,7 +45,7 @@ import backend.models.data_order
 
 from backend.main import app
 from backend.database import Base, engine, SessionLocal, async_session
-from backend.models import User
+from backend.models import User, Wallet
 from backend.core.security import create_access_token
 from backend.services.ledger_service import LedgerService
 from backend.services.momo import MomoService
@@ -150,11 +150,15 @@ def admin_user(db_session):
         email="admin@example.com",
         password_hash="hashedpassword",
         is_admin=True,
+        is_verified=True,
         is_active=True,
+        role="admin",
     )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
+    db_session.add(Wallet(user_id=user.id, currency="GHS", balance=500.0))
+    db_session.commit()
     return user
 
 

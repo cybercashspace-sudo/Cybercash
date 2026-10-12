@@ -60,6 +60,7 @@ class FxService:
     async def perform_exchange(self, user: User, from_currency: str, to_currency: str, amount: float) -> dict: # Changed return type hint
         if from_currency == to_currency:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot exchange to the same currency.")
+        self.get_exchange_rate(from_currency, to_currency)
 
         result = await self.db.execute(select(Wallet).filter(
             Wallet.user_id == user.id,
@@ -75,14 +76,13 @@ class FxService:
 
         if not from_wallet:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Wallet for {from_currency} not found.")
-        if not to_wallet:
-            # Create a new wallet for the target currency if it doesn't exist
-            to_wallet = Wallet(user_id=user.id, currency=to_currency, balance=0.0)
-            self.db.add(to_wallet)
-            await self.db.flush() # Flush to get ID
-
         if from_wallet.balance < amount:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds in source wallet.")
+        if not to_wallet:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A separate wallet for the target currency is not available.",
+            )
 
         amount_received, effective_rate, spread_revenue = self.calculate_exchange(from_currency, to_currency, amount)
         

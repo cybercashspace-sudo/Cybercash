@@ -1,6 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
+from backend.routes.auth import _resolve_duplicates
 from backend.core.security import create_jwt
 from backend.core.transaction_types import TransactionType
 from backend.database import async_session
@@ -51,6 +56,59 @@ def _add_partial_completed_ledger(db_session, user: User, *, amount: float) -> N
     db_session.commit()
 
 
+@pytest.mark.parametrize("role", ["user", "agent", "admin"])
+def test_database_rejects_duplicate_wallet_for_every_account_role(db_session, role):
+    user = _create_returning_user(
+        db_session,
+        momo_number={"user": "0247999010", "agent": "0247999011", "admin": "0247999012"}[role],
+        balance=100.00,
+    )
+    user.role = role
+    user.is_agent = role == "agent"
+    user.is_admin = role == "admin"
+    db_session.commit()
+
+    db_session.add(Wallet(user_id=user.id, currency="GHS", balance=0.0))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    assert db_session.query(Wallet).filter(Wallet.user_id == user.id).count() == 1
+
+
+def test_duplicate_user_merge_preserves_all_wallet_balances(db_session):
+    master = _create_returning_user(db_session, momo_number="0247999013", balance=10.00)
+    duplicate = _create_returning_user(db_session, momo_number="0247999014", balance=20.00)
+    duplicate_id = duplicate.id
+    duplicate.is_verified = False
+    master_wallet = db_session.query(Wallet).filter(Wallet.user_id == master.id).one()
+    duplicate_wallet = db_session.query(Wallet).filter(Wallet.user_id == duplicate.id).one()
+    master_wallet.escrow_balance = 1.00
+    master_wallet.loan_balance = 2.00
+    master_wallet.investment_balance = 3.00
+    duplicate_wallet.escrow_balance = 4.00
+    duplicate_wallet.loan_balance = 5.00
+    duplicate_wallet.investment_balance = 6.00
+    db_session.commit()
+
+    async def _merge_duplicate():
+        async with async_session() as session:
+            result = await session.execute(select(User).where(User.id.in_([master.id, duplicate_id])))
+            merged_user = await _resolve_duplicates(session, list(result.scalars().all()))
+            await session.commit()
+            return merged_user.id
+
+    merged_user_id = asyncio.run(_merge_duplicate())
+    db_session.expire_all()
+    merged_wallet = db_session.query(Wallet).filter(Wallet.user_id == merged_user_id).one()
+
+    assert float(merged_wallet.balance) == 30.00
+    assert float(merged_wallet.escrow_balance) == 5.00
+    assert float(merged_wallet.loan_balance) == 7.00
+    assert float(merged_wallet.investment_balance) == 9.00
+    assert db_session.query(User).filter(User.id == duplicate_id).count() == 0
+
+
 def test_login_does_not_reduce_wallet_to_partial_ledger(client, db_session):
     user = _create_returning_user(db_session, momo_number="0247999002", balance=275.50)
     _add_partial_completed_ledger(db_session, user, amount=50.00)
@@ -63,6 +121,21 @@ def test_login_does_not_reduce_wallet_to_partial_ledger(client, db_session):
     assert response.status_code == 200
     db_session.expire_all()
     wallet = db_session.query(Wallet).filter(Wallet.user_id == user.id).first()
+    assert float(wallet.balance) == 275.50
+
+
+def test_login_repairs_zero_wallet_from_completed_ledger(client, db_session):
+    user = _create_returning_user(db_session, momo_number="0247999006", balance=0.00)
+    _add_partial_completed_ledger(db_session, user, amount=275.50)
+
+    response = client.post(
+        "/auth/login",
+        json={"momo_number": user.momo_number, "pin": "1234", "device_id": "returning-device"},
+    )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    wallet = db_session.query(Wallet).filter(Wallet.user_id == user.id).one()
     assert float(wallet.balance) == 275.50
 
 

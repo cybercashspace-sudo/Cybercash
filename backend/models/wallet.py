@@ -7,7 +7,7 @@ class Wallet(Base):
     __tablename__ = "wallets"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     currency = Column(String, default="GHS")
     balance = Column(Numeric(20, 2), nullable=False, default=0.0) # Available Balance
     escrow_balance = Column(Numeric(20, 2), nullable=False, default=0.0)

@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 
 async def ensure_all_users_have_wallets():
     """
-    Migration script to provision wallets for users who are missing one.
-    Prevents errors in TransactionEngine caused by stricter wallet enforcement.
+    Audit wallet coverage without creating zero-balance wallets for existing users.
     """
     async with AsyncSessionLocal() as db:
         # Select user IDs where no wallet exists (outer join)
@@ -22,12 +21,11 @@ async def ensure_all_users_have_wallets():
             logger.info("Consistency Check: All users already have wallets. No migration needed.")
             return
 
-        logger.info(f"Found {len(user_ids)} users without wallets. Creating GHS wallets...")
-        for user_id in user_ids:
-            db.add(Wallet(user_id=user_id, currency="GHS", balance=0.0))
-        
-        await db.commit()
-        logger.info("Data Integrity Migration successful.")
+        logger.critical(
+            "Found %s users without wallets (user_ids=%s). No wallets were created; manual recovery is required.",
+            len(user_ids),
+            user_ids,
+        )
 
 if __name__ == "__main__":
     asyncio.run(ensure_all_users_have_wallets())
