@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +20,8 @@ from backend.schemas.auth import (
     TokenResponse,
     VerifyOtpSchema,
     ChangePinSchema,
+    EmailChangeRequestSchema,
+    EmailChangeVerifySchema,
     ResetPinSchema,
     ResetPinRequestSchema,
     AccessSchema,
@@ -30,7 +33,9 @@ from backend.schemas.auth import (
 from backend.schemas.user import UserResponse
 from backend.services.compliance_service import ensure_daily_window, resolve_daily_limit_for_tier
 from backend.services.reconciliation_service import repair_wallet_balance
+from backend.services.notification import NotificationService
 from backend.services.otp_service import OTPService, get_otp_service
+from backend.core.mailer import send_email
 from backend.dependencies.auth import get_current_user
 from utils.network import detect_network, normalize_ghana_number
 from utils.security import hash_pin, verify_pin
@@ -91,38 +96,32 @@ def _safe_first_name_from_user(user: User | None) -> str:
 
 
 def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None) -> dict:
-    """
-    Expose OTP in API response only for local/log transport.
-    """
-    force_expose = str(os.getenv("EXPOSE_OTP_IN_API", "")).strip().lower() in {"1", "true", "yes", "on"}
-    if otp_code and (force_expose or otp_service.provider == "log"):
+    test_mode = str(os.getenv("RUNNING_TESTS", "")).strip().lower() == "true"
+    if otp_code and test_mode:
         payload["debug_otp"] = str(otp_code)
     return payload
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
-    if not isinstance(send_result, dict):
-        return
-    status_value = str(send_result.get("status", "") or "").strip().lower()
-    if status_value != "error":
+    if isinstance(send_result, dict) and str(send_result.get("status", "") or "").strip().lower() == "queued":
         return
 
-    provider = str(send_result.get("provider", "") or "").strip().lower() or "unknown"
-    detail = str(send_result.get("detail", "") or "").strip()
-    env = str(os.getenv("ENV", "development") or "development").strip().lower()
-    in_production = env in {"prod", "production"}
+    detail = str((send_result or {}).get("detail", "") or "").strip()
+    logger.warning("OTP email delivery failed: %s", detail or "unknown email transport error")
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=detail or "Unable to send OTP by email.",
+    )
 
-    logger.warning("OTP dispatch failed (provider=%s): %s", provider, detail or send_result)
 
-    if in_production:
+def _require_account_email(user: User) -> str:
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Unable to send OTP right now. Please try again later.",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Add an email address to your account before requesting an OTP.",
         )
-
-    if detail:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Unable to send OTP via {provider}: {detail}")
-    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Unable to send OTP via {provider}.")
+    return email
 
 
 async def _verify_wallet_for_authenticated_user(db: AsyncSession, user_id: int) -> None:
@@ -335,7 +334,10 @@ async def register_initiate(
                 )
                 db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(identity_number)
+    otp_code, send_result = await otp_service.issue_otp(
+        identity_number,
+        recipient_email=normalized_email,
+    )
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
     return _with_debug_otp(
@@ -480,7 +482,11 @@ async def register_user(
                 )
                 db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(identity_number, purpose="access_verify")
+    otp_code, send_result = await otp_service.issue_otp(
+        identity_number,
+        purpose="access_verify",
+        recipient_email=normalized_email,
+    )
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
 
@@ -594,7 +600,7 @@ async def access_account(
     otp_service: OTPService = Depends(get_otp_service),
 ):
     identity = _normalize_identity_number(data.momo_number)
-    normalized_email = None
+    normalized_email = str(data.email or "").strip().lower() or None
     await _cleanup_stale_unverified(db, identity)
     _enforce_access_rate_limit(identity, request.client.host if request.client else None)
 
@@ -647,6 +653,7 @@ async def access_account(
             otp_code, send_result = await otp_service.issue_otp(
                 user.momo_number,
                 purpose="access_verify",
+                recipient_email=_require_account_email(user),
             )
             _raise_if_otp_dispatch_failed(send_result)
             user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -687,6 +694,11 @@ async def access_account(
         }
 
     # New user -> auto registration path.
+    if not normalized_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized_email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid email address is required to create an account and receive OTPs.",
+        )
     if len(data.pin) != 4 or not data.pin.isdigit():
         raise HTTPException(400, "PIN must be 4 digits")
 
@@ -719,6 +731,7 @@ async def access_account(
     otp_code, send_result = await otp_service.issue_otp(
         identity,
         purpose="access_verify",
+        recipient_email=normalized_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
     new_user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -834,6 +847,7 @@ async def resend(data: ResendSchema, db: AsyncSession = Depends(get_db), otp_ser
     otp_code, send_result = await otp_service.resend_otp(
         user.momo_number,
         purpose="access_verify",
+        recipient_email=_require_account_email(user),
     )
     _raise_if_otp_dispatch_failed(send_result)
     user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -871,9 +885,11 @@ async def change_pin(
     db.add(user)
     await db.commit()
 
-    target = user.momo_number or user.phone_number
-    if target:
-        otp_service.send_sms(target, "Your PIN was changed")
+    await NotificationService().send_to_user(
+        user,
+        "Your CyberCash PIN was changed. Contact support if you did not make this change.",
+        subject="CyberCash PIN changed",
+    )
     return {"message": "PIN updated successfully"}
 
 
@@ -887,6 +903,91 @@ async def get_current_user_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+@router.post("/email/change/request")
+async def request_email_change(
+    data: EmailChangeRequestSchema,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    otp_service: OTPService = Depends(get_otp_service),
+):
+    result = await db.execute(select(User).filter(User.id == current_user.id))
+    user = result.scalars().one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    email = data.email.strip().lower()
+    old_email = str(user.email or "").strip().lower()
+    if email == old_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This email is already on your account.")
+
+    duplicate_result = await db.execute(
+        select(User.id).filter(func.lower(User.email) == email, User.id != user.id)
+    )
+    if duplicate_result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered.")
+
+    identity = str(user.momo_number or user.phone_number or "").strip()
+    if not identity:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Account is missing a recovery identity.")
+    _enforce_rate_limit(
+        "email_change_request",
+        str(user.id),
+        request.client.host if request.client else None,
+    )
+    _, send_result = await otp_service.issue_otp(
+        identity,
+        purpose="change_email",
+        recipient_email=email,
+    )
+    _raise_if_otp_dispatch_failed(send_result)
+    return {"message": "Verification code sent to the new email address."}
+
+
+@router.post("/email/change/verify")
+async def verify_email_change(
+    data: EmailChangeVerifySchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    otp_service: OTPService = Depends(get_otp_service),
+):
+    result = await db.execute(select(User).filter(User.id == current_user.id).with_for_update())
+    user = result.scalars().one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    email = data.email.strip().lower()
+    duplicate_result = await db.execute(
+        select(User.id).filter(func.lower(User.email) == email, User.id != user.id)
+    )
+    if duplicate_result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered.")
+
+    identity = str(user.momo_number or user.phone_number or "").strip()
+    valid = await otp_service.verify_otp(
+        identity,
+        data.otp,
+        purpose="change_email",
+        recipient_email=email,
+    )
+    if not valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired email verification code.")
+
+    previous_email = str(user.email or "").strip().lower()
+    user.email = email
+    db.add(user)
+    await db.commit()
+
+    notice = "Your CyberCash account email was changed. Contact support if you did not make this change."
+    recipients = list(dict.fromkeys(address for address in (previous_email, email) if address))
+    for recipient in recipients:
+        result = await send_email("CyberCash account email changed", [recipient], f"<p>{notice}</p>")
+        if result.get("status") != "queued":
+            logger.warning("Account email-change notice failed for user_id=%s", user.id)
+
+    return {"message": "Account email updated and verified.", "email": email}
 
 
 @router.post("/logout")
@@ -922,7 +1023,11 @@ async def request_reset_pin_otp(
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="Account not found")
-    otp_code, send_result = await otp_service.issue_otp(identity, purpose="reset_pin")
+    otp_code, send_result = await otp_service.issue_otp(
+        identity,
+        purpose="reset_pin",
+        recipient_email=_require_account_email(user),
+    )
     _raise_if_otp_dispatch_failed(send_result)
     return _with_debug_otp({"message": "OTP sent."}, otp_service, otp_code)
 
@@ -956,7 +1061,11 @@ async def reset_pin(
     db.add(user)
     await db.commit()
 
-    otp_service.send_sms(identity, "Your PIN was reset")
+    await NotificationService().send_to_user(
+        user,
+        "Your CyberCash PIN was reset. Contact support if you did not make this change.",
+        subject="CyberCash PIN reset",
+    )
     return {"message": "PIN reset successful"}
 
 @router.post("/reset")

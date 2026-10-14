@@ -86,6 +86,9 @@ def seed_standard_ledger_accounts(isolate_test_data):
 
 @pytest.fixture(autouse=True)
 def deterministic_external_services(monkeypatch: pytest.MonkeyPatch):
+    async def fake_email(subject, recipients, body):
+        return {"status": "queued", "provider": "email", "recipients": list(recipients)}
+
     async def fake_momo_withdrawal(*args, **kwargs):
         return {
             "status": "pending",
@@ -127,6 +130,7 @@ def deterministic_external_services(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(CryptoService, "initiate_withdrawal", fake_crypto_withdrawal, raising=True)
     monkeypatch.setattr(BankService, "initiate_withdrawal", fake_bank_withdrawal, raising=True)
     monkeypatch.setattr(FlutterwaveService, "initiate_transfer", fake_flutterwave_transfer, raising=True)
+    monkeypatch.setattr("backend.services.otp_service.send_email", fake_email, raising=True)
 
 
 @pytest.fixture(name="db_session")

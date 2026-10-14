@@ -2,6 +2,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -131,21 +132,23 @@ async def purchase_airtime(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Unsupported network. Use MTN, VODAFONE, or AIRTELTIGO.",
             )
+        amount = Decimal(str(request.amount)).quantize(Decimal("0.01"))
 
         result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
         wallet = result.scalars().first()
         if not wallet:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wallet not found.")
-        if wallet.balance < request.amount:
+        if wallet.balance < amount:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient wallet balance.")
 
         # Deduct wallet before provider call.
-        wallet.balance -= request.amount
+        wallet.balance -= amount
         transaction = Transaction(
             user_id=current_user.id,
             wallet_id=wallet.id,
             type=TransactionType.AIRTIME,
-            amount=request.amount,
+            entry_type="debit",
+            amount=amount,
             currency=wallet.currency or "GHS",
             status="pending",
             metadata_json=json.dumps(
@@ -161,7 +164,7 @@ async def purchase_airtime(
 
         provider_response = await momo_service.initiate_airtime_payment(
             phone_number=request.phone,
-            amount=request.amount,
+            amount=float(amount),
             currency=transaction.currency,
             network_provider=network,
             user_id=current_user.id,
@@ -183,15 +186,15 @@ async def purchase_airtime(
             transaction.status = "completed"
             await db.commit()
             await db.refresh(transaction)
-            normalized_phone = normalize_ghana_number(request.phone)
-            await notification_service.send_sms(
-                normalized_phone or request.phone,
-                f"CyberCash: Airtime purchase successful. {transaction.currency} {request.amount:.2f} on {network}.",
+            await notification_service.send_to_user(
+                current_user,
+                f"CyberCash: Airtime purchase successful. {transaction.currency} {amount:.2f} on {network}.",
+                subject="Airtime purchase successful",
             )
             return transaction
 
         # Provider failed: refund wallet and mark failed.
-        wallet.balance += request.amount
+        wallet.balance += amount
         db.add(wallet)
         transaction.status = "failed"
         await db.commit()
@@ -320,8 +323,7 @@ async def confirm_airtime_cash_transfer(
                 f"CyberCash: Airtime transfer noted for {sale.currency} {sale.amount:.2f}. "
                 "Manual review is required before payout."
             )
-        normalized_sale_phone = normalize_ghana_number(sale.phone)
-        await notification_service.send_sms(normalized_sale_phone or sale.phone, note)
+        await notification_service.send_to_user(current_user, note, subject="Airtime sale update")
         return sale
     finally:
         await db.close()
@@ -391,11 +393,12 @@ async def receive_airtime_cash_sms(
                 matched_sale.verified_at = datetime.now(timezone.utc)
                 matched_sale.metadata_json = json.dumps(metadata)
                 db.add(matched_sale)
-                normalized_matched_phone = normalize_ghana_number(matched_sale.phone)
-                await notification_service.send_sms(
-                    normalized_matched_phone or matched_sale.phone,
+                await notification_service.send_to_user_id(
+                    db,
+                    matched_sale.user_id,
                     f"CyberCash: Airtime received for {matched_sale.currency} {matched_sale.amount:.2f}. "
                     "Manual review is required before payout.",
+                    subject="Airtime payment under review",
                 )
             else:
                 matched_sale.status = "verified"
@@ -414,8 +417,12 @@ async def receive_airtime_cash_sms(
                     payout_text = (
                         "CyberCash: Payout failed. Please contact support or try again."
                     )
-                normalized_matched_phone = normalize_ghana_number(matched_sale.phone)
-                await notification_service.send_sms(normalized_matched_phone or matched_sale.phone, payout_text)
+                await notification_service.send_to_user_id(
+                    db,
+                    matched_sale.user_id,
+                    payout_text,
+                    subject="Airtime sale payout update",
+                )
 
         await db.commit()
         return {"status": "ok", "matched_sale_id": matched_sale.id if matched_sale else None}

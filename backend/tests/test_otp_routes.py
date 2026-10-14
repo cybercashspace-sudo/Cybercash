@@ -1,7 +1,10 @@
 def test_otp_routes_support_send_verify_and_resend(client):
     phone_number = "0247000100"
 
-    send_response = client.post("/otp/send", json={"momo_number": phone_number})
+    send_response = client.post(
+        "/otp/send",
+        json={"momo_number": phone_number, "purpose": "register", "email": "new@example.com"},
+    )
     assert send_response.status_code == 200
     send_payload = send_response.json()
     assert send_payload["message"] == "OTP sent"
@@ -10,12 +13,15 @@ def test_otp_routes_support_send_verify_and_resend(client):
 
     verify_response = client.post(
         "/otp/verify",
-        json={"momo_number": phone_number, "otp": send_payload["debug_otp"]},
+        json={"momo_number": phone_number, "otp": send_payload["debug_otp"], "purpose": "register"},
     )
     assert verify_response.status_code == 200
     assert verify_response.json()["message"] == "OTP verified"
 
-    resend_response = client.post("/otp/resend", json={"momo_number": phone_number})
+    resend_response = client.post(
+        "/otp/resend",
+        json={"momo_number": phone_number, "purpose": "register", "email": "new@example.com"},
+    )
     assert resend_response.status_code == 200
     resend_payload = resend_response.json()
     assert resend_payload["message"] == "OTP resent"

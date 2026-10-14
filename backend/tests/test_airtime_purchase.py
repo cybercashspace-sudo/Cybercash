@@ -28,9 +28,9 @@ def test_airtime_purchase_success(client, db_session):
             }
         ),
     ), patch(
-        "backend.routes.airtime.notification_service.send_sms",
-        new=AsyncMock(return_value=True),
-    ) as sms_mock:
+        "backend.services.notification.send_email",
+        new=AsyncMock(return_value={"status": "queued", "provider": "email"}),
+    ) as email_mock:
         response = client.post(
             "/api/airtime/purchase",
             json={"network": "MTN", "phone": "0240000000", "amount": 20.0},
@@ -49,7 +49,11 @@ def test_airtime_purchase_success(client, db_session):
     assert tx is not None
     assert tx.status == "completed"
     assert tx.provider == "momo"
-    sms_mock.assert_awaited()
+    email_mock.assert_awaited_once_with(
+        "Airtime purchase successful",
+        ["airtime_success@test.com"],
+        "<p>CyberCash: Airtime purchase successful. GHS 20.00 on MTN.</p>",
+    )
 
 
 def test_airtime_purchase_provider_failure_refunds_wallet(client, db_session):

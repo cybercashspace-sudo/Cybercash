@@ -927,11 +927,16 @@ class TransactionEngine:
         self.db.add(wallet)
 
     async def _send_notification(self, user_id: int, message: str):
-        """
-        Placeholder for Real-Time Notification System (Firebase/Socket.io/SMS).
-        """
-        # In a real app, this would trigger an async task to send Push/SMS
-        logger.info(f"NOTIFICATION to User {user_id}: {message}")
+        from backend.services.notification import NotificationService
+
+        result = await NotificationService().send_to_user_id(
+            self.db,
+            user_id,
+            message,
+            subject="Transaction update",
+        )
+        if result.get("status") != "queued":
+            logger.warning("Transaction email notification failed for user_id=%s: %s", user_id, result.get("detail"))
 
 # Dependency Injection Helper
 async def get_transaction_engine(

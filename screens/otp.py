@@ -15,7 +15,7 @@ from core.responsive_screen import ResponsiveScreen
 from storage import save_token
 from utils.network import normalize_ghana_number
 
-DEFAULT_OTP_FEEDBACK_TEXT = "Enter the 6-digit OTP we sent to your phone to complete secure access."
+DEFAULT_OTP_FEEDBACK_TEXT = "Enter the 6-digit OTP we sent to your email to complete secure access."
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -400,7 +400,7 @@ class OTPScreen(ResponsiveScreen):
         if self.momo_number:
             self.ids.momo_input.text = self.momo_number
             self._set_feedback(
-                f"We sent a 6-digit OTP to {self.momo_number}. Enter it below to continue.",
+                "We sent a 6-digit OTP to your email. Enter it below to continue.",
                 "info",
             )
         else:
@@ -517,7 +517,7 @@ class OTPScreen(ResponsiveScreen):
             self._show_popup("Resend Failed", error_message)
             return
 
-        info_message = self._extract_detail(response) or "A new OTP has been sent to your MoMo number."
+        info_message = self._extract_detail(response) or "A new OTP has been sent to your email address."
         self._set_feedback(info_message, "success")
         self._show_popup("OTP Resent", info_message)
         self.start_timer()

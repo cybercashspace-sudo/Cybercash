@@ -600,17 +600,16 @@ async def purchase_data_bundle(
             await db.commit()
             await db.refresh(transaction)
 
-            if provider == "idata":
-                if bool(getattr(settings, "IDATA_SEND_SMS", False)):
-                    await notification_service.send_sms(
-                        phone,
-                        "CyberCash: Your data bundle has been delivered successfully.",
-                    )
-            else:
-                await notification_service.send_sms(
-                    phone,
-                    f"CyberCash: Data bundle purchase successful. {transaction.currency} {amount:.2f} on {bundle.network}.",
-                )
+            notice = (
+                "CyberCash: Your data bundle has been delivered successfully."
+                if provider == "idata"
+                else f"CyberCash: Data bundle purchase successful. {transaction.currency} {amount:.2f} on {bundle.network}."
+            )
+            await notification_service.send_to_user(
+                current_user,
+                notice,
+                subject="Data bundle purchase update",
+            )
 
             return transaction
 

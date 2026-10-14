@@ -1,130 +1,116 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
-from backend.services.hubtel_otp import HubtelOTPClient
+from backend.services import otp_service as otp_module
 from backend.services.otp_service import OTPService
 
 
-class _FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None, text: str = ""):
-        self.status_code = status_code
-        self._payload = payload or {}
-        self.text = text
+@pytest.mark.asyncio
+async def test_otp_service_emails_new_and_resent_codes_once(monkeypatch):
+    sent = []
+    sessions = {}
 
-    @property
-    def ok(self) -> bool:
-        return 200 <= self.status_code < 300
+    async def fake_send_email(subject, recipients, body):
+        sent.append((subject, recipients, body))
+        return {"status": "queued", "provider": "email", "recipients": recipients}
 
-    def json(self) -> dict:
-        return self._payload
+    async def save_session(key, value):
+        sessions[key] = value
 
+    async def load_session(key):
+        return sessions.get(key)
 
-def test_hubtel_client_formats_send_resend_and_verify_requests(monkeypatch):
-    monkeypatch.setenv("HUBTEL_AUTH", "Basic test-token")
-    monkeypatch.setenv("HUBTEL_BASE_URL", "https://api-otp.hubtel.com")
-    monkeypatch.setenv("HUBTEL_SENDER_ID", "CyberCash")
-    monkeypatch.setenv("HUBTEL_COUNTRY_CODE", "GH")
+    async def delete_session(key):
+        sessions.pop(key, None)
 
-    calls: list[dict] = []
+    class NoSmsClient:
+        def send_otp(self, *args):
+            raise AssertionError("New OTPs must never use Hubtel/SMS")
 
-    def fake_post(url, json=None, headers=None, timeout=None):
-        calls.append(
-            {
-                "url": url,
-                "json": json,
-                "headers": headers,
-                "timeout": timeout,
-            }
-        )
-        if url.endswith("/otp/send"):
-            return _FakeResponse(
-                200,
-                {
-                    "message": "success",
-                    "code": "0000",
-                    "data": {"requestId": "REQ-1", "prefix": "ABCD"},
-                },
-            )
-        if url.endswith("/otp/resend"):
-            return _FakeResponse(
-                200,
-                {
-                    "message": "success",
-                    "code": "0000",
-                    "data": {"requestId": "REQ-1", "prefix": "WXYZ"},
-                },
-            )
-        if url.endswith("/otp/verify"):
-            return _FakeResponse(200, text="")
-        return _FakeResponse(500, {"message": "unknown"})
+        def resend_otp(self, *args):
+            raise AssertionError("OTP resends must never use Hubtel/SMS")
 
-    monkeypatch.setattr("backend.services.hubtel_otp.requests.post", fake_post, raising=True)
+    monkeypatch.setattr(otp_module, "send_email", fake_send_email)
+    service = OTPService(provider="hubtel", hubtel_client=NoSmsClient())
+    monkeypatch.setattr(service, "_save_session", save_session)
+    monkeypatch.setattr(service, "_load_session", load_session)
+    monkeypatch.setattr(service, "_delete_session", delete_session)
 
-    client = HubtelOTPClient()
+    otp_code, send_result = await service.issue_otp(
+        "0247000101",
+        purpose="access_verify",
+        recipient_email=" Person@example.com ",
+    )
+    assert otp_code is not None
+    assert send_result["provider"] == "email"
+    assert len(sent) == 1
+    assert sent[0][1] == ["person@example.com"]
 
-    send_result = client.send_otp("0241234567")
-    assert send_result["status"] == "queued"
-    assert send_result["request_id"] == "REQ-1"
-    assert send_result["prefix"] == "ABCD"
-    assert calls[0]["json"]["phoneNumber"] == "+233241234567"
-    assert calls[0]["headers"]["Authorization"] == "Basic test-token"
-
-    resend_result = client.resend_otp("REQ-1")
-    assert resend_result["status"] == "queued"
-    assert resend_result["prefix"] == "WXYZ"
-
-    verify_result = client.verify_otp("REQ-1", "WXYZ", "3824")
-    assert verify_result["status"] == "verified"
-    assert calls[-1]["url"].endswith("/otp/verify")
-    assert calls[-1]["json"]["code"] == "3824"
+    resent_code, resend_result = await service.resend_otp(
+        "0247000101",
+        purpose="access_verify",
+        recipient_email="person@example.com",
+    )
+    assert resent_code is not None and resent_code != otp_code
+    assert resend_result["provider"] == "email"
+    assert len(sent) == 2
+    assert await service.verify_otp("0247000101", resent_code, purpose="access_verify") is True
 
 
 @pytest.mark.asyncio
-async def test_otp_service_uses_hubtel_sessions(monkeypatch):
-    monkeypatch.setenv("ALLOW_EXTERNAL_SMS_IN_DEV", "1")
-
+async def test_legacy_hubtel_otp_sessions_remain_verifiable(monkeypatch):
     class FakeHubtelClient:
-        def __init__(self):
-            self.sent = []
-            self.resends = []
-            self.verifies = []
-
-        def send_otp(self, phone_number: str) -> dict:
-            self.sent.append(phone_number)
-            return {
-                "status": "queued",
-                "provider": "hubtel",
-                "request_id": "REQ-1",
-                "prefix": "ABCD",
-            }
-
-        def resend_otp(self, request_id: str) -> dict:
-            self.resends.append(request_id)
-            return {
-                "status": "queued",
-                "provider": "hubtel",
-                "request_id": request_id,
-                "prefix": "WXYZ",
-            }
-
         def verify_otp(self, request_id: str, prefix: str, code: str) -> dict:
-            self.verifies.append((request_id, prefix, code))
+            assert (request_id, prefix, code) == ("REQ-1", "ABCD", "3824")
             return {"status": "verified", "provider": "hubtel"}
 
-    fake_client = FakeHubtelClient()
-    service = OTPService(provider="hubtel", hubtel_client=fake_client)
+    service = OTPService(hubtel_client=FakeHubtelClient())
+    session = {"provider": "hubtel", "request_id": "REQ-1", "prefix": "ABCD"}
+    async def load_session(key):
+        return session
 
-    otp_code, send_result = await service.issue_otp("0247000101", purpose="access_verify")
+    deleted = []
+    async def delete_session(key):
+        deleted.append(key)
+
+    monkeypatch.setattr(service, "_load_session", load_session)
+    monkeypatch.setattr(service, "_delete_session", delete_session)
+
+    assert await service.verify_otp("0247000102", "3824", purpose="access_verify") is True
+    assert deleted == [service._otp_key("0247000102", "access_verify")]
+
+
+@pytest.mark.asyncio
+async def test_failed_email_delivery_deletes_new_otp_session(monkeypatch):
+    sessions = {}
+    deleted = []
+
+    async def failed_send_email(subject, recipients, body):
+        return {"status": "error", "provider": "email", "detail": "SMTP unavailable"}
+
+    async def save_session(key, value):
+        sessions[key] = value
+
+    async def delete_session(key):
+        deleted.append(key)
+        sessions.pop(key, None)
+
+    monkeypatch.setattr(otp_module, "send_email", failed_send_email)
+    service = OTPService()
+    monkeypatch.setattr(service, "_save_session", save_session)
+    monkeypatch.setattr(service, "_delete_session", delete_session)
+
+    otp_code, result = await service.issue_otp(
+        "0247000103",
+        purpose="reset_pin",
+        recipient_email="recover@example.com",
+    )
+
+    key = service._otp_key("0247000103", "reset_pin")
     assert otp_code is None
-    assert send_result["request_id"] == "REQ-1"
-    assert fake_client.sent == ["0247000101"]
-
-    resend_code, resend_result = await service.resend_otp("0247000101", purpose="access_verify")
-    assert resend_code is None
-    assert resend_result["prefix"] == "WXYZ"
-    assert fake_client.resends == ["REQ-1"]
-
-    verified = await service.verify_otp("0247000101", "3824", purpose="access_verify")
-    assert verified is True
-    assert fake_client.verifies == [("REQ-1", "WXYZ", "3824")]
+    assert result["status"] == "error"
+    assert key in deleted
+    assert key not in sessions

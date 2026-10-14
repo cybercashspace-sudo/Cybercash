@@ -45,8 +45,8 @@ class UserSettingsRead(BaseModel):
     biometric: bool = False
     otp: bool = True
     auto_settle: bool = True
-    sms_alerts: bool = True
-    email_alerts: bool = False
+    sms_alerts: bool = False
+    email_alerts: bool = True
     transaction_pin: bool = True
     device_binding: bool = True
     login_alerts: bool = True

@@ -4,7 +4,7 @@ import re
 
 class RegisterSchema(BaseModel):
     momo_number: str = Field(..., min_length=8, max_length=20)
-    email: Optional[str] = Field(default=None, min_length=5, max_length=254)
+    email: str = Field(..., min_length=5, max_length=254)
     phone_number: Optional[str] = Field(default=None, min_length=8, max_length=20)
     pin: str = Field(..., min_length=4, max_length=4)
     device_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
@@ -25,9 +25,7 @@ class RegisterSchema(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def email_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return value
+    def email_must_be_valid(cls, value: str) -> str:
         email = str(value or "").strip().lower()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             raise ValueError("Email must be a valid email address.")
@@ -80,6 +78,29 @@ class ResetPinRequestSchema(BaseModel):
     momo_number: str = Field(..., min_length=8, max_length=20)
 
 
+class EmailChangeRequestSchema(BaseModel):
+    email: str = Field(..., min_length=5, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def email_must_be_valid(cls, value: str) -> str:
+        email = str(value or "").strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("Email must be a valid email address.")
+        return email
+
+
+class EmailChangeVerifySchema(EmailChangeRequestSchema):
+    otp: str = Field(..., min_length=6, max_length=6)
+
+    @field_validator("otp")
+    @classmethod
+    def otp_must_be_six_digits(cls, value: str) -> str:
+        if not re.fullmatch(r"\d{6}", value or ""):
+            raise ValueError("OTP must be exactly 6 digits.")
+        return value
+
+
 class ResetPinSchema(BaseModel):
     momo_number: str = Field(..., min_length=8, max_length=20)
     otp: str = Field(..., min_length=4, max_length=6)
@@ -104,6 +125,7 @@ class ResetPinSchema(BaseModel):
 class AccessSchema(BaseModel):
     momo_number: str = Field(..., min_length=8, max_length=20)
     pin: str = Field(..., min_length=4, max_length=4)
+    email: Optional[str] = Field(default=None, min_length=5, max_length=254)
     first_name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     is_agent: bool = False
     device_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
@@ -115,6 +137,16 @@ class AccessSchema(BaseModel):
         if not re.fullmatch(r"\d{4}", value or ""):
             raise ValueError("PIN must be exactly 4 digits.")
         return value
+
+    @field_validator("email")
+    @classmethod
+    def email_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        email = str(value or "").strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("Email must be a valid email address.")
+        return email
 
 
 class VerifySchema(BaseModel):

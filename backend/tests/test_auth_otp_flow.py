@@ -5,6 +5,7 @@ from utils.security import hash_pin
 def _register_payload(momo_number: str, pin: str = "1234", first_name: str = "Ama") -> dict:
     return {
         "momo_number": momo_number,
+        "email": f"user{momo_number[-4:]}@example.com",
         "pin": pin,
         "is_agent": False,
         "first_name": first_name,
@@ -93,6 +94,7 @@ def test_auth_access_returns_verify_required_for_unverified_user(client, db_sess
         User(
             momo_number=momo_number,
             phone_number=momo_number,
+            email="existing@example.com",
             pin_hash=pin_hash,
             password_hash=pin_hash,
             full_name="Ama Test",

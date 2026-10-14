@@ -128,6 +128,56 @@ Builder.load_string(
                             text_color: theme.PRIMARY_LIGHT
                             font_size: "12sp"
 
+                GlassCard:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    padding: dp(16)
+                    spacing: dp(10)
+
+                    MDLabel:
+                        text: "Account Email"
+                        font_size: "18sp"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: theme.TEXT_PRIMARY
+
+                    MDLabel:
+                        text: root.email_text
+                        theme_text_color: "Hint"
+
+                    MDTextField:
+                        id: email_change_input
+                        hint_text: "New email address"
+                        mode: "rectangle"
+                        input_type: "mail"
+                        multiline: False
+                        disabled: root.email_change_loading
+
+                    AppButton:
+                        text: "Send verification code"
+                        variant: "secondary"
+                        disabled: root.email_change_loading
+                        on_release: root.request_email_change()
+
+                    MDTextField:
+                        id: email_change_otp_input
+                        hint_text: "6-digit email verification code"
+                        mode: "rectangle"
+                        input_filter: "int"
+                        max_text_length: 6
+                        multiline: False
+                        opacity: 1 if root.email_change_pending else 0
+                        height: dp(56) if root.email_change_pending else 0
+                        disabled: not root.email_change_pending or root.email_change_loading
+
+                    AppButton:
+                        text: "Verify and update email"
+                        variant: "primary"
+                        disabled: not root.email_change_pending or root.email_change_loading
+                        opacity: 1 if root.email_change_pending else 0
+                        height: dp(46) if root.email_change_pending else 0
+                        on_release: root.verify_email_change()
+
                 MDGridLayout:
                     cols: 2
                     adaptive_height: True
@@ -240,6 +290,8 @@ Builder.load_string(
 
 class ProfileScreen(RefreshableScreenMixin, ActionScreen):
     loading = BooleanProperty(False)
+    email_change_loading = BooleanProperty(False)
+    email_change_pending = BooleanProperty(False)
     display_name = StringProperty("Your Profile")
     email_text = StringProperty("No email available")
     phone_text = StringProperty("No phone number available")
@@ -307,6 +359,66 @@ class ProfileScreen(RefreshableScreenMixin, ActionScreen):
             return
         self._begin_refresh("Refreshing profile...")
         Thread(target=self._refresh_worker, daemon=True).start()
+
+    def request_email_change(self):
+        email = str(self.ids.email_change_input.text or "").strip().lower()
+        if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+            self._set_feedback("Enter a valid email address.", "error")
+            return
+        self.email_change_loading = True
+        Thread(target=self._request_email_change_worker, args=(email,), daemon=True).start()
+
+    def _request_email_change_worker(self, email: str):
+        result = self._request("POST", "/auth/email/change/request", payload={"email": email})
+        Clock.schedule_once(lambda _dt: self._apply_email_change_request(email, result))
+
+    def _apply_email_change_request(self, email: str, result):
+        self.email_change_loading = False
+        ok, payload = result
+        if not ok:
+            detail = self._extract_detail(payload) or "Unable to send a verification code."
+            self._set_feedback(detail, "error")
+            return
+        self.email_change_pending = True
+        self._set_feedback(f"Verification code sent to {email}.", "success")
+
+    def verify_email_change(self):
+        email = str(self.ids.email_change_input.text or "").strip().lower()
+        otp = str(self.ids.email_change_otp_input.text or "").strip()
+        if len(otp) != 6 or not otp.isdigit():
+            self._set_feedback("Enter the 6-digit code sent to your email.", "error")
+            return
+        self.email_change_loading = True
+        Thread(target=self._verify_email_change_worker, args=(email, otp), daemon=True).start()
+
+    def _verify_email_change_worker(self, email: str, otp: str):
+        result = self._request(
+            "POST",
+            "/auth/email/change/verify",
+            payload={"email": email, "otp": otp},
+        )
+        Clock.schedule_once(lambda _dt: self._apply_email_change_result(result))
+
+    def _apply_email_change_result(self, result):
+        self.email_change_loading = False
+        ok, payload = result
+        if not ok:
+            detail = self._extract_detail(payload) or "Email verification failed."
+            self._set_feedback(detail, "error")
+            return
+
+        self.email_change_pending = False
+        self.ids.email_change_otp_input.text = ""
+        self.email_text = str(payload.get("email") or "").strip()
+        app = MDApp.get_running_app()
+        if app is not None:
+            app.user_email = self.email_text
+            app_state = getattr(app, "app_state", None)
+            user = dict(getattr(app_state, "user", {}) or {})
+            user["email"] = self.email_text
+            if hasattr(app_state, "set_user"):
+                app_state.set_user(user)
+        self._set_feedback("Account email updated and verified.", "success")
 
     def _refresh_worker(self):
         user_result = self._request("GET", "/auth/me")

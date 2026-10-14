@@ -266,7 +266,7 @@ KV = """
 
                         MDTextField:
                             id: otp_input
-                            hint_text: "OTP from SMS"
+                                hint_text: "OTP from email"
                             helper_text: "Enter the 6-digit code exactly as received."
                             helper_text_mode: "on_focus"
                             mode: "fill"
@@ -391,17 +391,22 @@ class ResetPinScreen(ResponsiveScreen):
         self.start_timer()
         def _worker():
             response = request_reset_pin_otp(momo)
-            ok = bool(response.get("ok")) if isinstance(response, dict) else False
-            Clock.schedule_once(lambda dt: self._on_otp_result(ok))
+            Clock.schedule_once(lambda dt: self._on_otp_result(response))
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_otp_result(self, ok):
+    def _on_otp_result(self, response):
         self.processing = False
+        ok = bool(response.get("ok")) if isinstance(response, dict) else False
         if ok:
             self.otp_sent = True
-            show_message_dialog(self, "OTP Sent", "Check your messages for the reset code.")
+            show_message_dialog(self, "OTP Sent", "Check your email inbox for the reset code.")
         else:
-            show_message_dialog(self, "Error", "Could not request reset. Check your number.")
+            detail = str(response.get("detail") or response.get("message") or "") if isinstance(response, dict) else ""
+            show_message_dialog(
+                self,
+                "Error",
+                detail or "Could not request reset. Check the number and saved email address.",
+            )
 
     def submit_reset(self):
         momo = self.ids.momo_input.text.strip()

@@ -38,7 +38,11 @@ async def get_my_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await get_or_create_user_settings(db, current_user.id)
+    settings_row = await get_or_create_user_settings(db, current_user.id)
+    response = UserSettingsRead.model_validate(settings_row)
+    response.sms_alerts = False
+    response.email_alerts = True
+    return response
 
 
 @router.put("/me", response_model=UserSettingsRead)
@@ -49,6 +53,8 @@ async def update_my_settings(
 ):
     settings_row = await get_or_create_user_settings(db, current_user.id)
     updates = payload.model_dump(exclude_unset=True)
+    updates.pop("sms_alerts", None)
+    updates.pop("email_alerts", None)
 
     if "default_payout_method" in updates:
         updates["default_payout_method"] = normalize_payout_method(updates["default_payout_method"])
@@ -57,6 +63,8 @@ async def update_my_settings(
 
     for key, value in updates.items():
         setattr(settings_row, key, value)
+    settings_row.sms_alerts = False
+    settings_row.email_alerts = True
 
     db.add(settings_row)
     await db.commit()

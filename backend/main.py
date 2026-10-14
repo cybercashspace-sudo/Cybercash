@@ -364,26 +364,10 @@ async def startup_db_events():
     global _database_startup_task, _database_startup_error
 
     from backend.services.otp_service import get_otp_service
-    from backend.services.sms_service import get_sms_service
-
-    configured_otp_provider = str(os.getenv("OTP_PROVIDER", "log") or "log").strip().lower()
-    configured_sms_provider = str(os.getenv("SMS_PROVIDER", "") or "").strip().lower() or configured_otp_provider
-    configured_sender_id = (
-        str(os.getenv("SMS_SENDER_ID", "") or os.getenv("MNOTIFY_SENDER", "") or "CyberCash").strip() or "CyberCash"
-    )
     otp_provider = get_otp_service().provider
-    sms_service = get_sms_service()
-    sms_provider = sms_service.provider
     logger.info(
-        "OTP/SMS config loaded: OTP_PROVIDER=%s (effective=%s) SMS_PROVIDER=%s (effective=%s) SMS_SENDER_ID=%s (effective=%s) MNOTIFY_API_KEY=%s MNOTIFY_SENDER=%s",
-        configured_otp_provider,
+        "Account security codes and notifications use email delivery (provider=%s)",
         otp_provider,
-        configured_sms_provider,
-        sms_provider,
-        configured_sender_id,
-        sms_service.sender_id,
-        _mask_secret(os.getenv("MNOTIFY_API_KEY", "")),
-        str(os.getenv("MNOTIFY_SENDER", "") or "").strip() or "<default>",
     )
 
     startup_timeout_seconds = float(os.getenv("STARTUP_DB_INIT_TIMEOUT_SECONDS", "25"))

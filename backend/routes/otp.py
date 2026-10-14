@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.database import get_db
+from backend.models import User
 from backend.schemas.otp import OTPSendSchema, OTPVerifySchema, OTPResendSchema
 from backend.services.otp_service import OTPService, get_otp_service
 from utils.network import normalize_ghana_number
@@ -45,37 +51,59 @@ def _enforce_rate_limit(action: str, identity: str, ip_address: str | None = Non
 
 
 def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None) -> dict:
-    if otp_code and otp_service.provider == "log":
+    if otp_code and str(os.getenv("RUNNING_TESTS", "")).strip().lower() == "true":
         payload["debug_otp"] = str(otp_code)
     return payload
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
-    if not isinstance(send_result, dict):
-        return
-    status_value = str(send_result.get("status", "") or "").strip().lower()
-    if status_value != "error":
+    if isinstance(send_result, dict) and str(send_result.get("status", "") or "").strip().lower() == "queued":
         return
 
-    detail = str(send_result.get("detail", "") or "").strip()
-    if detail:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
-    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Unable to send OTP right now.")
+    detail = str((send_result or {}).get("detail", "") or "").strip()
+    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail or "Unable to send OTP by email.")
+
+
+async def _resolve_recipient_email(
+    db: AsyncSession,
+    identity: str,
+    purpose: str,
+    supplied_email: str | None,
+) -> str:
+    result = await db.execute(
+        select(User).filter(or_(User.momo_number == identity, User.phone_number == identity))
+    )
+    user = result.scalars().one_or_none()
+    if user:
+        email = str(user.email or "").strip().lower()
+    elif purpose == "register":
+        email = str(supplied_email or "").strip().lower()
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A valid account email is required to receive an OTP.",
+        )
+    return email
 
 
 @router.post("/send")
 async def send_otp(
     data: OTPSendSchema,
     request: Request,
+    db: AsyncSession = Depends(get_db),
     otp_service: OTPService = Depends(get_otp_service),
 ):
     identity = _normalize_identity_number(data.momo_number)
     _enforce_rate_limit("otp_send", identity, request.client.host if request.client else None)
+    recipient_email = await _resolve_recipient_email(db, identity, data.purpose.value, data.email)
 
     otp_code, send_result = await otp_service.issue_otp(
         identity,
         purpose=data.purpose.value,
-        recipient_email=data.email,
+        recipient_email=recipient_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
     return _with_debug_otp({"message": "OTP sent"}, otp_service, otp_code)
@@ -100,15 +128,17 @@ async def verify_otp(
 async def resend_otp(
     data: OTPResendSchema,
     request: Request,
+    db: AsyncSession = Depends(get_db),
     otp_service: OTPService = Depends(get_otp_service),
 ):
     identity = _normalize_identity_number(data.momo_number)
     _enforce_rate_limit("otp_resend", identity, request.client.host if request.client else None)
+    recipient_email = await _resolve_recipient_email(db, identity, data.purpose.value, data.email)
 
     otp_code, send_result = await otp_service.resend_otp(
         identity,
         purpose=data.purpose.value,
-        recipient_email=data.email,
+        recipient_email=recipient_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
     return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
