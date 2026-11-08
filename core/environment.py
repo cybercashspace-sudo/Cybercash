@@ -120,10 +120,19 @@ def resolve_api_urls(environment: Environment | None = None) -> list[str]:
     load_runtime_environment()
     env = environment or resolve_environment()
     urls: list[str] = []
+    seen: set[str] = set()
 
     def _append(value: str) -> None:
         normalized = _normalize_url(value)
-        if normalized and normalized not in urls:
+        if not normalized:
+            return
+        lowered = normalized.lower()
+        if lowered.startswith(("javascript:", "data:", "file:")):
+            return
+        if "localhost" in lowered or "127.0.0.1" in lowered:
+            return
+        if normalized not in seen:
+            seen.add(normalized)
             urls.append(normalized)
 
     _append(resolve_api_base_url(env))

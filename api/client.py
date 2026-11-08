@@ -1,3 +1,4 @@
+import os
 import threading
 
 import requests
@@ -23,6 +24,75 @@ RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 FAILOVER_STATUS_CODES = (502, 503, 504)
 PAYSTACK_FAILOVER_STATUS_CODES = (500, 502, 503, 504)
 AUTH_FAILOVER_STATUS_CODES = (401, 403)
+DEFAULT_API_URL = "www.cybercash.space"
+
+
+def _normalize_api_url(value: str | None) -> str:
+    cleaned = str(value or "").strip().rstrip("/")
+    if not cleaned:
+        return ""
+    lowered = cleaned.lower()
+    if lowered.startswith(("javascript:", "data:", "file:")):
+        return ""
+    if "://" not in cleaned:
+        cleaned = f"https://{cleaned}"
+    lowered = cleaned.lower()
+    if "localhost" in lowered or "127.0.0.1" in lowered:
+        return ""
+    if lowered.startswith("https://cybercash.space"):
+        return "https://www.cybercash.space"
+    return cleaned
+
+
+def _load_app_config() -> dict:
+    try:
+        from core.environment import _load_app_config as _core_load_app_config
+
+        return _core_load_app_config()
+    except Exception:
+        return {}
+
+
+def resolve_api_url() -> str:
+    for env_name in ("CYBERCASH_API_URL", "KIVY_API_URL", "BACKEND_URL"):
+        value = _normalize_api_url(os.getenv(env_name))
+        if value:
+            return value
+
+    config = _load_app_config()
+    for key in ("api_url", "backend_url", "base_url"):
+        value = _normalize_api_url(config.get(key))
+        if value:
+            return value
+
+    from core.environment import resolve_api_base_url
+
+    value = _normalize_api_url(resolve_api_base_url())
+    if value:
+        return value
+
+    return _normalize_api_url(DEFAULT_API_URL)
+
+
+def resolve_api_urls() -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    def _append(value: str | None) -> None:
+        normalized = _normalize_api_url(value)
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        urls.append(normalized)
+
+    _append(resolve_api_url())
+    for value in (
+        "https://cybercash.space",
+        "https://www.cybercash.space",
+        "https://cyber-cash.onrender.com",
+    ):
+        _append(value)
+    return urls
 
 
 def _is_payment_reference_path(path: str) -> bool:
@@ -44,7 +114,7 @@ def _coerce_timeout(timeout):
     return DEFAULT_CONNECT_TIMEOUT_SECONDS, float(timeout)
 
 
-API_URL = resolve_api_base_url()
+API_URL = resolve_api_url()
 
 
 class APIClient:

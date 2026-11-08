@@ -166,6 +166,20 @@ def test_paystack_alias_request_uses_last_successful_authenticated_backend():
     assert api.session.urls == ["https://fallback.test/api/paystack/wallet/initialize"]
 
 
+def test_resolve_api_urls_deduplicates_and_rejects_backend_leaks(monkeypatch):
+    monkeypatch.setenv("CYBERCASH_API_URL", "https://api.cybercash.space")
+    monkeypatch.setenv("KIVY_API_URL", "https://api.cybercash.space/")
+    monkeypatch.setenv("BACKEND_URL", "http://localhost:8000")
+    monkeypatch.setattr(client, "_load_app_config", lambda: {"api_url": "cybercash.space", "backend_url": "https://api.cybercash.space"})
+
+    urls = client.resolve_api_urls()
+
+    assert urls[0] == "https://api.cybercash.space"
+    assert urls.count("https://api.cybercash.space") == 1
+    assert all("localhost" not in url for url in urls)
+    assert all("javascript:" not in url.lower() for url in urls)
+
+
 def test_agent_registration_payment_request_stays_on_primary_after_server_error():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]
