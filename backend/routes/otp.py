@@ -114,7 +114,7 @@ async def send_otp(
             otp_service,
             None,
         )
-    return _with_debug_otp({"message": "OTP sent to your email. Check your inbox for the code."}, otp_service, otp_code)
+    return _with_debug_otp({"message": "OTP sent"}, otp_service, otp_code)
 
 
 @router.post("/verify")
@@ -149,4 +149,4 @@ async def resend_otp(
         recipient_email=recipient_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
-    return _with_debug_otp({"message": "A new verification code has been sent to your email."}, otp_service, otp_code)
+    return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
