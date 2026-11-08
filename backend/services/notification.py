@@ -2,6 +2,7 @@ import html
 import logging
 import re
 from collections.abc import Iterable
+from decimal import Decimal
 from typing import Sequence
 
 from sqlalchemy import select
@@ -12,6 +13,33 @@ from backend.models.user import User
 
 
 logger = logging.getLogger(__name__)
+
+
+def _humanize_transaction_type(value: str | None, *, direction: str | None = None) -> str:
+    normalized = str(value or "").strip().lower().replace("_", " ")
+    if not normalized and direction:
+        normalized = direction
+    labels = {
+        "funding": "deposit",
+        "deposit": "deposit",
+        "withdrawal": "withdrawal",
+        "withdraw": "withdrawal",
+        "transfer": "transfer",
+        "transfer sent": "transfer",
+        "transfer received": "transfer",
+        "airtime": "airtime purchase",
+        "data": "data bundle purchase",
+        "data bundle": "data bundle purchase",
+        "wallet topup": "wallet top up",
+        "topup": "wallet top up",
+        "agent withdrawal": "agent withdrawal",
+    }
+    label = labels.get(normalized, normalized or "transaction")
+    if direction == "receive" and label == "transfer":
+        return "transfer received"
+    if direction == "send" and label == "transfer":
+        return "transfer sent"
+    return label
 
 
 class NotificationService:
@@ -38,6 +66,34 @@ class NotificationService:
                 result.get("detail") or "email transport did not confirm delivery",
             )
         return result
+
+    async def send_transaction_notification(
+        self,
+        user: User,
+        transaction_type: str,
+        amount: Decimal | float | int | str,
+        *,
+        currency: str = "GHS",
+        subject: str = "Transaction update",
+        direction: str | None = None,
+    ) -> dict:
+        amount_value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        label = _humanize_transaction_type(transaction_type, direction=direction)
+        amount_text = f"{currency.upper()} {abs(amount_value):.2f}"
+        action = "received" if direction == "receive" else "sent" if direction == "send" else "completed"
+        if label == "deposit":
+            message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
+        elif label == "transfer received":
+            message = f"CyberCash: You received {amount_text} via transfer."
+        elif label == "transfer sent":
+            message = f"CyberCash: Your transfer of {amount_text} was sent successfully."
+        elif label == "withdrawal":
+            message = f"CyberCash: Your withdrawal of {amount_text} was processed successfully."
+        else:
+            message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
+        if label in {"deposit", "withdrawal", "wallet top up"}:
+            message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
+        return await self.send_to_user(user, message, subject=subject)
 
     async def send_to_user_id(
         self,

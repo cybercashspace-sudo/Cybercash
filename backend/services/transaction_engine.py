@@ -201,7 +201,13 @@ class TransactionEngine:
             await self._run_post_commit_hooks(transaction, metadata)
             
             # 7. Real-Time Notification
-            await self._send_notification(user_id, f"Transaction {normalized_type} of {amount} completed.")
+            await self._send_notification(
+                user_id,
+                f"Transaction {normalized_type} of {amount} completed.",
+                transaction_type=normalized_type,
+                amount=amount,
+                currency=wallet.currency or "GHS",
+            )
             
             return transaction
 
@@ -292,7 +298,13 @@ class TransactionEngine:
             await self._run_post_commit_hooks(transaction, metadata)
             
             # 7. Notification
-            await self._send_notification(transaction.user_id, f"Transaction {transaction.type} of {transaction.amount} confirmed.")
+            await self._send_notification(
+                transaction.user_id,
+                f"Transaction {transaction.type} of {transaction.amount} confirmed.",
+                transaction_type=transaction.type,
+                amount=transaction.amount,
+                currency=transaction.currency or "GHS",
+            )
             
             return transaction
         except Exception as e:
@@ -926,15 +938,30 @@ class TransactionEngine:
         wallet.version += 1
         self.db.add(wallet)
 
-    async def _send_notification(self, user_id: int, message: str):
+    async def _send_notification(self, user_id: int, message: str, *, transaction_type: str | None = None, amount: Decimal | float | int | str | None = None, currency: str = "GHS"):
         from backend.services.notification import NotificationService
 
-        result = await NotificationService().send_to_user_id(
-            self.db,
-            user_id,
-            message,
-            subject="Transaction update",
-        )
+        user_result = await self.db.execute(select(User).filter(User.id == user_id))
+        user = user_result.scalars().one_or_none()
+        if user is None:
+            logger.warning("Transaction email notification skipped for missing user_id=%s", user_id)
+            return
+
+        if transaction_type is not None and amount is not None:
+            result = await NotificationService().send_transaction_notification(
+                user,
+                transaction_type,
+                amount,
+                currency=currency,
+                subject="Transaction update",
+            )
+        else:
+            result = await NotificationService().send_to_user(
+                user,
+                message,
+                subject="Transaction update",
+            )
+
         if result.get("status") != "queued":
             logger.warning("Transaction email notification failed for user_id=%s: %s", user_id, result.get("detail"))
 

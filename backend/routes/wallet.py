@@ -24,6 +24,7 @@ from backend.schemas.fx import ExchangeRequest, ExchangeResponse # New Import
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.fx_service import FxService, get_fx_service # New Import
 from backend.services import loan_service
+from backend.services.notification import NotificationService
 from backend.services.reconciliation_service import verify_wallet_balance, log_wallet_audit, get_audit_logs_for_user
 from backend.core.transaction_types import TransactionType
 
@@ -506,7 +507,25 @@ async def transfer_funds(
         )
         
         await db.commit()
-        await db.refresh(sender_wallet) # Refresh sender wallet to return updated balance
+        await db.refresh(sender_wallet)
+
+        await NotificationService().send_transaction_notification(
+            current_user,
+            "transfer",
+            requested_amount,
+            currency=request.currency,
+            subject="Transfer sent",
+            direction="send",
+        )
+        await NotificationService().send_transaction_notification(
+            recipient_user,
+            "transfer",
+            requested_amount,
+            currency=request.currency,
+            subject="Transfer received",
+            direction="receive",
+        )
+
         transfer_reference = f"TRX-{int(sender_transaction.id)}"
         resolved_recipient_number = recipient_user.momo_number or recipient_user.phone_number or recipient_wallet_id
         return {

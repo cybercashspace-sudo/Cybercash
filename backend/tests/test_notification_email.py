@@ -50,3 +50,30 @@ async def test_send_to_user_does_not_fallback_to_sms_without_email(monkeypatch):
     assert result["status"] == "error"
     assert result["provider"] == "email"
     assert "valid account email" in result["detail"]
+
+
+@pytest.mark.asyncio
+async def test_send_transaction_notification_sends_for_completed_transaction(monkeypatch):
+    sends = []
+
+    async def fake_send_email(subject, recipients, body):
+        sends.append((subject, recipients, body))
+        return {"status": "queued", "provider": "email"}
+
+    monkeypatch.setattr(notification, "send_email", fake_send_email)
+    user = SimpleNamespace(id=7, email="customer@example.com")
+
+    result = await notification.NotificationService().send_transaction_notification(
+        user,
+        "deposit",
+        250.0,
+        currency="GHS",
+        subject="Transaction update",
+    )
+
+    assert result["status"] == "queued"
+    assert len(sends) == 1
+    assert sends[0][0] == "Transaction update"
+    assert "deposit" in sends[0][2].lower()
+    assert "250" in sends[0][2]
+    assert "ghs" in sends[0][2].lower()
