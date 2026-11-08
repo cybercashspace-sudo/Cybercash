@@ -103,7 +103,8 @@ def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
-    if isinstance(send_result, dict) and str(send_result.get("status", "") or "").strip().lower() == "queued":
+    status_value = str((send_result or {}).get("status", "") or "").strip().lower()
+    if status_value in {"queued", "already_sent"}:
         return
 
     detail = str((send_result or {}).get("detail", "") or "").strip()
@@ -112,6 +113,12 @@ def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
         status_code=status.HTTP_502_BAD_GATEWAY,
         detail=detail or "Unable to send OTP by email.",
     )
+
+
+def _otp_send_response_message(send_result: dict | None, fallback_message: str) -> str:
+    if isinstance(send_result, dict) and str(send_result.get("status", "") or "").strip().lower() == "already_sent":
+        return "A verification code is already active for this email. Please check your inbox."
+    return fallback_message
 
 
 def _require_account_email(user: User) -> str:
@@ -337,11 +344,12 @@ async def register_initiate(
     otp_code, send_result = await otp_service.issue_otp(
         identity_number,
         recipient_email=normalized_email,
+        allow_refresh=True,
     )
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
     return _with_debug_otp(
-        {"message": "OTP sent. Verify to complete registration."},
+        {"message": _otp_send_response_message(send_result, "OTP sent. Verify to complete registration.")},
         otp_service,
         otp_code,
     )
@@ -486,6 +494,7 @@ async def register_user(
         identity_number,
         purpose="access_verify",
         recipient_email=normalized_email,
+        allow_refresh=True,
     )
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
@@ -493,7 +502,7 @@ async def register_user(
     return _with_debug_otp(
         {
             "status": status_value,
-            "message": "Registration successful. Verify OTP.",
+            "message": _otp_send_response_message(send_result, "Registration successful. Verify OTP."),
             "first_name": first_name,
             "network": detect_network(identity_number),
         },
@@ -654,6 +663,7 @@ async def access_account(
                 user.momo_number,
                 purpose="access_verify",
                 recipient_email=_require_account_email(user),
+                allow_refresh=True,
             )
             _raise_if_otp_dispatch_failed(send_result)
             user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -663,6 +673,7 @@ async def access_account(
             return _with_debug_otp(
                 {
                     "status": "verify_required",
+                    "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
                     "first_name": _safe_first_name_from_user(user),
                     "network": detect_network(identity),
                 },
@@ -732,6 +743,7 @@ async def access_account(
         identity,
         purpose="access_verify",
         recipient_email=normalized_email,
+        allow_refresh=True,
     )
     _raise_if_otp_dispatch_failed(send_result)
     new_user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -741,7 +753,7 @@ async def access_account(
     return _with_debug_otp(
         {
             "status": "registered",
-            "message": "OTP sent. Verify to continue.",
+            "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
             "first_name": first_name,
             "network": detect_network(identity),
         },

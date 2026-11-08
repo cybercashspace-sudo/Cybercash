@@ -57,7 +57,8 @@ def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
-    if isinstance(send_result, dict) and str(send_result.get("status", "") or "").strip().lower() == "queued":
+    status_value = str((send_result or {}).get("status", "") or "").strip().lower()
+    if status_value in {"queued", "already_sent"}:
         return
 
     detail = str((send_result or {}).get("detail", "") or "").strip()
@@ -104,9 +105,16 @@ async def send_otp(
         identity,
         purpose=data.purpose.value,
         recipient_email=recipient_email,
+        allow_refresh=False,
     )
     _raise_if_otp_dispatch_failed(send_result)
-    return _with_debug_otp({"message": "OTP sent"}, otp_service, otp_code)
+    if str((send_result or {}).get("status", "") or "").strip().lower() == "already_sent":
+        return _with_debug_otp(
+            {"message": "A verification code is already active for this email. Please check your inbox."},
+            otp_service,
+            None,
+        )
+    return _with_debug_otp({"message": "OTP sent to your email. Check your inbox for the code."}, otp_service, otp_code)
 
 
 @router.post("/verify")
@@ -141,4 +149,4 @@ async def resend_otp(
         recipient_email=recipient_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
-    return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
+    return _with_debug_otp({"message": "A new verification code has been sent to your email."}, otp_service, otp_code)

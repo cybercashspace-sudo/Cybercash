@@ -20,6 +20,25 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 
+def _purpose_label(purpose: str) -> str:
+    purpose = (purpose or "verification").replace("_", " ").strip()
+    if not purpose:
+        return "verification"
+    return purpose
+
+
+def _build_otp_email_body(otp_code: str, purpose: str) -> str:
+    label = _purpose_label(purpose)
+    return (
+        "<div style='font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;'>"
+        "<p>Hello,</p>"
+        f"<p>Your CYBER CASH {label} code is <strong>{otp_code}</strong>.</p>"
+        "<p>Use this code to confirm your identity. It expires in 2 minutes.</p>"
+        "<p>For your security, never share this code with anyone.</p>"
+        "</div>"
+    )
+
+
 def _is_valid_email(value: str | None) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", str(value or "").strip()))
 
@@ -123,6 +142,7 @@ class OTPService:
         identity: str,
         purpose: str = "register",
         recipient_email: str | None = None,
+        allow_refresh: bool = False,
     ) -> tuple[str | None, dict]:
         key = self._otp_key(identity, purpose=purpose)
         email = str(recipient_email or "").strip().lower()
@@ -132,6 +152,16 @@ class OTPService:
                 "provider": "email",
                 "detail": "A valid account email is required to send an OTP.",
             }
+
+        existing_session = await self._load_session(key)
+        if existing_session and not allow_refresh:
+            existing_email = str(existing_session.get("recipient_email", "") or "").strip().lower()
+            if existing_email == email:
+                return None, {
+                    "status": "already_sent",
+                    "provider": "email",
+                    "detail": "A verification code is already active for this email. Please check your inbox or wait for it to expire before requesting another one.",
+                }
 
         otp_code = generate_otp()
         otp_hash = hash_password(otp_code)
@@ -148,7 +178,7 @@ class OTPService:
         send_result = await send_email(
             "Your CYBER CASH verification code",
             [email],
-            f"<p>Your CYBER CASH OTP is <strong>{otp_code}</strong>.</p><p>It expires in 2 minutes. Do not share it with anyone.</p>",
+            _build_otp_email_body(otp_code, purpose),
         )
         if not isinstance(send_result, dict) or str(send_result.get("status", "") or "").strip().lower() != "queued":
             await self._delete_session(key)
@@ -164,7 +194,7 @@ class OTPService:
         purpose: str = "register",
         recipient_email: str | None = None,
     ) -> tuple[str | None, dict]:
-        return await self.issue_otp(identity, purpose=purpose, recipient_email=recipient_email)
+        return await self.issue_otp(identity, purpose=purpose, recipient_email=recipient_email, allow_refresh=True)
 
     async def verify_otp(
         self,
