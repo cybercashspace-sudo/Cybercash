@@ -152,6 +152,41 @@ def test_access_account_creation_requires_and_sends_email(client, db_session, mo
     assert user.email == "new-user@example.com"
 
 
+def test_signup_requires_a_valid_email_for_otp_and_notifications(client, db_session):
+    response = client.post(
+        "/auth/register",
+        json={
+            "momo_number": "0247000100",
+            "email": "not-an-email",
+            "pin": "1234",
+            "first_name": "Jane",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "valid email" in response.json()["detail"][0]["msg"].lower()
+    assert db_session.query(User).filter(User.momo_number == "0247000100").count() == 0
+
+
+def test_email_change_is_forbidden_after_successful_signup(client, db_session, monkeypatch):
+    user = _new_user(db_session, momo_number="0247000101", email="locked@example.com")
+    user.is_verified = True
+    db_session.add(user)
+    db_session.commit()
+
+    token = create_jwt(user.id, token_version=0)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.post(
+        "/auth/email/change/request",
+        headers=headers,
+        json={"email": "replacement@example.com"},
+    )
+
+    assert response.status_code == 403
+    assert "locked" in response.json()["detail"].lower()
+
+
 def test_outbound_sms_endpoint_is_disabled(client, db_session):
     user = _new_user(db_session, momo_number="0247000095", email="sms-user@example.com")
     token = create_jwt(user.id, token_version=0)

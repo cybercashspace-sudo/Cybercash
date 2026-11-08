@@ -121,6 +121,18 @@ def _otp_send_response_message(send_result: dict | None, fallback_message: str) 
     return fallback_message
 
 
+def _normalize_valid_email(value: str | None) -> str | None:
+    email = str(value or "").strip().lower()
+    if not email:
+        return None
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid email address is required to receive OTPs and notifications.",
+        )
+    return email
+
+
 def _require_account_email(user: User) -> str:
     email = str(getattr(user, "email", "") or "").strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -258,7 +270,7 @@ async def register_initiate(
 ):
     """Primary identity = mobile number, auth credential = 4-digit PIN, verification = OTP."""
     identity_number = _normalize_identity_number(data.momo_number or data.phone_number)
-    normalized_email = str(data.email or "").strip().lower() or None
+    normalized_email = _normalize_valid_email(data.email)
     first_name = _normalize_first_name(data.first_name, data.full_name)
     _enforce_rate_limit("register_initiate", identity_number, request.client.host if request.client else None)
 
@@ -400,7 +412,7 @@ async def register_user(
     otp_service: OTPService = Depends(get_otp_service),
 ):
     identity_number = _normalize_identity_number(data.momo_number or data.phone_number)
-    normalized_email = str(data.email or "").strip().lower() or None
+    normalized_email = _normalize_valid_email(data.email)
     first_name = _normalize_first_name(data.first_name, data.full_name)
     _enforce_rate_limit("register", identity_number, request.client.host if request.client else None)
 
@@ -929,8 +941,15 @@ async def request_email_change(
     user = result.scalars().one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if bool(user.is_verified):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account email is locked after successful signup. Contact support to update it.",
+        )
 
-    email = data.email.strip().lower()
+    email = _normalize_valid_email(data.email)
+    if email is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A valid email address is required.")
     old_email = str(user.email or "").strip().lower()
     if email == old_email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This email is already on your account.")
@@ -969,8 +988,15 @@ async def verify_email_change(
     user = result.scalars().one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if bool(user.is_verified):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account email is locked after successful signup. Contact support to update it.",
+        )
 
-    email = data.email.strip().lower()
+    email = _normalize_valid_email(data.email)
+    if email is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A valid email address is required.")
     duplicate_result = await db.execute(
         select(User.id).filter(func.lower(User.email) == email, User.id != user.id)
     )
