@@ -34,12 +34,19 @@ class RegisterScreen(ResponsiveScreen):
     agent_mode = BooleanProperty(False)
     _registering = False
     _syncing_momo_input = False
-    _lookup_event = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._lookup_event = None
+        self._lookup_seq = 0
         self.hero_source = auth_asset_path("00_full_reference.png")
         self.card_art_source = auth_asset_path("03_phone_card_lock_cluster.png")
+
+    def on_leave(self, *_args):
+        if self._lookup_event is not None:
+            self._lookup_event.cancel()
+            self._lookup_event = None
+        self._lookup_seq += 1
 
     def on_pre_enter(self, *_args):
         self.agent_mode = False

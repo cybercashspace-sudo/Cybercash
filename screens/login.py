@@ -5,31 +5,45 @@ from threading import Thread
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import BooleanProperty
+from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
 from core.message_sanitizer import extract_backend_message
 from core.navigation import navigate
 from core.session import session
 from components.app_snackbar import show_app_snackbar
+from api.auth import lookup_registered_name
 from features.auth.auth_controller import AuthController
 from core.responsive_screen import ResponsiveScreen
-from utils.network import normalize_ghana_number
+from utils.network import detect_network, normalize_ghana_number
 
 
 class LoginScreen(ResponsiveScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
+    network_text = StringProperty("Network: Enter your Ghana MoMo number to detect your network.")
+    name_hint_text = StringProperty("We will confirm your saved profile name automatically if this number is already registered.")
+    detected_first_name = StringProperty("")
+    feedback_text = StringProperty("")
+    feedback_color = ColorProperty((0.74, 0.76, 0.80, 1))
     _syncing_momo_input = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AuthController()
+        self._lookup_event = None
+        self._lookup_seq = 0
+
+    def on_leave(self, *_args):
+        if self._lookup_event is not None:
+            self._lookup_event.cancel()
+            self._lookup_event = None
+        self._lookup_seq += 1
 
     def on_pre_enter(self, *_args):
         self.remember_me = True
         self.password_visible = False
-        self._set_text("", "momo_input", "pin_input")
+        self._set_text("", "momo_input", "pin_input", "first_name_input")
         self._restore_remembered_identity()
         pin_input = self.ids.get("pin_input")
         if pin_input is not None and hasattr(pin_input, "password"):
@@ -90,6 +104,8 @@ class LoginScreen(ResponsiveScreen):
                 password_field.password = not self.password_visible
 
         remember_toggle = self.ids.get("remember_toggle")
+        if remember_toggle is None:
+            remember_toggle = self.ids.get("remember_me_toggle")
         if remember_toggle is not None:
             if hasattr(remember_toggle, "checked"):
                 remember_toggle.checked = self.remember_me
@@ -108,17 +124,87 @@ class LoginScreen(ResponsiveScreen):
     def on_momo_input(self, text: str) -> None:
         if self._syncing_momo_input:
             return
-        field = self.ids.get("momo_input")
-        if field is None:
-            return
 
-        normalized = normalize_ghana_number(text)
-        if normalized and normalized != str(text or "").strip():
+        raw = str(text or "").strip()
+        field = self.ids.get("momo_input")
+        normalized = normalize_ghana_number(raw)
+        if field is not None and normalized and normalized != raw:
             try:
                 self._syncing_momo_input = True
                 field.text = normalized
             finally:
                 self._syncing_momo_input = False
+            raw = normalized
+
+        if len(normalized) != 10 or not normalized.startswith("0"):
+            if self._lookup_event is not None:
+                self._lookup_event.cancel()
+                self._lookup_event = None
+            self._lookup_seq = int(getattr(self, "_lookup_seq", 0)) + 1
+            self.detected_first_name = ""
+            self.network_text = (
+                "Network: Enter your Ghana MoMo number to detect your network."
+                if not raw
+                else "Network: Enter a valid 10-digit Ghana MoMo number."
+            )
+            if not raw:
+                self.name_hint_text = (
+                    "We will confirm your saved profile name automatically if this number is already registered."
+                )
+            return
+
+        network = detect_network(normalized)
+        network_name = network.title() if network and network != "UNKNOWN" else "Unknown"
+        self.network_text = f"Network: {network_name}"
+        self.name_hint_text = "Checking for a saved profile name..."
+        if self._lookup_event is not None:
+            self._lookup_event.cancel()
+
+        self._lookup_seq = int(getattr(self, "_lookup_seq", 0)) + 1
+        seq = self._lookup_seq
+        self._lookup_event = Clock.schedule_once(
+            lambda _dt: Thread(
+                target=self._lookup_name_worker,
+                args=(seq, normalized),
+                daemon=True,
+            ).start(),
+            0.6,
+        )
+
+    def _lookup_name_worker(self, seq: int, momo_number: str) -> None:
+        try:
+            response = lookup_registered_name(momo_number)
+        except Exception:
+            response = None
+        Clock.schedule_once(
+            lambda _dt: self._apply_lookup_response(seq, response)
+        )
+
+    def _apply_lookup_response(self, seq: int, response) -> None:
+        if seq != int(getattr(self, "_lookup_seq", 0)):
+            return
+        first_name_field = self.ids.get("first_name_input")
+        if first_name_field is None:
+            return
+        if not isinstance(response, dict):
+            self.name_hint_text = (
+                "We could not confirm the saved profile name right now. You can still continue."
+            )
+            return
+
+        first_name = str(response.get("first_name") or "").strip()
+        if response.get("registered") and first_name:
+            self.detected_first_name = first_name
+            first_name_field.text = first_name
+            self.name_hint_text = f"Saved profile name: {first_name}"
+            return
+
+        self.detected_first_name = ""
+        first_name_field.text = ""
+        self.name_hint_text = "No saved profile name was found for this number."
+
+    def submit(self):
+        self.login()
 
     def toggle_remember(self, *args):
         active = False
