@@ -28,6 +28,7 @@ class Settings:
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
     MAIL_SERVER = os.getenv("MAIL_SERVER")
     MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "CyberCash")
+    MAIL_TIMEOUT_SECONDS = max(5, min(30, int(os.getenv("MAIL_TIMEOUT_SECONDS", "15"))))
     HUBTEL_AUTH: str = os.getenv("HUBTEL_AUTH", "")
     HUBTEL_BASE_URL: str = os.getenv("HUBTEL_BASE_URL", "https://api-otp.hubtel.com")
     HUBTEL_SENDER_ID: str = os.getenv("HUBTEL_SENDER_ID", "CyberCash")

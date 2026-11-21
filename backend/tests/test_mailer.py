@@ -21,6 +21,10 @@ async def test_send_email_deduplicates_recipients(monkeypatch):
     monkeypatch.setattr(mailer.settings, "MAIL_PASSWORD", "secret")
     monkeypatch.setattr(mailer.settings, "MAIL_FROM", "sender@example.com")
     monkeypatch.setattr(mailer.settings, "MAIL_SERVER", "smtp.example.test")
+    monkeypatch.setattr(mailer.settings, "MAIL_TIMEOUT_SECONDS", 15)
+
+    config = mailer._connection_config()
+    assert config.TIMEOUT == 15
 
     result = await mailer.send_email(
         "Account notice",
@@ -67,6 +71,10 @@ async def test_send_email_does_not_log_transport_exception_details(monkeypatch, 
     monkeypatch.setattr(mailer.settings, "MAIL_PASSWORD", "secret")
     monkeypatch.setattr(mailer.settings, "MAIL_FROM", "sender@example.com")
     monkeypatch.setattr(mailer.settings, "MAIL_SERVER", "smtp.example.test")
+    monkeypatch.setattr(mailer.settings, "MAIL_TIMEOUT_SECONDS", 15)
+
+    config = mailer._connection_config()
+    assert config.TIMEOUT == 15
 
     result = await mailer.send_email("Verification", ["owner@example.com"], "Code sent by email")
 

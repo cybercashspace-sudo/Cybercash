@@ -20,6 +20,7 @@ def _connection_config() -> ConnectionConfig:
         MAIL_STARTTLS=True,
         MAIL_SSL_TLS=False,
         USE_CREDENTIALS=True,
+        TIMEOUT=settings.MAIL_TIMEOUT_SECONDS,
     )
 
 
