@@ -1,0 +1,34 @@
+# Runtime dependencies for the Render API service. Keep desktop/Kivy packages
+# in the repository-level requirements.txt for the desktop application only.
+fastapi
+uvicorn[standard]
+
+# Database
+sqlalchemy[asyncio]
+psycopg2-binary
+asyncpg
+alembic
+aiosqlite
+
+# Auth and validation
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+Werkzeug
+google-auth
+email-validator
+python-multipart
+
+# Email and configuration
+fastapi-mail
+aiosmtplib
+python-dotenv
+
+# HTTP, notifications, and background services
+httpx
+requests
+websocket-client
+redis
+twilio
+python-dateutil
+orjson
