@@ -23,6 +23,10 @@ services:
         sync: false
       - key: MAIL_SERVER
         sync: false
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
       - key: MNOTIFY_API_KEY
         sync: false
       - key: HUBTEL_AUTH

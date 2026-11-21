@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -35,6 +36,32 @@ async def test_send_to_users_sends_once_per_unique_email(monkeypatch):
         "person@example.com",
         "other@example.com",
     }
+
+
+@pytest.mark.asyncio
+async def test_send_to_users_delivers_concurrently_with_a_bounded_limit(monkeypatch):
+    active_sends = 0
+    maximum_active_sends = 0
+
+    async def fake_send_email(subject, recipients, body):
+        nonlocal active_sends, maximum_active_sends
+        active_sends += 1
+        maximum_active_sends = max(maximum_active_sends, active_sends)
+        await asyncio.sleep(0.01)
+        active_sends -= 1
+        return {"status": "queued", "provider": "email"}
+
+    monkeypatch.setattr(notification, "send_email", fake_send_email)
+    users = [
+        SimpleNamespace(id=index, email=f"person{index}@example.com")
+        for index in range(12)
+    ]
+
+    result = await notification.NotificationService().send_to_users(users, "Notice")
+
+    assert result["status"] == "queued"
+    assert result["sent_count"] == len(users)
+    assert maximum_active_sends == notification._EMAIL_NOTIFICATION_CONCURRENCY
 
 
 @pytest.mark.asyncio

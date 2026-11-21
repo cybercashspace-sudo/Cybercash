@@ -1,3 +1,4 @@
+import asyncio
 import html
 import logging
 import re
@@ -13,6 +14,7 @@ from backend.models.user import User
 
 
 logger = logging.getLogger(__name__)
+_EMAIL_NOTIFICATION_CONCURRENCY = 5
 
 
 def _humanize_transaction_type(value: str | None, *, direction: str | None = None) -> str:
@@ -130,10 +132,25 @@ class NotificationService:
                 "detail": "No valid account email recipients.",
             }
 
-        results = [
-            await self.send_to_user(user, message, subject=subject)
-            for user in unique_users.values()
-        ]
+        semaphore = asyncio.Semaphore(_EMAIL_NOTIFICATION_CONCURRENCY)
+
+        async def send_one(user: User) -> dict:
+            try:
+                async with semaphore:
+                    return await self.send_to_user(user, message, subject=subject)
+            except Exception as exc:
+                logger.warning(
+                    "Email notification failed for user_id=%s (error_type=%s)",
+                    getattr(user, "id", "unknown"),
+                    type(exc).__name__,
+                )
+                return {
+                    "status": "error",
+                    "provider": "email",
+                    "detail": "Email delivery failed.",
+                }
+
+        results = await asyncio.gather(*(send_one(user) for user in unique_users.values()))
         queued = sum(result.get("status") == "queued" for result in results)
         failed = len(results) - queued
         return {
