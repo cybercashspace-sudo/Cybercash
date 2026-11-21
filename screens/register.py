@@ -32,13 +32,14 @@ class RegisterScreen(ResponsiveScreen):
     brand_tagline = StringProperty("YOUR MONEY. YOUR GOAL. YOUR WORLD.")
     pin_visible = BooleanProperty(False)
     agent_mode = BooleanProperty(False)
-    _registering = False
-    _syncing_momo_input = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._lookup_event = None
         self._lookup_seq = 0
+        self._registering = False
+        self._register_generation = 0
+        self._syncing_momo_input = False
         self.hero_source = auth_asset_path("00_full_reference.png")
         self.card_art_source = auth_asset_path("03_phone_card_lock_cluster.png")
 
@@ -47,6 +48,8 @@ class RegisterScreen(ResponsiveScreen):
             self._lookup_event.cancel()
             self._lookup_event = None
         self._lookup_seq += 1
+        self._register_generation += 1
+        self._registering = False
 
     def on_pre_enter(self, *_args):
         self.agent_mode = False
@@ -202,21 +205,42 @@ class RegisterScreen(ResponsiveScreen):
         self._set_feedback("Creating your agent account..." if agent_mode else "Creating your account...", "info")
 
         self._registering = True
+        self._register_generation += 1
+        generation = self._register_generation
 
         threading.Thread(
             target=self._register_account_worker,
-            args=(momo, email, pin, agent_mode, first_name),
+            args=(momo, email, pin, agent_mode, first_name, generation),
             daemon=True,
         ).start()
 
-    def _register_account_worker(self, momo: str, email: str, pin: str, agent_mode: bool, first_name: str):
+    def _register_account_worker(
+        self,
+        momo: str,
+        email: str,
+        pin: str,
+        agent_mode: bool,
+        first_name: str,
+        generation: int,
+    ):
         try:
             response = register(momo, email, pin, agent_mode, first_name=first_name)
         except Exception:
             response = {"detail": "Registration failed. Please check your connection and try again."}
-        Clock.schedule_once(lambda _dt: self._apply_register_response(momo, email, first_name, response))
+        Clock.schedule_once(
+            lambda _dt: self._apply_register_response(momo, email, first_name, response, generation)
+        )
 
-    def _apply_register_response(self, momo: str, email: str, first_name: str, response: dict):
+    def _apply_register_response(
+        self,
+        momo: str,
+        email: str,
+        first_name: str,
+        response: dict,
+        generation: int | None = None,
+    ):
+        if generation != self._register_generation:
+            return
         self._registering = False
         app = MDApp.get_running_app()
 

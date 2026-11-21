@@ -346,11 +346,6 @@ KV = """
 
 class OTPScreen(ResponsiveScreen):
     content_max_width = 430.0
-    momo_number = None
-    countdown = 120
-    timer_event = None
-    _verifying = False
-    _resending = False
 
     timer_text = StringProperty("You can request a new OTP in 120s")
     can_resend = BooleanProperty(False)
@@ -362,6 +357,13 @@ class OTPScreen(ResponsiveScreen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.momo_number = None
+        self.countdown = 120
+        self.timer_event = None
+        self._verifying = False
+        self._resending = False
+        self._active = False
+        self._screen_generation = 0
         self.hero_source = asset_path("cybercash_logo.png")
         self.card_art_source = asset_path("cybercash_icon.png")
 
@@ -396,7 +398,9 @@ class OTPScreen(ResponsiveScreen):
     def _extract_detail(response: dict) -> str:
         return extract_backend_message(response)
 
-    def on_enter(self):
+    def on_enter(self, *_args):
+        self._active = True
+        self._screen_generation += 1
         if self.momo_number:
             self.ids.momo_input.text = self.momo_number
             self._set_feedback(
@@ -407,7 +411,11 @@ class OTPScreen(ResponsiveScreen):
             self._set_feedback(DEFAULT_OTP_FEEDBACK_TEXT, "info")
         self.start_timer()
 
-    def on_leave(self):
+    def on_leave(self, *_args):
+        self._active = False
+        self._screen_generation += 1
+        self._verifying = False
+        self._resending = False
         if self.timer_event:
             self.timer_event.cancel()
             self.timer_event = None
@@ -453,16 +461,22 @@ class OTPScreen(ResponsiveScreen):
         self._set_feedback("Verifying OTP...", "info")
         self._verifying = True
 
-        threading.Thread(target=self._verify_worker, args=(momo, otp), daemon=True).start()
+        threading.Thread(
+            target=self._verify_worker,
+            args=(momo, otp, self._screen_generation),
+            daemon=True,
+        ).start()
 
-    def _verify_worker(self, momo: str, otp: str):
+    def _verify_worker(self, momo: str, otp: str, generation: int):
         try:
             response = verify_account(momo, otp)
         except Exception as exc:
             response = {"detail": str(exc) or "Verification failed."}
-        Clock.schedule_once(lambda _dt: self._apply_verify_response(response))
+        Clock.schedule_once(lambda _dt: self._apply_verify_response(response, generation))
 
-    def _apply_verify_response(self, response: dict):
+    def _apply_verify_response(self, response: dict, generation: int | None = None):
+        if not self._active or generation != self._screen_generation:
+            return
         self._verifying = False
         app = MDApp.get_running_app()
 
@@ -500,16 +514,22 @@ class OTPScreen(ResponsiveScreen):
 
         self._set_feedback("Resending OTP...", "info")
         self._resending = True
-        threading.Thread(target=self._resend_worker, args=(momo,), daemon=True).start()
+        threading.Thread(
+            target=self._resend_worker,
+            args=(momo, self._screen_generation),
+            daemon=True,
+        ).start()
 
-    def _resend_worker(self, momo: str):
+    def _resend_worker(self, momo: str, generation: int):
         try:
             response = resend_otp(momo)
         except Exception as exc:
             response = {"detail": str(exc) or "Unable to resend OTP right now."}
-        Clock.schedule_once(lambda _dt: self._apply_resend_response(response))
+        Clock.schedule_once(lambda _dt: self._apply_resend_response(response, generation))
 
-    def _apply_resend_response(self, response: dict):
+    def _apply_resend_response(self, response: dict, generation: int | None = None):
+        if not self._active or generation != self._screen_generation:
+            return
         self._resending = False
         if not isinstance(response, dict) or response.get("detail"):
             error_message = self._extract_detail(response) or "Unable to resend OTP right now."

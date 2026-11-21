@@ -1,8 +1,8 @@
 import json
 import logging
 import os
-import random
 import re
+import secrets
 import time
 from typing import Optional
 
@@ -17,14 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def generate_otp():
-    return str(random.randint(100000, 999999))
+    return str(secrets.randbelow(900000) + 100000)
 
 
 def _purpose_label(purpose: str) -> str:
-    purpose = (purpose or "verification").replace("_", " ").strip()
-    if not purpose:
-        return "verification"
-    return purpose
+    labels = {
+        "access_verify": "account verification",
+        "change_email": "email change",
+        "register": "account registration",
+        "reset_pin": "PIN reset",
+    }
+    normalized = str(purpose or "").strip().lower()
+    return labels.get(normalized, "verification")
 
 
 def _build_otp_email_body(otp_code: str, purpose: str) -> str:
@@ -33,8 +37,8 @@ def _build_otp_email_body(otp_code: str, purpose: str) -> str:
         "<div style='font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;'>"
         "<p>Hello,</p>"
         f"<p>Your CYBER CASH {label} code is <strong>{otp_code}</strong>.</p>"
-        "<p>Use this code to confirm your identity. It expires in 2 minutes.</p>"
-        "<p>For your security, never share this code with anyone.</p>"
+        "<p>Enter this code in the app within 2 minutes to continue.</p>"
+        "<p>Never share this code with anyone, including Cyber Cash staff. If you did not request it, you can ignore this email.</p>"
         "</div>"
     )
 
@@ -108,10 +112,10 @@ class OTPService:
             return
         except RedisConnectionError:
             log_fn = logger.warning if self.is_production else logger.info
-            log_fn("Redis unavailable for OTP session save; using in-memory fallback for %s", key)
+            log_fn("Redis unavailable for OTP session save; using in-memory fallback.")
         except Exception as exc:
             log_fn = logger.warning if self.is_production else logger.info
-            log_fn("OTP session save fallback for %s after redis error: %s", key, exc)
+            log_fn("OTP session save fallback after Redis error (error_type=%s).", type(exc).__name__)
         self._memory_store[key] = (serialized, time.time() + self.ttl_seconds)
 
     async def _load_session(self, key: str) -> Optional[dict]:
@@ -122,11 +126,11 @@ class OTPService:
         except RedisConnectionError:
             raw_value = self._memory_get(key)
             log_fn = logger.warning if self.is_production else logger.info
-            log_fn("Redis unavailable for OTP session load; using in-memory fallback for %s", key)
+            log_fn("Redis unavailable for OTP session load; using in-memory fallback.")
         except Exception as exc:
             raw_value = self._memory_get(key)
             log_fn = logger.warning if self.is_production else logger.info
-            log_fn("OTP session load fallback for %s after redis error: %s", key, exc)
+            log_fn("OTP session load fallback after Redis error (error_type=%s).", type(exc).__name__)
         return self._deserialize_session(raw_value)
 
     async def _delete_session(self, key: str) -> None:

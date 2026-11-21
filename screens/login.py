@@ -26,13 +26,13 @@ class LoginScreen(ResponsiveScreen):
     detected_first_name = StringProperty("")
     feedback_text = StringProperty("")
     feedback_color = ColorProperty((0.74, 0.76, 0.80, 1))
-    _syncing_momo_input = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AuthController()
         self._lookup_event = None
         self._lookup_seq = 0
+        self._syncing_momo_input = False
 
     def on_leave(self, *_args):
         if self._lookup_event is not None:

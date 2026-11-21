@@ -5,9 +5,14 @@ from kivy.properties import StringProperty, BooleanProperty
 from kivymd.app import MDApp
 from core.responsive_screen import ResponsiveScreen
 from core.popup_manager import show_message_dialog
+from core.message_sanitizer import extract_backend_message
 from api.auth import request_reset_pin_otp, reset_pin
+from utils.network import normalize_ghana_number
 
 KV = """
+#:import dp kivy.metrics.dp
+#:set BG (0.03, 0.04, 0.06, 1)
+#:set GOLD (0.94, 0.79, 0.46, 1)
 <ResetPinScreen>:
     MDBoxLayout:
         orientation: "vertical"
@@ -40,7 +45,7 @@ KV = """
 
         MDTextField:
             id: otp_input
-            hint_text: "OTP from SMS"
+            hint_text: "OTP from email"
             mode: "rectangle"
             opacity: 1 if root.otp_sent else 0
 
@@ -85,14 +90,21 @@ class ResetPinScreen(ResponsiveScreen):
     otp_sent = BooleanProperty(False)
     timer_text = StringProperty("Request Reset OTP")
     can_resend = BooleanProperty(True)
-    countdown = 60
-    timer_event = None
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.countdown = 60
         self.timer_event = None
+        self._active = False
+        self._request_generation = 0
+
+    def on_enter(self, *_args):
+        self._active = True
+        self._request_generation += 1
 
     def on_leave(self, *_args):
+        self._active = False
+        self._request_generation += 1
+        self.processing = False
         if self.timer_event is not None:
             self.timer_event.cancel()
             self.timer_event = None
@@ -117,44 +129,86 @@ class ResetPinScreen(ResponsiveScreen):
         return True
 
     def request_otp(self):
-        momo = self.ids.momo_input.text.strip()
-        if not momo: return
+        if self.processing:
+            return
+        momo = normalize_ghana_number(self.ids.momo_input.text.strip())
+        if not momo or len(momo) != 10 or not momo.startswith("0"):
+            show_message_dialog(self, "Check your number", "Enter the 10-digit MoMo number linked to your account.")
+            return
+
+        self.ids.momo_input.text = momo
         self.processing = True
-        self.start_timer()
+        generation = self._request_generation
+
         def _worker():
-            response = request_reset_pin_otp(momo)
-            Clock.schedule_once(lambda dt: self._on_otp_result(response))
+            try:
+                response = request_reset_pin_otp(momo)
+            except Exception:
+                response = {"ok": False, "data": {"detail": "We could not reach the service. Check your connection and try again."}}
+            Clock.schedule_once(lambda dt: self._on_otp_result(response, generation))
+
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_otp_result(self, response):
+    def _on_otp_result(self, response, generation: int | None = None):
+        if not self._active or generation != self._request_generation:
+            return
         self.processing = False
         ok = bool(response.get("ok")) if isinstance(response, dict) else False
         if ok:
             self.otp_sent = True
-            show_message_dialog(self, "OTP Sent", "Check your email inbox for the reset code.")
+            self.start_timer()
+            show_message_dialog(self, "Check your email", "We sent a PIN reset code to the email saved on your account.")
         else:
-            detail = str(response.get("detail") or response.get("message") or "") if isinstance(response, dict) else ""
+            payload = response.get("data", response) if isinstance(response, dict) else response
+            detail = extract_backend_message(
+                payload,
+                fallback="We could not send the reset code. Check the number and saved email, then try again.",
+            )
             show_message_dialog(
                 self,
-                "Error",
-                detail or "Could not request reset. Check the number and saved email address.",
+                "Reset code not sent",
+                detail,
             )
 
     def submit_reset(self):
-        momo = self.ids.momo_input.text.strip()
+        if self.processing:
+            return
+        momo = normalize_ghana_number(self.ids.momo_input.text.strip())
         otp = self.ids.otp_input.text.strip()
         new_pin = self.ids.new_pin_input.text.strip()
+        if not momo or len(momo) != 10 or not momo.startswith("0"):
+            show_message_dialog(self, "Check your number", "Enter the 10-digit MoMo number linked to your account.")
+            return
+        if len(otp) != 6 or not otp.isdigit():
+            show_message_dialog(self, "Check the code", "Enter the 6-digit code sent to your email.")
+            return
+        if len(new_pin) != 4 or not new_pin.isdigit():
+            show_message_dialog(self, "Check your new PIN", "Your new PIN must contain exactly 4 digits.")
+            return
+
         self.processing = True
+        generation = self._request_generation
+
         def _worker():
-            response = reset_pin(momo, otp, new_pin)
-            ok = bool(response.get("ok")) if isinstance(response, dict) else False
-            Clock.schedule_once(lambda dt: self._on_reset_finish(ok))
+            try:
+                response = reset_pin(momo, otp, new_pin)
+            except Exception:
+                response = {"ok": False, "data": {"detail": "We could not reach the service. Check your connection and try again."}}
+            Clock.schedule_once(lambda dt: self._on_reset_finish(response, generation))
+
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_reset_finish(self, ok):
+    def _on_reset_finish(self, response, generation: int | None = None):
+        if not self._active or generation != self._request_generation:
+            return
         self.processing = False
-        if ok:
+        if isinstance(response, dict) and response.get("ok"):
             show_message_dialog(self, "Success", "PIN reset successfully. You can now login.", 
                                 on_close=lambda: MDApp.get_running_app().go_to_screen("login"))
+            return
+
+        payload = response.get("data", response) if isinstance(response, dict) else response
+        detail = extract_backend_message(payload, fallback="We could not reset your PIN. Check the code and try again.")
+        show_message_dialog(self, "PIN not changed", detail)
 
 Builder.load_string(KV)

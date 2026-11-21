@@ -49,7 +49,12 @@ async def send_email(subject: str, recipients: List[EmailStr], body: str) -> dic
 
         fm = FastMail(_connection_config())
         await fm.send_message(message)
-        return {"status": "queued", "provider": "email", "recipients": recipient_list}
+        return {"status": "queued", "provider": "email"}
     except Exception as exc:
-        logger.exception("Email delivery failed (subject=%s, recipient_count=%s)", subject, len(recipient_list))
+        logger.warning(
+            "Email delivery failed (subject=%s, recipient_count=%s, error_type=%s)",
+            subject,
+            len(recipient_list),
+            type(exc).__name__,
+        )
         return {"status": "error", "provider": "email", "detail": "Email delivery failed."}

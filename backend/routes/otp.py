@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -50,12 +49,6 @@ def _enforce_rate_limit(action: str, identity: str, ip_address: str | None = Non
     _RATE_LIMIT_STATE[key] = attempts
 
 
-def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None) -> dict:
-    if otp_code and str(os.getenv("RUNNING_TESTS", "")).strip().lower() == "true":
-        payload["debug_otp"] = str(otp_code)
-    return payload
-
-
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
     status_value = str((send_result or {}).get("status", "") or "").strip().lower()
     if status_value in {"queued", "already_sent"}:
@@ -101,7 +94,7 @@ async def send_otp(
     _enforce_rate_limit("otp_send", identity, request.client.host if request.client else None)
     recipient_email = await _resolve_recipient_email(db, identity, data.purpose.value, data.email)
 
-    otp_code, send_result = await otp_service.issue_otp(
+    _, send_result = await otp_service.issue_otp(
         identity,
         purpose=data.purpose.value,
         recipient_email=recipient_email,
@@ -109,12 +102,8 @@ async def send_otp(
     )
     _raise_if_otp_dispatch_failed(send_result)
     if str((send_result or {}).get("status", "") or "").strip().lower() == "already_sent":
-        return _with_debug_otp(
-            {"message": "A verification code is already active for this email. Please check your inbox."},
-            otp_service,
-            None,
-        )
-    return _with_debug_otp({"message": "OTP sent"}, otp_service, otp_code)
+        return {"message": "A verification code is already active. Please check your email inbox."}
+    return {"message": "OTP sent to the email saved on your account."}
 
 
 @router.post("/verify")
@@ -143,10 +132,10 @@ async def resend_otp(
     _enforce_rate_limit("otp_resend", identity, request.client.host if request.client else None)
     recipient_email = await _resolve_recipient_email(db, identity, data.purpose.value, data.email)
 
-    otp_code, send_result = await otp_service.resend_otp(
+    _, send_result = await otp_service.resend_otp(
         identity,
         purpose=data.purpose.value,
         recipient_email=recipient_email,
     )
     _raise_if_otp_dispatch_failed(send_result)
-    return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
+    return {"message": "A new OTP was sent to the email saved on your account."}

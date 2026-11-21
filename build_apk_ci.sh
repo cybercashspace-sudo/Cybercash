@@ -276,12 +276,19 @@ for artifact in sys.argv[1:]:
         failures.append(f"{artifact}: unable to inspect assets/private.tar: {exc}")
         continue
 
-    missing = [module for module in ("main", "kivy_app") if not has_module(names, module)]
+    required_modules = ("main", "kivy_app", "screens.login", "screens.register", "screens.otp", "screens.reset_pin")
+    missing = [module for module in required_modules if not has_module(names, module)]
     if missing:
         failures.append(f"{artifact}: missing Android app module(s): {', '.join(missing)}")
         continue
 
-    print(f"Verified Android private app modules in {artifact}: main, kivy_app")
+    required_layouts = ("screens/login.kv", "screens/register.kv")
+    missing_layouts = [layout for layout in required_layouts if not any(name.endswith(layout) for name in names)]
+    if missing_layouts:
+        failures.append(f"{artifact}: missing auth layout(s): {', '.join(missing_layouts)}")
+        continue
+
+    print(f"Verified auth app modules and layouts in {artifact}: {', '.join(required_modules)}, {', '.join(required_layouts)}")
 
 if failures:
     print("Android artifact validation failed:", file=sys.stderr)

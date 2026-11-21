@@ -18,7 +18,6 @@ os.environ.setdefault("SDL_JOYSTICK_HIDAPI", "0")
 os.environ.setdefault("SDL_HINT_JOYSTICK_HIDAPI", "0")
 
 from kivy.clock import Clock
-from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivy.uix.screenmanager import FadeTransition, ScreenManager
 from kivymd.app import MDApp
@@ -195,7 +194,6 @@ class CyberCashApp(MDApp):
     _startup_complete = False
     _startup_attempts = 0
     _startup_request_event = None
-    _startup_layouts_loaded = False
 
     def apply_theme_palette(self, palette: dict) -> None:
         self.theme_mode = str(palette.get("mode", "Dark"))
@@ -234,7 +232,6 @@ class CyberCashApp(MDApp):
     def on_start(self) -> None:
         # Kick off startup routing only after the first frame has been scheduled.
         self.request_startup_route()
-        Clock.schedule_once(self._load_startup_layouts, 0.10)
 
     def request_startup_route(self, delay: float | None = None) -> None:
         if self._startup_complete:
@@ -750,18 +747,6 @@ class CyberCashApp(MDApp):
         logger.warning("Wallet Refresh Failed")
         self.reset_session_state(clear_wallet_state=False)
         self.go_to_screen("login")
-
-    def _load_startup_layouts(self, *_args) -> None:
-        if self._startup_layouts_loaded:
-            return
-        login_kv = Path(__file__).resolve().parent / "screens" / "login.kv"
-        if not login_kv.exists():
-            return
-        try:
-            Builder.load_file(str(login_kv))
-            self._startup_layouts_loaded = True
-        except Exception:
-            logger.exception("Failed to load login layout during startup")
 
     def build(self):
         self.theme_cls.theme_style = "Dark"

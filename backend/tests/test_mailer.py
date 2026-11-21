@@ -29,6 +29,7 @@ async def test_send_email_deduplicates_recipients(monkeypatch):
     )
 
     assert result["status"] == "queued"
+    assert "recipients" not in result
     assert len(sent) == 1
     assert [parseaddr(str(address))[1] for address in sent[0].recipients] == [
         "person@example.com",
@@ -50,3 +51,26 @@ async def test_send_email_fails_closed_when_smtp_is_unconfigured(monkeypatch):
         "provider": "email",
         "detail": "Email delivery is not configured.",
     }
+
+
+@pytest.mark.asyncio
+async def test_send_email_does_not_log_transport_exception_details(monkeypatch, caplog):
+    class FailingFastMail:
+        def __init__(self, config):
+            pass
+
+        async def send_message(self, message):
+            raise RuntimeError("recipient=owner@example.com password=mail-secret otp=123456")
+
+    monkeypatch.setattr(mailer, "FastMail", FailingFastMail)
+    monkeypatch.setattr(mailer.settings, "MAIL_USERNAME", "sender@example.com")
+    monkeypatch.setattr(mailer.settings, "MAIL_PASSWORD", "secret")
+    monkeypatch.setattr(mailer.settings, "MAIL_FROM", "sender@example.com")
+    monkeypatch.setattr(mailer.settings, "MAIL_SERVER", "smtp.example.test")
+
+    result = await mailer.send_email("Verification", ["owner@example.com"], "Code sent by email")
+
+    assert result == {"status": "error", "provider": "email", "detail": "Email delivery failed."}
+    assert "owner@example.com" not in caplog.text
+    assert "mail-secret" not in caplog.text
+    assert "123456" not in caplog.text

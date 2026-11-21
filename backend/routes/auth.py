@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
@@ -93,13 +92,6 @@ def _safe_first_name_from_user(user: User | None) -> str:
     if not full_name:
         return ""
     return full_name.split()[0].strip()
-
-
-def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None) -> dict:
-    test_mode = str(os.getenv("RUNNING_TESTS", "")).strip().lower() == "true"
-    if otp_code and test_mode:
-        payload["debug_otp"] = str(otp_code)
-    return payload
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
@@ -353,18 +345,14 @@ async def register_initiate(
                 )
                 db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(
+    _, send_result = await otp_service.issue_otp(
         identity_number,
         recipient_email=normalized_email,
         allow_refresh=True,
     )
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
-    return _with_debug_otp(
-        {"message": _otp_send_response_message(send_result, "OTP sent. Verify to complete registration.")},
-        otp_service,
-        otp_code,
-    )
+    return {"message": _otp_send_response_message(send_result, "OTP sent. Verify to complete registration.")}
 
 
 @router.post("/register/verify", response_model=UserResponse)
@@ -502,7 +490,7 @@ async def register_user(
                 )
                 db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(
+    _, send_result = await otp_service.issue_otp(
         identity_number,
         purpose="access_verify",
         recipient_email=normalized_email,
@@ -511,16 +499,12 @@ async def register_user(
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
 
-    return _with_debug_otp(
-        {
-            "status": status_value,
-            "message": _otp_send_response_message(send_result, "Registration successful. Verify OTP."),
-            "first_name": first_name,
-            "network": detect_network(identity_number),
-        },
-        otp_service,
-        otp_code,
-    )
+    return {
+        "status": status_value,
+        "message": _otp_send_response_message(send_result, "Registration successful. Verify OTP."),
+        "first_name": first_name,
+        "network": detect_network(identity_number),
+    }
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -671,7 +655,7 @@ async def access_account(
             user.first_login_fingerprint = incoming_fingerprint
 
         if not user.is_verified:
-            otp_code, send_result = await otp_service.issue_otp(
+            _, send_result = await otp_service.issue_otp(
                 user.momo_number,
                 purpose="access_verify",
                 recipient_email=_require_account_email(user),
@@ -682,16 +666,12 @@ async def access_account(
             user.last_login_ip = request.client.host if request.client else None
             db.add(user)
             await db.commit()
-            return _with_debug_otp(
-                {
-                    "status": "verify_required",
-                    "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
-                    "first_name": _safe_first_name_from_user(user),
-                    "network": detect_network(identity),
-                },
-                otp_service,
-                otp_code,
-            )
+            return {
+                "status": "verify_required",
+                "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
+                "first_name": _safe_first_name_from_user(user),
+                "network": detect_network(identity),
+            }
 
         if user.is_agent and str(user.status or "").lower() in {"pending_kyc", "pending", "pending_kyc_review"}:
             return {
@@ -751,7 +731,7 @@ async def access_account(
     # Point 1: Check for existing wallet before creation to prevent balance fragmentation
     if not await db.scalar(select(Wallet).filter(Wallet.user_id == new_user.id)):
         db.add(Wallet(user_id=new_user.id, currency="GHS", balance=0.0))
-    otp_code, send_result = await otp_service.issue_otp(
+    _, send_result = await otp_service.issue_otp(
         identity,
         purpose="access_verify",
         recipient_email=normalized_email,
@@ -762,16 +742,12 @@ async def access_account(
     new_user.last_login_ip = request.client.host if request.client else None
     db.add(new_user)
     await db.commit()
-    return _with_debug_otp(
-        {
-            "status": "registered",
-            "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
-            "first_name": first_name,
-            "network": detect_network(identity),
-        },
-        otp_service,
-        otp_code,
-    )
+    return {
+        "status": "registered",
+        "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
+        "first_name": first_name,
+        "network": detect_network(identity),
+    }
 
 
 @router.post("/lookup-name", response_model=LookupNameResponse)
@@ -861,14 +837,20 @@ async def verify_account(
 
 
 @router.post("/resend-otp")
-async def resend(data: ResendSchema, db: AsyncSession = Depends(get_db), otp_service: OTPService = Depends(get_otp_service)):
+async def resend(
+    data: ResendSchema,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    otp_service: OTPService = Depends(get_otp_service),
+):
     identity = _normalize_identity_number(data.momo_number)
+    _enforce_rate_limit("resend_otp", identity, request.client.host if request.client else None)
     result = await db.execute(select(User).filter(User.momo_number == identity))
     user = result.scalars().first()
     if not user:
         raise HTTPException(404, "Account not found")
 
-    otp_code, send_result = await otp_service.resend_otp(
+    _, send_result = await otp_service.resend_otp(
         user.momo_number,
         purpose="access_verify",
         recipient_email=_require_account_email(user),
@@ -877,7 +859,7 @@ async def resend(data: ResendSchema, db: AsyncSession = Depends(get_db), otp_ser
     user.otp_expires_at = _now_utc() + timedelta(minutes=2)
     db.add(user)
     await db.commit()
-    return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
+    return {"message": "OTP resent"}
 
 
 @router.post("/change-pin")
@@ -1061,13 +1043,13 @@ async def request_reset_pin_otp(
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="Account not found")
-    otp_code, send_result = await otp_service.issue_otp(
+    _, send_result = await otp_service.issue_otp(
         identity,
         purpose="reset_pin",
         recipient_email=_require_account_email(user),
     )
     _raise_if_otp_dispatch_failed(send_result)
-    return _with_debug_otp({"message": "OTP sent."}, otp_service, otp_code)
+    return {"message": "OTP sent to the email saved on your account."}
 
 
 @router.post("/reset-pin")

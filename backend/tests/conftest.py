@@ -74,6 +74,28 @@ def isolate_test_data():
 
 
 @pytest.fixture(autouse=True)
+def isolate_otp_sessions():
+    from backend.services import otp_service
+
+    class OfflineRedis:
+        async def get(self, key):
+            raise otp_service.RedisConnectionError("Redis unavailable in isolated tests")
+
+        async def set(self, key, value, ex):
+            raise otp_service.RedisConnectionError("Redis unavailable in isolated tests")
+
+        async def delete(self, key):
+            raise otp_service.RedisConnectionError("Redis unavailable in isolated tests")
+
+    otp_service._otp_service = otp_service.OTPService()
+    service = otp_service.get_otp_service()
+    service.redis = OfflineRedis()
+    yield
+    service._memory_store.clear()
+    service.redis = None
+
+
+@pytest.fixture(autouse=True)
 def seed_standard_ledger_accounts(isolate_test_data):
     async def _seed() -> None:
         async with async_session() as session:
@@ -143,7 +165,8 @@ def db_session_fixture():
 
 
 @pytest.fixture(name="client")
-def client_fixture():
+def client_fixture(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("RUNNING_TESTS", "true")
     with TestClient(app) as test_client:
         yield test_client
 

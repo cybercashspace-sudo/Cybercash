@@ -95,7 +95,29 @@ def test_active_otp_is_not_emailed_twice_for_same_account(client, db_session, mo
     assert first.status_code == 200
     assert second.status_code == 200
     assert len(sent) == 1
-    assert second.json()["message"] == "A verification code is already active for this email. Please check your inbox."
+    assert second.json()["message"] == "A verification code is already active. Please check your email inbox."
+
+
+def test_auth_resend_otp_rate_limits_duplicate_email_delivery(client, db_session, monkeypatch):
+    user = _new_user(db_session, momo_number="0247000090", email="owner@example.com")
+    sent = []
+
+    async def fake_send_email(subject, recipients, body):
+        sent.append(recipients)
+        return {"status": "queued", "provider": "email"}
+
+    monkeypatch.setattr(auth_routes, "_RATE_LIMIT_STATE", {})
+    monkeypatch.setattr(otp_module, "send_email", fake_send_email)
+
+    responses = [
+        client.post("/auth/resend-otp", json={"momo_number": user.momo_number})
+        for _ in range(6)
+    ]
+
+    assert all(response.status_code == 200 for response in responses[:5])
+    assert responses[5].status_code == 429
+    assert len(sent) == 5
+    assert all("debug_otp" not in response.json() for response in responses)
 
 
 def test_registration_never_returns_otp_code_outside_test_mode(client, monkeypatch):
