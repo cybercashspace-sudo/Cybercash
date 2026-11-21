@@ -261,7 +261,9 @@ import zipfile
 
 
 def has_module(names, module_name):
-    suffixes = (f"{module_name}.py", f"{module_name}.pyc")
+    # private.tar stores package paths with slashes (screens/login.py).
+    path_module = module_name.replace(".", "/")
+    suffixes = (f"{module_name}.py", f"{module_name}.pyc", f"{path_module}.py", f"{path_module}.pyc")
     return any(name.endswith(suffixes) for name in names)
 
 
