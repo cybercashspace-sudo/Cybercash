@@ -1,16 +1,6 @@
 import os
 import logging
 import asyncio
-from dotenv import load_dotenv
-
-_backend_dir = os.path.dirname(os.path.abspath(__file__))
-_root_dir = os.path.dirname(_backend_dir)
-
-# Load shared values first, then let backend/.env win for backend credentials.
-root_dotenv_path = os.path.join(_root_dir, ".env")
-backend_dotenv_path = os.path.join(_backend_dir, ".env")
-load_dotenv(root_dotenv_path)
-load_dotenv(backend_dotenv_path, override=True)
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
