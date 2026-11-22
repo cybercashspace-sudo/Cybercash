@@ -187,6 +187,7 @@ async def purchase_airtime(
             await notification_service.send_sms(
                 normalized_phone or request.phone,
                 f"CyberCash: Airtime purchase successful. {transaction.currency} {request.amount:.2f} on {network}.",
+                idempotency_key=f"airtime-success:{transaction.id}",
             )
             return transaction
 
@@ -321,7 +322,11 @@ async def confirm_airtime_cash_transfer(
                 "Manual review is required before payout."
             )
         normalized_sale_phone = normalize_ghana_number(sale.phone)
-        await notification_service.send_sms(normalized_sale_phone or sale.phone, note)
+        await notification_service.send_sms(
+            normalized_sale_phone or sale.phone,
+            note,
+            idempotency_key=f"airtime-cash-submitted:{sale.id}",
+        )
         return sale
     finally:
         await db.close()
@@ -396,6 +401,7 @@ async def receive_airtime_cash_sms(
                     normalized_matched_phone or matched_sale.phone,
                     f"CyberCash: Airtime received for {matched_sale.currency} {matched_sale.amount:.2f}. "
                     "Manual review is required before payout.",
+                    idempotency_key=f"airtime-cash-review:{matched_sale.id}",
                 )
             else:
                 matched_sale.status = "verified"
@@ -415,7 +421,11 @@ async def receive_airtime_cash_sms(
                         "CyberCash: Payout failed. Please contact support or try again."
                     )
                 normalized_matched_phone = normalize_ghana_number(matched_sale.phone)
-                await notification_service.send_sms(normalized_matched_phone or matched_sale.phone, payout_text)
+                await notification_service.send_sms(
+                    normalized_matched_phone or matched_sale.phone,
+                    payout_text,
+                    idempotency_key=f"airtime-cash-payout:{matched_sale.id}",
+                )
 
         await db.commit()
         return {"status": "ok", "matched_sale_id": matched_sale.id if matched_sale else None}

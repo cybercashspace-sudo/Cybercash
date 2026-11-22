@@ -52,6 +52,7 @@ class NotificationService:
         message: str,
         *,
         subject: str = "CyberCash account notification",
+        idempotency_key: str | None = None,
     ) -> dict:
         email = str(getattr(user, "email", "") or "").strip().lower()
         if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -61,7 +62,12 @@ class NotificationService:
                 "provider": "email",
                 "detail": "A valid account email is required for notifications.",
             }
-        result = await send_email(subject, [email], f"<p>{html.escape(str(message))}</p>")
+        result = await send_email(
+            subject,
+            [email],
+            f"<p>{html.escape(str(message))}</p>",
+            idempotency_key=idempotency_key,
+        )
         if result.get("status") != "queued":
             logger.warning(
                 "Email notification failed for user_id=%s: %s",
@@ -162,7 +168,14 @@ class NotificationService:
             "failed_count": failed,
         }
 
-    async def send_sms(self, phone: str, message: str, sms_type: str | None = None) -> dict:
+    async def send_sms(
+        self,
+        phone: str,
+        message: str,
+        sms_type: str | None = None,
+        *,
+        idempotency_key: str | None = None,
+    ) -> dict:
         normalized_phone = str(phone or "").strip()
         if not normalized_phone:
             return {"status": "error", "provider": "email", "detail": "Account phone number is required."}
@@ -173,7 +186,12 @@ class NotificationService:
             user = result.scalars().first()
             if not user:
                 return {"status": "error", "provider": "email", "detail": "No CyberCash account matches this notification."}
-            return await self.send_to_user(user, message, subject="CyberCash account notification")
+            return await self.send_to_user(
+                user,
+                message,
+                subject="CyberCash account notification",
+                idempotency_key=idempotency_key,
+            )
 
     async def send_bulk_sms(self, *args, **kwargs) -> dict:
         return {

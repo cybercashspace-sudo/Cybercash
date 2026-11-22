@@ -393,7 +393,11 @@ async def purchase_data_as_agent(
         await db.commit()
 
         if bool(getattr(settings, "IDATA_SEND_SMS", False)):
-            await notification_service.send_sms(phone, "CyberCash: Your data bundle has been delivered successfully.")
+            await notification_service.send_sms(
+                phone,
+                "CyberCash: Your data bundle has been delivered successfully.",
+                idempotency_key=f"data-order-delivered:{data_order.id}",
+            )
 
         # Refresh response models.
         result = await db.execute(select(DataOrder).filter(DataOrder.id == data_order.id))

@@ -1,6 +1,7 @@
 import logging
 import re
 import asyncio
+import hashlib
 from email.utils import formataddr
 import uuid
 from typing import List
@@ -16,7 +17,12 @@ _RESEND_API_URL = "https://api.resend.com/emails"
 _RESEND_MAX_ATTEMPTS = 2
 
 
-async def _send_with_resend(subject: str, recipients: list[str], body: str) -> dict:
+async def _send_with_resend(
+    subject: str,
+    recipients: list[str],
+    body: str,
+    idempotency_key: str | None = None,
+) -> dict:
     sender_email = str(settings.MAIL_FROM or "").strip()
     sender_name = str(settings.MAIL_FROM_NAME or "CyberCash").strip()
     sender = formataddr((sender_name, sender_email)) if sender_name else sender_email
@@ -26,11 +32,17 @@ async def _send_with_resend(subject: str, recipients: list[str], body: str) -> d
         "subject": subject,
         "html": body,
     }
-    # Reuse one key across retries so a timeout cannot create duplicate messages.
+    # Hash event identifiers before sending them to the provider; keys are stable
+    # across retries without exposing account or transaction identifiers.
+    event_key = (
+        "cybercash-" + hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        if idempotency_key
+        else str(uuid.uuid4())
+    )
     headers = {
         "Authorization": f"Bearer {settings.RESEND_API_KEY}",
         "Content-Type": "application/json",
-        "Idempotency-Key": str(uuid.uuid4()),
+        "Idempotency-Key": event_key,
     }
     # Keep the user-facing OTP request bounded even when the provider is slow.
     timeout = httpx.Timeout(min(settings.MAIL_TIMEOUT_SECONDS, 5))
@@ -75,7 +87,13 @@ def _connection_config() -> ConnectionConfig:
     )
 
 
-async def send_email(subject: str, recipients: List[EmailStr], body: str) -> dict:
+async def send_email(
+    subject: str,
+    recipients: List[EmailStr],
+    body: str,
+    *,
+    idempotency_key: str | None = None,
+) -> dict:
     recipient_list = []
     seen = set()
     for recipient in recipients:
@@ -100,7 +118,7 @@ async def send_email(subject: str, recipients: List[EmailStr], body: str) -> dic
 
     if provider in {"auto", "resend"} and resend_configured:
         try:
-            return await _send_with_resend(subject, recipient_list, body)
+            return await _send_with_resend(subject, recipient_list, body, idempotency_key)
         except Exception as exc:
             logger.warning("Email provider request failed (error_type=%s)", type(exc).__name__)
             return {"status": "error", "provider": "email", "detail": "Email is temporarily unavailable. Please try again shortly."}

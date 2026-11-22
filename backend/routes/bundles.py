@@ -300,11 +300,13 @@ async def purchase_data_bundle(
                     await notification_service.send_sms(
                         phone,
                         "CyberCash: Your data bundle has been delivered successfully.",
+                        idempotency_key=f"bundle-success:{transaction.id}",
                     )
             else:
                 await notification_service.send_sms(
                     phone,
                     f"CyberCash: Data bundle purchase successful. {transaction.currency} {amount:.2f} on {bundle.network}.",
+                    idempotency_key=f"bundle-success:{transaction.id}",
                 )
 
             return transaction
