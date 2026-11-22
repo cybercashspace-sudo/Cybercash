@@ -10,7 +10,7 @@ from core.message_sanitizer import extract_backend_message
 from core.navigation import navigate
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
-from storage import save_token
+from core.session import session
 from utils.network import normalize_ghana_number
 
 DEFAULT_OTP_FEEDBACK_TEXT = "Enter the 6-digit OTP we sent to your email to complete secure access."
@@ -210,6 +210,8 @@ class OTPScreen(ResponsiveScreen):
         self._resend_inflight_generation = None
         self._active = False
         self._screen_generation = 0
+        self._dashboard_route_event = None
+        self._dashboard_route_attempts = 0
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
@@ -221,8 +223,14 @@ class OTPScreen(ResponsiveScreen):
         self.feedback_text = str(message or "").strip()
         self.feedback_color = palette.get(level, palette["info"])
 
-    def _show_popup(self, title: str, message: str, on_close=None):
-        show_message_dialog(self, title=title, message=message, close_label="Close", on_close=on_close)
+    def _show_popup(self, title: str, message: str, on_close=None, close_label: str = "Close"):
+        show_message_dialog(
+            self,
+            title=title,
+            message=message,
+            close_label=close_label,
+            on_close=on_close,
+        )
 
     def _go_home(self):
         app = MDApp.get_running_app()
@@ -231,12 +239,30 @@ class OTPScreen(ResponsiveScreen):
         if pending_action == "deposit":
             app.wallet_entry_action = "deposit"
             if go_to_screen and go_to_screen("deposit", fallback="wallet"):
-                return
+                self._dashboard_route_attempts = 0
+                return True
         if go_to_screen:
-            go_to_screen("home", fallback="login", transition_style="fade")
-            return
-        if self.manager:
-            navigate(self.manager, "home", fallback="login", transition_style="fade")
+            routed = bool(go_to_screen("home", fallback="", transition_style="fade"))
+        elif self.manager:
+            routed = bool(navigate(self.manager, "home", fallback="", transition_style="fade"))
+        else:
+            routed = False
+
+        if routed:
+            self._dashboard_route_attempts = 0
+            return True
+
+        # Navigation may still be completing the OTP screen transition. Retry
+        # briefly instead of leaving a verified user stranded on the OTP page.
+        if self._active and self._dashboard_route_attempts < 8 and self._dashboard_route_event is None:
+            self._dashboard_route_attempts += 1
+            self._dashboard_route_event = Clock.schedule_once(self._retry_dashboard_route, 0.18)
+        return False
+
+    def _retry_dashboard_route(self, _dt) -> None:
+        self._dashboard_route_event = None
+        if self._active:
+            self._go_home()
 
     @staticmethod
     def _extract_detail(response: dict) -> str:
@@ -258,6 +284,10 @@ class OTPScreen(ResponsiveScreen):
     def on_leave(self, *_args):
         self._active = False
         self._screen_generation += 1
+        if self._dashboard_route_event is not None:
+            self._dashboard_route_event.cancel()
+            self._dashboard_route_event = None
+        self._dashboard_route_attempts = 0
         if self.timer_event:
             self.timer_event.cancel()
             self.timer_event = None
@@ -339,16 +369,32 @@ class OTPScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
 
         if isinstance(response, dict) and str(response.get("status", "")).strip().lower() == "verified":
-            token = str(response.get("access_token", "") or "")
+            token = str(response.get("access_token", "") or "").strip()
+            if not token:
+                error_message = "Your account was verified, but sign-in could not be completed. Please sign in to continue."
+                self._set_feedback(error_message, "error")
+                self._show_popup("Verification Complete", error_message)
+                return
+
             first_name = str(response.get("first_name", "") or "").strip()
-            save_token(token)
+            user_payload = response.get("user") if isinstance(response.get("user"), dict) else {}
+            if first_name and not user_payload.get("first_name"):
+                user_payload = {**user_payload, "first_name": first_name}
+            # Clear any previous account's cached expiry/profile before adopting
+            # this newly authenticated token, so session state cannot disagree.
+            session.clear_auth()
+            session.start_session(token, user=user_payload or None)
             app.access_token = token
             app.pending_momo = ""
             app.user_name = first_name or getattr(app, "user_name", "Cyber Cash User")
+            app_state = getattr(app, "app_state", None)
+            if app_state is not None and user_payload:
+                app_state.set_user(user_payload)
             self._set_feedback("Verification successful.", "success")
             self._show_popup(
                 "Verification Successful",
-                "Your account is verified and ready to use.",
+                "Your account is verified and ready. Continue to your dashboard.",
+                close_label="Continue",
                 on_close=lambda gen=generation: self._continue_after_verification(gen),
             )
             return

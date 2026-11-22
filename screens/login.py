@@ -36,6 +36,9 @@ class LoginScreen(ResponsiveScreen):
         self._login_inflight = False
         self._active = False
         self._syncing_momo_input = False
+        self._navigation_retry_event = None
+        self._navigation_retry_target = ""
+        self._navigation_retry_attempts = 0
 
     def on_leave(self, *_args):
         if self._lookup_event is not None:
@@ -44,6 +47,11 @@ class LoginScreen(ResponsiveScreen):
         self._lookup_seq += 1
         self._active = False
         self._login_generation += 1
+        if self._navigation_retry_event is not None:
+            self._navigation_retry_event.cancel()
+            self._navigation_retry_event = None
+        self._navigation_retry_target = ""
+        self._navigation_retry_attempts = 0
         self._set_loading(False)
         self._set_text("", "pin_input")
         parent_on_leave = getattr(super(), "on_leave", None)
@@ -339,7 +347,8 @@ class LoginScreen(ResponsiveScreen):
                         target_screen = "admin_dashboard"
                     elif bool(getattr(app, "is_agent_active", False)):
                         target_screen = "agent_dashboard"
-                self._go_to_screen(target_screen, fallback="login")
+                if not self._go_to_screen(target_screen, fallback=""):
+                    self._schedule_authenticated_navigation(target_screen)
                 return
 
             detail = extract_backend_message(
@@ -375,13 +384,36 @@ class LoginScreen(ResponsiveScreen):
     def _go_to_screen(self, screen_name: str, fallback: str = "login") -> bool:
         app = MDApp.get_running_app()
         if app is not None and hasattr(app, "go_to_screen"):
-            app.go_to_screen(screen_name, fallback=fallback)
-            return True
+            return bool(app.go_to_screen(screen_name, fallback=fallback))
 
         if self.manager is not None and self.manager.has_screen(screen_name):
             return navigate(self.manager, screen_name, fallback=fallback, transition_style="fade")
 
         return False
+
+    def _schedule_authenticated_navigation(self, target: str) -> None:
+        self._navigation_retry_target = str(target or "home").strip() or "home"
+        if self._navigation_retry_event is None and self._active:
+            self._navigation_retry_event = Clock.schedule_once(self._retry_authenticated_navigation, 0.18)
+
+    def _retry_authenticated_navigation(self, _dt) -> None:
+        self._navigation_retry_event = None
+        target = self._navigation_retry_target
+        if not self._active or not target:
+            return
+        if self._go_to_screen(target, fallback=""):
+            self._navigation_retry_target = ""
+            self._navigation_retry_attempts = 0
+            return
+
+        self._navigation_retry_attempts += 1
+        if self._navigation_retry_attempts < 8:
+            self._navigation_retry_event = Clock.schedule_once(self._retry_authenticated_navigation, 0.18)
+            return
+
+        self._navigation_retry_target = ""
+        self._navigation_retry_attempts = 0
+        self.show_message("You are signed in, but the dashboard did not open. Please tap Sign In to continue.")
 
     def forgot_password(self):
         if self._go_to_screen("reset_pin", fallback="login"):

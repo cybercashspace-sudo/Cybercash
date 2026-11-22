@@ -98,6 +98,8 @@ class ResetPinScreen(ResponsiveScreen):
         self._request_generation = 0
         self._request_inflight = False
         self._request_inflight_generation = None
+        self._login_route_event = None
+        self._login_route_attempts = 0
 
     def on_enter(self, *_args):
         self._active = True
@@ -107,6 +109,10 @@ class ResetPinScreen(ResponsiveScreen):
     def on_leave(self, *_args):
         self._active = False
         self._request_generation += 1
+        if self._login_route_event is not None:
+            self._login_route_event.cancel()
+            self._login_route_event = None
+        self._login_route_attempts = 0
         if self.timer_event is not None:
             self.timer_event.cancel()
             self.timer_event = None
@@ -142,7 +148,11 @@ class ResetPinScreen(ResponsiveScreen):
             return
         momo = normalize_ghana_number(self.ids.momo_input.text.strip())
         if not momo or len(momo) != 10 or not momo.startswith("0"):
-            show_message_dialog(self, "Check your number", "Enter the 10-digit MoMo number linked to your account.")
+            show_message_dialog(
+                self,
+                title="Check your number",
+                message="Enter the 10-digit MoMo number linked to your account.",
+            )
             return
 
         self.ids.momo_input.text = momo
@@ -174,7 +184,11 @@ class ResetPinScreen(ResponsiveScreen):
         if ok:
             self.otp_sent = True
             self.start_timer()
-            show_message_dialog(self, "Check your email", "We sent a PIN reset code to the email saved on your account.")
+            show_message_dialog(
+                self,
+                title="Check your email",
+                message="We sent a PIN reset code to the email saved on your account.",
+            )
         else:
             payload = response.get("data", response) if isinstance(response, dict) else response
             detail = extract_backend_message(
@@ -183,8 +197,8 @@ class ResetPinScreen(ResponsiveScreen):
             )
             show_message_dialog(
                 self,
-                "Reset code not sent",
-                detail,
+                title="Reset code not sent",
+                message=detail,
             )
 
     def submit_reset(self):
@@ -194,13 +208,25 @@ class ResetPinScreen(ResponsiveScreen):
         otp = self.ids.otp_input.text.strip()
         new_pin = self.ids.new_pin_input.text.strip()
         if not momo or len(momo) != 10 or not momo.startswith("0"):
-            show_message_dialog(self, "Check your number", "Enter the 10-digit MoMo number linked to your account.")
+            show_message_dialog(
+                self,
+                title="Check your number",
+                message="Enter the 10-digit MoMo number linked to your account.",
+            )
             return
         if len(otp) != 6 or not otp.isdigit():
-            show_message_dialog(self, "Check the code", "Enter the 6-digit code sent to your email.")
+            show_message_dialog(
+                self,
+                title="Check the code",
+                message="Enter the 6-digit code sent to your email.",
+            )
             return
         if len(new_pin) != 4 or not new_pin.isdigit():
-            show_message_dialog(self, "Check your new PIN", "Your new PIN must contain exactly 4 digits.")
+            show_message_dialog(
+                self,
+                title="Check your new PIN",
+                message="Your new PIN must contain exactly 4 digits.",
+            )
             return
 
         self.processing = True
@@ -228,13 +254,17 @@ class ResetPinScreen(ResponsiveScreen):
         self._request_inflight_generation = None
         self.processing = False
         if isinstance(response, dict) and response.get("ok"):
-            show_message_dialog(self, "Success", "PIN reset successfully. You can now login.", 
-                                on_close=lambda gen=generation: self._continue_to_login(gen))
+            show_message_dialog(
+                self,
+                title="Success",
+                message="PIN reset successfully. You can now sign in with your new PIN.",
+                on_close=lambda gen=generation: self._continue_to_login(gen),
+            )
             return
 
         payload = response.get("data", response) if isinstance(response, dict) else response
         detail = extract_backend_message(payload, fallback="We could not reset your PIN. Check the code and try again.")
-        show_message_dialog(self, "PIN not changed", detail)
+        show_message_dialog(self, title="PIN not changed", message=detail)
 
     def _continue_to_login(self, generation: int) -> None:
         if not self._active or generation != self._request_generation:
@@ -242,10 +272,20 @@ class ResetPinScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         go_to_screen = getattr(app, "go_to_screen", None)
         if callable(go_to_screen):
-            go_to_screen("login", fallback="", transition_style="fade")
+            routed = bool(go_to_screen("login", fallback="", transition_style="fade"))
         elif self.manager:
             from core.navigation import navigate
 
-            navigate(self.manager, "login", fallback="", transition_style="fade")
+            routed = bool(navigate(self.manager, "login", fallback="", transition_style="fade"))
+        else:
+            routed = False
+
+        if not routed and self._active and self._login_route_attempts < 8 and self._login_route_event is None:
+            self._login_route_attempts += 1
+            self._login_route_event = Clock.schedule_once(self._retry_login_route, 0.18)
+
+    def _retry_login_route(self, _dt) -> None:
+        self._login_route_event = None
+        self._continue_to_login(self._request_generation)
 
 Builder.load_string(KV)
