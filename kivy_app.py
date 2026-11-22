@@ -96,7 +96,7 @@ SCREEN_SPECS = {
     "register": ("screens.register", "RegisterScreen"),
     "otp": ("screens.otp", "OTPScreen"),
     "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
-    "home": ("screens.home_screen", "HomeScreen"),
+    "home": ("screens.dashboard", "DashboardScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
     "deposit": ("features.deposit.deposit_screen", "DepositScreen"),
     "withdraw": ("features.withdrawal.withdrawal_screen", "WithdrawalScreen"),

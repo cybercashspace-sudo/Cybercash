@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from screens.home import HomeScreen as _LegacyHomeScreen
+from screens.dashboard import DashboardScreen as HomeScreen
 
-
-class HomeScreen(_LegacyHomeScreen):
-    """Compatibility wrapper for the dashboard screen."""
+"""Compatibility import for the restored APK dashboard."""
 
