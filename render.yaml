@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: cybercash-backend
+    name: Cyber Cash
     runtime: python
     plan: free
     buildCommand: pip install -r backend/requirements.txt
