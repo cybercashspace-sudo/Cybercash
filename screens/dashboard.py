@@ -682,6 +682,7 @@ class DashboardScreen(MDScreen):
     balance_hidden = BooleanProperty(False)
     balance_display = StringProperty("GHS —")
     is_agent_valid = BooleanProperty(False)
+    is_admin_user = BooleanProperty(False)
     def __init__(self, **kwargs):
         self._refresh_event = None
         self._is_loading = False
@@ -716,6 +717,7 @@ class DashboardScreen(MDScreen):
 
     def on_pre_enter(self):
         self._refresh_responsive_metrics()
+        self.is_admin_user = self._has_admin_access()
         self.load_dashboard_data()
 
     def on_enter(self):
@@ -1239,6 +1241,17 @@ class DashboardScreen(MDScreen):
             return True
         return False
 
+    @staticmethod
+    def _has_admin_access() -> bool:
+        app = MDApp.get_running_app()
+        if app is None:
+            return False
+        checker = getattr(app, "_is_admin_account", None)
+        if callable(checker):
+            return bool(checker())
+        role = str(getattr(app, "user_role", "") or "").strip().lower()
+        return bool(getattr(app, "is_admin", False)) or role in {"admin", "super_admin"}
+
     def go_to_wallet(self):
         self._go_to_screen("wallet")
 
@@ -1581,6 +1594,7 @@ class DashboardScreen(MDScreen):
         self._close_more_actions_dialog()
 
         app = MDApp.get_running_app()
+        self.is_admin_user = self._has_admin_access()
         layout_scale = float(self.layout_scale or 1.0)
         text_scale = float(self.text_scale or 1.0)
         icon_scale = float(self.icon_scale or 1.0)
@@ -1746,6 +1760,17 @@ class DashboardScreen(MDScreen):
             [0.20, 0.23, 0.28, 0.62],
             _open_agent_flow,
         )
+
+        if self.is_admin_user:
+            add_action_card(
+                "Admin Dashboard",
+                "Open administrator tools",
+                "shield-account",
+                list(app.gold),
+                list(app.ui_surface),
+                [0.53, 0.41, 0.23, 0.58],
+                lambda: self._navigate_more_action("admin_dashboard"),
+            )
 
         menu_content.add_widget(grid)
 

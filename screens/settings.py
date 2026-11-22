@@ -6,7 +6,6 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
-from kivy.uix.behaviors import ButtonBehavior
 
 from api.auth import logout
 from api.client import api_client
@@ -167,13 +166,6 @@ KV = """
                     on_release: root.open_section("About")
 
                 SettingsItem:
-                    id: admin_card
-                    text: "Admin Dashboard"
-                    secondary: "System metrics & management"
-                    icon: "shield-crown-outline"
-                    on_release: root.confirm_open_admin_dashboard()
-
-                SettingsItem:
                     text: "Logout"
                     secondary: "Secure session logout"
                     icon: "logout-variant"
@@ -214,7 +206,7 @@ KV = """
             inactive_color: app.ui_text_secondary
 """
 
-class SettingsItem(ButtonBehavior, GlassCard):
+class SettingsItem(GlassCard):
     text = StringProperty()
     secondary = StringProperty()
     icon = StringProperty()
@@ -224,26 +216,8 @@ class SettingsScreen(ActionScreen):
     is_admin_gate = BooleanProperty(False)
     role_badge = StringProperty("USER MODE")
 
-    _admin_card = None
-    _admin_card_parent = None
-    _admin_card_parent_index = None
-
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
-        admin_proxy = self.ids.get("admin_card")
-        self._admin_card = None
-        if admin_proxy is not None:
-            try:
-                self._admin_card = admin_proxy.__ref__() if hasattr(admin_proxy, "__ref__") else admin_proxy
-            except ReferenceError:
-                self._admin_card = None
-        if self._admin_card is not None:
-            self._admin_card_parent = self._admin_card.parent
-            if self._admin_card_parent is not None:
-                try:
-                    self._admin_card_parent_index = self._admin_card_parent.children.index(self._admin_card)
-                except Exception:
-                    self._admin_card_parent_index = None
         self.refresh_admin_gate()
 
     def on_pre_enter(self):
@@ -255,29 +229,10 @@ class SettingsScreen(ActionScreen):
     def _show_popup(self, title: str, message: str, on_close=None):
         show_message_dialog(self, title=title, message=message, close_label="Close", on_close=on_close)
 
-    def _set_admin_card_visible(self, visible: bool) -> None:
-        # The new layout doesn't use the admin card directly, 
-        # but we could add an Admin SettingsItem if needed.
-        if self._admin_card is None or self._admin_card_parent is None:
-            return
-        if visible:
-            if self._admin_card.parent is None:
-                if self._admin_card_parent_index is None:
-                    self._admin_card_parent.add_widget(self._admin_card)
-                else:
-                    self._admin_card_parent.add_widget(self._admin_card, index=int(self._admin_card_parent_index))
-        else:
-            if self._admin_card.parent is not None:
-                try:
-                    self._admin_card_parent.remove_widget(self._admin_card)
-                except Exception:
-                    pass
-
     def refresh_admin_gate(self) -> None:
         app = MDApp.get_running_app()
         self.is_admin_gate = bool(getattr(app, "is_admin", False))
         self.role_badge = "ADMIN MODE" if self.is_admin_gate else "USER MODE"
-        self._set_admin_card_visible(self.is_admin_gate)
 
     def open_section(self, section_name: str):
         """Handles navigation to specific settings sub-sections/dialogs."""
@@ -466,39 +421,6 @@ class SettingsScreen(ActionScreen):
 
         self._set_feedback("Settings saved successfully.", "success")
         self._show_popup("Settings Saved", "Your settings have been updated successfully.")
-
-    def confirm_open_admin_dashboard(self):
-        if not self.is_admin_gate:
-            self._show_popup("Admin Only", "Admin tools are restricted to accounts with role='admin'.")
-            return
-        show_confirm_dialog(
-            self,
-            title="Open Admin Dashboard",
-            message="This will open the admin dashboard. You must be signed in with an admin account.",
-            confirm_label="Open Admin",
-            cancel_label="Cancel",
-            on_confirm=self.open_admin_dashboard,
-        )
-
-    def open_admin_dashboard(self):
-        app = MDApp.get_running_app()
-        network_manager = getattr(app, "network_manager", None)
-        healthy = True
-        if network_manager is not None and hasattr(network_manager, "probe"):
-            healthy = bool(network_manager.probe())
-        else:
-            health = api_client.request("GET", "/", headers=None, timeout=3)
-            healthy = bool(health.get("ok"))
-        if not healthy:
-            self._show_popup(
-                "Start Backend First",
-                "Admin tools need the backend running first.\n\nTip: run start_all.ps1 from the project root.",
-            )
-            return
-        if hasattr(app, "go_to_screen"):
-            app.go_to_screen("admin_dashboard")
-        elif self.manager:
-            navigate(self.manager, "admin_dashboard", fallback="settings", transition_style="fade")
 
     def open_change_pin_help(self):
         self._show_popup(

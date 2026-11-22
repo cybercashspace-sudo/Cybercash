@@ -7,6 +7,7 @@ from kivy.core.clipboard import Clipboard
 from kivy.lang import Builder
 from kivy.metrics import dp
 from kivy.properties import StringProperty
+from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 
@@ -572,6 +573,15 @@ class AdminDashboardScreen(ActionScreen):
         self._binance_loading = False
 
     def on_pre_enter(self):
+        app = MDApp.get_running_app()
+        consume_entry = getattr(app, "consume_admin_dashboard_entry", None)
+        if not callable(consume_entry) or not consume_entry():
+            if app is not None and hasattr(app, "go_to_screen"):
+                app.go_to_screen("home" if getattr(app, "access_token", "") else "login", fallback="login")
+            elif self.manager:
+                self.manager.current = "login"
+            return
+
         self._active = True
         self._screen_generation += 1
         self.load_dashboard()

@@ -315,15 +315,20 @@ class CyberCashApp(MDApp):
         target = str(screen_name or "").strip()
         if not target:
             return False
+        self._admin_dashboard_entry_authorized = False
 
         # Centralized Role-Based Access Control (RBAC)
-        if target.startswith("admin_") and not self.is_admin:
+        if target.startswith("admin_") and not self._is_admin_account():
             logger.warning("RBAC Security: Access to restricted screen '%s' denied for non-admin user.", target)
             target = "home" if self.access_token else "login"
 
         sm = getattr(self, "root", None)
+        current = str(getattr(sm, "current", "") or "").strip() if sm is not None else ""
+        if target == "admin_dashboard" and current != "home":
+            logger.warning("RBAC Security: Admin dashboard can only be opened from the user dashboard.")
+            target = "home" if self.access_token else "login"
+
         if sm is not None:
-            current = str(getattr(sm, "current", "") or "").strip()
             if current == target:
                 return True
             if getattr(sm, "_cybercash_nav_busy", False):
@@ -331,14 +336,19 @@ class CyberCashApp(MDApp):
                 return pending == target
 
         if sm and self.ensure_screen(target):
+            if target == "admin_dashboard":
+                self._admin_dashboard_entry_authorized = True
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
-            return navigate(
+            routed = navigate(
                 sm,
                 target,
                 previous=previous,
                 fallback=fallback,
                 transition_style=transition_style,
             )
+            if not routed:
+                self._admin_dashboard_entry_authorized = False
+            return routed
         if sm and fallback and self.ensure_screen(fallback):
             previous = str(getattr(sm, "previous_screen", "") or "").strip()
             return navigate(sm, fallback, previous=previous, fallback="", transition_style="fade")
@@ -400,6 +410,7 @@ class CyberCashApp(MDApp):
 
     def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
         self.stop_background_services()
+        self._admin_dashboard_entry_authorized = False
         self._last_connectivity_state = None
         self.access_token = ""
         self.pending_momo = ""
@@ -500,12 +511,21 @@ class CyberCashApp(MDApp):
             self.go_to_screen(self.get_authenticated_target(), fallback="login")
 
     def get_authenticated_target(self) -> str:
+        if self._is_admin_account():
+            return "home"
         role = str(getattr(self, "user_role", "") or "").strip().lower()
-        if bool(getattr(self, "is_admin", False)) or role in {"admin", "super_admin"}:
-            return "admin_dashboard"
         if bool(getattr(self, "is_agent_active", False)) or role == "agent":
             return "agent_dashboard"
         return "home"
+
+    def _is_admin_account(self) -> bool:
+        role = str(getattr(self, "user_role", "") or "").strip().lower()
+        return bool(getattr(self, "is_admin", False)) or role in {"admin", "super_admin"}
+
+    def consume_admin_dashboard_entry(self) -> bool:
+        authorized = bool(getattr(self, "_admin_dashboard_entry_authorized", False))
+        self._admin_dashboard_entry_authorized = False
+        return authorized and self._is_admin_account()
 
     def complete_startup(self, *_args) -> bool:
         sm = getattr(self, "root", None)
@@ -783,6 +803,7 @@ class CyberCashApp(MDApp):
         self._startup_complete = False
         self._startup_attempts = 0
         self._startup_request_event = None
+        self._admin_dashboard_entry_authorized = False
         self.app_state.set_screen("splash", "")
 
         # Load and apply initial Privacy Mode state
