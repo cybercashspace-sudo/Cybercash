@@ -6,6 +6,7 @@ from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
 
 from api.auth import resend_otp, verify_account
+from components.app_snackbar import show_app_snackbar
 from core.message_sanitizer import extract_backend_message
 from core.navigation import navigate
 from core.popup_manager import show_message_dialog
@@ -373,7 +374,12 @@ class OTPScreen(ResponsiveScreen):
             if not token:
                 error_message = "Your account was verified, but sign-in could not be completed. Please sign in to continue."
                 self._set_feedback(error_message, "error")
-                self._show_popup("Verification Complete", error_message)
+                self._show_popup(
+                    "Verification Complete",
+                    error_message,
+                    close_label="Go to Sign In",
+                    on_close=self._go_to_login,
+                )
                 return
 
             first_name = str(response.get("first_name", "") or "").strip()
@@ -390,23 +396,25 @@ class OTPScreen(ResponsiveScreen):
             app_state = getattr(app, "app_state", None)
             if app_state is not None and user_payload:
                 app_state.set_user(user_payload)
-            self._set_feedback("Verification successful.", "success")
-            self._show_popup(
-                "Verification Successful",
-                "Your account is verified and ready. Continue to your dashboard.",
-                close_label="Continue",
-                on_close=lambda gen=generation: self._continue_after_verification(gen),
-            )
+            self._set_feedback("Verification successful. Opening your dashboard…", "success")
+            self._go_home()
+            try:
+                show_app_snackbar("Your account is verified. Welcome to CyberCash.", level="success")
+            except Exception:
+                pass
             return
 
         error_message = self._extract_detail(response) or "Verification failed."
         self._set_feedback(error_message, "error")
         self._show_popup("Verification Failed", error_message)
 
-    def _continue_after_verification(self, generation: int) -> None:
-        if not self._active or generation != self._screen_generation:
-            return
-        self._go_home()
+    def _go_to_login(self, *_args) -> None:
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if callable(go_to_screen):
+            go_to_screen("login", fallback="", transition_style="fade")
+        elif self.manager:
+            navigate(self.manager, "login", fallback="", transition_style="fade")
 
     def resend(self):
         if self._resending:

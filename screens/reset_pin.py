@@ -105,6 +105,8 @@ class ResetPinScreen(ResponsiveScreen):
         self._active = True
         self._request_generation += 1
         self.processing = self._request_inflight
+        if self.otp_sent and not self.can_resend and self.timer_event is None:
+            self.timer_event = Clock.schedule_interval(self.update_timer, 1)
 
     def on_leave(self, *_args):
         self._active = False
