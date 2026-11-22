@@ -756,8 +756,11 @@ class AgentScreen(ResponsiveScreen):
     def on_pre_enter(self):
         self.load_transactions()
 
-    def on_leave(self):
+    def on_leave(self, *_args):
         self._close_more_actions_dialog()
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def toggle_balance(self):
         self.balance_hidden = not self.balance_hidden

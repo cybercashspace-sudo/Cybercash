@@ -85,21 +85,23 @@ def smooth_switch_screen(
     _cancel_restore_event(manager)
     manager._cybercash_nav_busy = True
     manager._cybercash_pending_target = target
-    manager.transition = _build_transition(style, duration)
+    transition = _build_transition(style, duration)
+    manager.transition = transition
+    transition_duration = max(0.0, float(getattr(transition, "duration", 0.0) or 0.0))
 
     try:
         manager.current = target
     except Exception:
         manager._cybercash_nav_busy = False
         manager._cybercash_pending_target = ""
-        manager.transition = _default_transition(duration)
+        manager.transition = _default_transition()
         return False
 
     def _restore_default(_dt):
         manager._cybercash_nav_busy = False
         manager._cybercash_pending_target = ""
-        manager.transition = _default_transition(duration)
+        manager.transition = _default_transition()
         manager._cybercash_restore_event = None
 
-    manager._cybercash_restore_event = Clock.schedule_once(_restore_default, duration + 0.02)
+    manager._cybercash_restore_event = Clock.schedule_once(_restore_default, transition_duration + 0.02)
     return True

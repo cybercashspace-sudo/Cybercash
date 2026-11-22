@@ -39,6 +39,7 @@ class RegisterScreen(ResponsiveScreen):
         self._lookup_seq = 0
         self._registering = False
         self._register_generation = 0
+        self._register_inflight_generation = None
         self._syncing_momo_input = False
         self.hero_source = auth_asset_path("00_full_reference.png")
         self.card_art_source = auth_asset_path("03_phone_card_lock_cluster.png")
@@ -49,7 +50,12 @@ class RegisterScreen(ResponsiveScreen):
             self._lookup_event = None
         self._lookup_seq += 1
         self._register_generation += 1
-        self._registering = False
+        pin_input = self.ids.get("pin_input")
+        if pin_input is not None:
+            pin_input.text = ""
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def on_pre_enter(self, *_args):
         self.agent_mode = False
@@ -144,7 +150,10 @@ class RegisterScreen(ResponsiveScreen):
         )
 
     def _lookup_name_worker(self, seq: int, momo: str):
-        response = lookup_registered_name(momo)
+        try:
+            response = lookup_registered_name(momo)
+        except Exception:
+            response = None
         Clock.schedule_once(lambda _dt: self._apply_lookup_response(seq, momo, response))
 
     def _apply_lookup_response(self, seq: int, momo: str, response: dict):
@@ -207,6 +216,7 @@ class RegisterScreen(ResponsiveScreen):
         self._registering = True
         self._register_generation += 1
         generation = self._register_generation
+        self._register_inflight_generation = generation
 
         threading.Thread(
             target=self._register_account_worker,
@@ -240,8 +250,12 @@ class RegisterScreen(ResponsiveScreen):
         generation: int | None = None,
     ):
         if generation != self._register_generation:
+            if generation == self._register_inflight_generation:
+                self._registering = False
+                self._register_inflight_generation = None
             return
         self._registering = False
+        self._register_inflight_generation = None
         app = MDApp.get_running_app()
 
         status = str(response.get("status", "")).strip().lower() if isinstance(response, dict) else ""
@@ -263,19 +277,32 @@ class RegisterScreen(ResponsiveScreen):
                 self._show_popup(
                     "Registration Successful",
                     "Your account is ready. Check your email for the OTP to continue.",
-                    on_close=lambda: setattr(self.manager, "current", "otp") if self.manager else None,
+                    on_close=lambda gen=generation: self._continue_after_registration("otp", gen),
                 )
             elif self.manager:
                 self._show_popup(
                     "Registration Successful",
                     "Your account is ready. Please sign in and verify with the OTP sent to your email.",
-                    on_close=lambda: setattr(self.manager, "current", "login") if self.manager else None,
+                    on_close=lambda gen=generation: self._continue_after_registration("login", gen),
                 )
             return
 
         error_message = self._extract_detail(response) or "Registration failed."
         self._set_feedback(error_message, "error")
         self._show_popup("Registration Failed", error_message)
+
+    def _continue_after_registration(self, screen_name: str, generation: int) -> None:
+        if generation != self._register_generation:
+            return
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if callable(go_to_screen):
+            go_to_screen(screen_name, fallback="login", transition_style="fade")
+            return
+        if self.manager is not None:
+            from core.navigation import navigate
+
+            navigate(self.manager, screen_name, fallback="login", transition_style="fade")
 
 
 _REGISTER_KV = str(Path(__file__).with_name("register.kv"))

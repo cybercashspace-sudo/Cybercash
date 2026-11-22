@@ -270,6 +270,9 @@ class SplashScreen(ResponsiveScreen):
 
     def on_leave(self, *_args):
         self._cancel_events()
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def _cancel_events(self) -> None:
         if self._pulse_event is not None:

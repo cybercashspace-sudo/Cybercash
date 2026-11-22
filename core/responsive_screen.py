@@ -27,8 +27,19 @@ class ResponsiveScreen(MDScreen):
         self._layout_refresh_event = None
         self._window_bound = False
         super().__init__(**kwargs)
+        # ScreenManager retains visited screens for fast navigation. Keep the
+        # global Window binding active only while this screen is on-screen.
+        self.bind(on_pre_enter=self._on_screen_pre_enter, on_leave=self._on_screen_leave)
         self._refresh_responsive_metrics()
         self._schedule_layout_refresh()
+
+    def _on_screen_pre_enter(self, *_args) -> None:
+        self._bind_window_resize()
+        self._schedule_layout_refresh()
+
+    def _on_screen_leave(self, *_args) -> None:
+        self._cancel_layout_refresh()
+        self._unbind_window_resize()
 
     def _bind_window_resize(self) -> None:
         if self._window_bound:
@@ -75,7 +86,6 @@ class ResponsiveScreen(MDScreen):
             self._cancel_layout_refresh()
             self._unbind_window_resize()
         else:
-            self._bind_window_resize()
             self._schedule_layout_refresh()
         parent_on_parent = getattr(super(), "on_parent", None)
         if callable(parent_on_parent):
@@ -161,6 +171,7 @@ class ResponsiveScreen(MDScreen):
 
     def on_leave(self, *_args):
         self._cancel_layout_refresh()
+        self._unbind_window_resize()
         parent_on_leave = getattr(super(), "on_leave", None)
         if callable(parent_on_leave):
             return parent_on_leave(*_args)

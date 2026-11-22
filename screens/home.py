@@ -1958,6 +1958,7 @@ class HomeScreen(ResponsiveScreen):
         self._dashboard_load_seq = 0
         self._dashboard_events_bound = False
         self._home_entrance_played = False
+        self._active = False
         self.dashboard_state = DashboardState()
         self.home_controller = HomeController()
         self.home_controller.state = self.dashboard_state
@@ -1991,21 +1992,30 @@ class HomeScreen(ResponsiveScreen):
             Clock.schedule_once(lambda _dt: self._render_recent_activity(self._recent_rows_pending or []), 0.05)
 
     def on_pre_enter(self):
+        self._active = True
         self._sync_theme_toggle_icon()
         self.show_loading_state()
         self._bind_dashboard_events()
         Clock.schedule_once(lambda _dt: self._ensure_dashboard_timers(), 0.02)
 
     def on_enter(self):
-        Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.05)
-        Clock.schedule_once(lambda _dt: self.load_dashboard(), 0.08)
-        Clock.schedule_once(lambda _dt: self.refresh_market_data(silent=True), 0.15)
+        Clock.schedule_once(lambda _dt: self._run_if_active(self.start_entrance_animation), 0.05)
+        Clock.schedule_once(lambda _dt: self._run_if_active(self.load_dashboard), 0.08)
+        Clock.schedule_once(lambda _dt: self._run_if_active(lambda: self.refresh_market_data(silent=True)), 0.15)
 
     def on_leave(self, *_args):
+        self._active = False
         self._agent_verify_sequence += 1
         self.stop_background_tasks()
         self._unbind_dashboard_events()
         self.close_more_actions()
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
+
+    def _run_if_active(self, callback) -> None:
+        if self._active and self.manager and self.manager.current == self.name:
+            callback()
 
     def show_loading_state(self) -> None:
         self.loading_skeleton_visible = True
@@ -2022,10 +2032,10 @@ class HomeScreen(ResponsiveScreen):
         self._refresh_portfolio_values()
 
     def start_entrance_animation(self) -> None:
+        if not self._active or not self.manager or self.manager.current != self.name:
+            return
         if not self._home_kv_ready:
             Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.05)
-            return
-        if not self.manager or self.manager.current != self.name:
             return
         if self.loading_skeleton_visible and not self.dashboard_ready:
             Clock.schedule_once(lambda _dt: self.start_entrance_animation(), 0.08)
@@ -2040,6 +2050,8 @@ class HomeScreen(ResponsiveScreen):
 
     def stop_background_tasks(self) -> None:
         self._dashboard_load_seq += 1
+        self._market_load_seq += 1
+        self._market_loading = False
         self.loading_skeleton_visible = False
         self.offline_banner_visible = False
         self._set_loading_guard(False)
@@ -2286,6 +2298,8 @@ class HomeScreen(ResponsiveScreen):
         )
 
     def _ensure_dashboard_timers(self) -> None:
+        if not self._active:
+            return
         if self._promo_scroll_event is None:
             self._promo_scroll_event = Clock.schedule_interval(lambda _dt: self._advance_promo_carousel(), 5)
         if self._market_refresh_event is None:

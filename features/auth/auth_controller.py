@@ -32,55 +32,73 @@ class AuthController:
             raise ValidationError("Enter a valid MoMo number.")
         return digits
 
-    def apply_login_result(self, result: dict, momo_number: str = ""):
+    def prepare_login_result(self, result: dict, momo_number: str = "") -> dict:
         if not isinstance(result, dict):
             raise AuthenticationError("Unexpected login response.")
+
+        result = dict(result)
+        token = str(result.get("access_token", "") or "").strip()
+        if not token:
+            return result
+
+        user_payload = result.get("user") if isinstance(result.get("user"), dict) else {}
+        auth_headers = {"Authorization": f"Bearer {token}"}
+        profile_payload = dict(user_payload or {})
+        current_role = str(profile_payload.get("role") or result.get("role") or "").strip().lower()
+        if not current_role or (not profile_payload.get("is_admin") and not profile_payload.get("is_agent")):
+            try:
+                me_response = api_client.get("/auth/me", headers=auth_headers, timeout=FAST_TIMEOUT)
+                me_payload = self._response_data(me_response)
+                if me_payload:
+                    profile_payload = {**profile_payload, **me_payload}
+                    current_role = str(profile_payload.get("role") or current_role).strip().lower()
+            except Exception:
+                pass
+            if (
+                not profile_payload.get("is_admin")
+                and not profile_payload.get("is_agent")
+                and current_role not in {"admin", "super_admin", "agent"}
+            ):
+                try:
+                    agent_response = api_client.get("/agents/me", headers=auth_headers, timeout=FAST_TIMEOUT)
+                    agent_payload = self._response_data(agent_response)
+                    if agent_payload:
+                        profile_payload = {**profile_payload, **agent_payload}
+                        current_role = str(profile_payload.get("role") or current_role).strip().lower()
+                except Exception:
+                    pass
+
+        is_admin = bool(profile_payload.get("is_admin") or current_role in {"admin", "super_admin"})
+        is_agent = bool(
+            profile_payload.get("is_agent")
+            or profile_payload.get("agent_active")
+            or current_role == "agent"
+        )
+        resolved_role = current_role or ("admin" if is_admin else "agent" if is_agent else "")
+        if resolved_role:
+            profile_payload["role"] = resolved_role
+        profile_payload["is_admin"] = is_admin
+        profile_payload["is_agent"] = is_agent
+        profile_payload["agent_active"] = is_agent
+        result["user"] = profile_payload or user_payload
+        result["role"] = resolved_role
+        return result
+
+    def apply_login_result(self, result: dict, momo_number: str = "", *, prepared: bool = False):
+        if not isinstance(result, dict):
+            raise AuthenticationError("Unexpected login response.")
+
+        if not prepared:
+            result = self.prepare_login_result(result, momo_number=momo_number)
 
         token = str(result.get("access_token", "") or "").strip()
         user_payload = result.get("user") if isinstance(result.get("user"), dict) else {}
 
         if token:
-            auth_headers = {"Authorization": f"Bearer {token}"}
             profile_payload = dict(user_payload or {})
-            current_role = str(profile_payload.get("role") or result.get("role") or "").strip().lower()
-            if not current_role or (not profile_payload.get("is_admin") and not profile_payload.get("is_agent")):
-                try:
-                    me_response = api_client.get("/auth/me", headers=auth_headers, timeout=FAST_TIMEOUT)
-                    me_payload = self._response_data(me_response)
-                    if me_payload:
-                        profile_payload = {**profile_payload, **me_payload}
-                        current_role = str(profile_payload.get("role") or current_role).strip().lower()
-                except Exception:
-                    pass
-                if (
-                    not profile_payload.get("is_admin")
-                    and not profile_payload.get("is_agent")
-                    and current_role not in {"admin", "super_admin", "agent"}
-                ):
-                    try:
-                        agent_response = api_client.get("/agents/me", headers=auth_headers, timeout=FAST_TIMEOUT)
-                        agent_payload = self._response_data(agent_response)
-                        if agent_payload:
-                            profile_payload = {**profile_payload, **agent_payload}
-                            current_role = str(profile_payload.get("role") or current_role).strip().lower()
-                    except Exception:
-                        pass
-
-            is_admin = bool(
-                profile_payload.get("is_admin")
-                or current_role in {"admin", "super_admin"}
-            )
-            is_agent = bool(
-                profile_payload.get("is_agent")
-                or profile_payload.get("agent_active")
-                or current_role == "agent"
-            )
-            resolved_role = current_role or ("admin" if is_admin else "agent" if is_agent else "")
-            if resolved_role:
-                profile_payload["role"] = resolved_role
-            profile_payload["is_admin"] = is_admin
-            profile_payload["is_agent"] = is_agent
-            profile_payload["agent_active"] = is_agent
+            is_admin = bool(profile_payload.get("is_admin"))
+            is_agent = bool(profile_payload.get("is_agent") or profile_payload.get("agent_active"))
+            resolved_role = str(profile_payload.get("role") or result.get("role") or "").strip().lower()
 
             session.save(
                 token,
@@ -120,7 +138,7 @@ class AuthController:
 
         return result
 
-    def login(self, momo_number: str, pin: str, is_agent: bool = False):
+    def login(self, momo_number: str, pin: str, is_agent: bool = False, *, defer_apply: bool = False):
         momo_number = self._normalize_momo_number(momo_number)
         pin = validate_pin(pin)
 
@@ -132,7 +150,10 @@ class AuthController:
         status = str(result.get("status", "") or "").strip().lower()
 
         if token:
-            self.apply_login_result(result, momo_number=momo_number)
+            if defer_apply:
+                result = self.prepare_login_result(result, momo_number=momo_number)
+            else:
+                self.apply_login_result(result, momo_number=momo_number)
 
         if not token and status not in {"verify_required", "verification_required", "registered", "pending_kyc"}:
             raise AuthenticationError("Token missing from login response.")

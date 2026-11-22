@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from threading import Thread
+
 from kivy.clock import Clock
 from kivy.core.clipboard import Clipboard
 from kivy.lang import Builder
@@ -559,11 +561,19 @@ class AdminDashboardScreen(ActionScreen):
     binance_btc_ghs_value_text = StringProperty("~ GHS 0.00")
     binance_btc_address_text = StringProperty("Address: --")
 
-    _refresh_event = None
-    _binance_refresh_event = None
-    _binance_btc_address_raw = ""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._refresh_event = None
+        self._binance_refresh_event = None
+        self._binance_btc_address_raw = ""
+        self._active = False
+        self._screen_generation = 0
+        self._dashboard_loading = False
+        self._binance_loading = False
 
     def on_pre_enter(self):
+        self._active = True
+        self._screen_generation += 1
         self.load_dashboard()
         if self._refresh_event is None:
             self._refresh_event = Clock.schedule_interval(lambda _dt: self.load_dashboard(silent=True), 30)
@@ -575,6 +585,8 @@ class AdminDashboardScreen(ActionScreen):
             )
 
     def on_pre_leave(self):
+        self._active = False
+        self._screen_generation += 1
         if self._refresh_event is not None:
             try:
                 self._refresh_event.cancel()
@@ -617,15 +629,39 @@ class AdminDashboardScreen(ActionScreen):
         navigate(manager, screen_name, fallback="admin_dashboard", transition_style="fade")
 
     def load_dashboard(self, *, silent: bool = False):
+        if not self._active or self._dashboard_loading:
+            return
         if not silent:
             self._set_feedback("Loading admin metrics...", "info")
 
-        ok, payload = self._request("GET", "/admin/dashboard")
+        self._dashboard_loading = True
+        generation = self._screen_generation
+        Thread(target=self._load_dashboard_worker, args=(generation, silent), daemon=True).start()
+
+    def _load_dashboard_worker(self, generation: int, silent: bool) -> None:
+        try:
+            ok, payload = self._request("GET", "/admin/dashboard")
+        except Exception:
+            ok, payload = False, {"detail": "Unable to load admin dashboard. Check your connection and try again."}
+        Clock.schedule_once(
+            lambda _dt, result=ok, data=payload, gen=generation, quiet=silent:
+            self._apply_dashboard_response(result, data, gen, quiet)
+        )
+
+    def _apply_dashboard_response(self, ok: bool, payload: object, generation: int, silent: bool) -> None:
+        if generation != self._screen_generation or not self._active:
+            self._dashboard_loading = False
+            if self._active:
+                Clock.schedule_once(lambda _dt: self.load_dashboard(silent=True), 0)
+            return
+
+        self._dashboard_loading = False
         if not ok or not isinstance(payload, dict):
             detail = self._extract_detail(payload) or "Unable to load admin dashboard."
-            self._set_feedback(detail, "error")
-            self._show_popup("Admin Dashboard", detail)
-            self.go_back()
+            self._set_feedback(detail, "warning" if silent else "error")
+            if not silent:
+                self._show_popup("Admin Dashboard", detail)
+                self.go_back()
             return
 
         self.platform_balance_text = self._format_ghs(payload.get("platform_balance", 0.0))
@@ -679,7 +715,30 @@ class AdminDashboardScreen(ActionScreen):
             self._set_feedback("Admin dashboard refreshed.", "success")
 
     def refresh_binance_btc(self, *, silent: bool = False) -> None:
-        ok, payload = self._request("GET", "/admin/binance/btc/dashboard")
+        if not self._active or self._binance_loading:
+            return
+        self._binance_loading = True
+        generation = self._screen_generation
+        Thread(target=self._refresh_binance_worker, args=(generation, silent), daemon=True).start()
+
+    def _refresh_binance_worker(self, generation: int, silent: bool) -> None:
+        try:
+            ok, payload = self._request("GET", "/admin/binance/btc/dashboard")
+        except Exception:
+            ok, payload = False, {"detail": "Unable to refresh Binance BTC data."}
+        Clock.schedule_once(
+            lambda _dt, result=ok, data=payload, gen=generation, quiet=silent:
+            self._apply_binance_response(result, data, gen, quiet)
+        )
+
+    def _apply_binance_response(self, ok: bool, payload: object, generation: int, silent: bool) -> None:
+        if generation != self._screen_generation or not self._active:
+            self._binance_loading = False
+            if self._active:
+                Clock.schedule_once(lambda _dt: self.refresh_binance_btc(silent=True), 0)
+            return
+
+        self._binance_loading = False
         if not ok or not isinstance(payload, dict):
             detail = self._extract_detail(payload) or "Unable to load Binance BTC dashboard."
             self.binance_btc_status_text = f"Binance error: {detail}"

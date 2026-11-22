@@ -529,8 +529,16 @@ class SettingsScreen(ActionScreen):
         self._show_popup(
             "Signed Out",
             detail or "You have been signed out successfully.",
-            on_close=lambda: setattr(self.manager, "current", "login") if self.manager else None,
+            on_close=self._return_to_login,
         )
+
+    def _return_to_login(self) -> None:
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if callable(go_to_screen):
+            go_to_screen("login", fallback="", transition_style="fade")
+        elif self.manager:
+            navigate(self.manager, "login", fallback="", transition_style="fade")
 
 
 Builder.load_string(KV)

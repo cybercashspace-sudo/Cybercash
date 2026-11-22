@@ -96,18 +96,27 @@ class ResetPinScreen(ResponsiveScreen):
         self.timer_event = None
         self._active = False
         self._request_generation = 0
+        self._request_inflight = False
+        self._request_inflight_generation = None
 
     def on_enter(self, *_args):
         self._active = True
         self._request_generation += 1
+        self.processing = self._request_inflight
 
     def on_leave(self, *_args):
         self._active = False
         self._request_generation += 1
-        self.processing = False
         if self.timer_event is not None:
             self.timer_event.cancel()
             self.timer_event = None
+        for field_name in ("otp_input", "new_pin_input"):
+            field = self.ids.get(field_name)
+            if field is not None:
+                field.text = ""
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def start_timer(self):
         self.countdown = 60
@@ -139,6 +148,8 @@ class ResetPinScreen(ResponsiveScreen):
         self.ids.momo_input.text = momo
         self.processing = True
         generation = self._request_generation
+        self._request_inflight = True
+        self._request_inflight_generation = generation
 
         def _worker():
             try:
@@ -151,7 +162,13 @@ class ResetPinScreen(ResponsiveScreen):
 
     def _on_otp_result(self, response, generation: int | None = None):
         if not self._active or generation != self._request_generation:
+            if generation == self._request_inflight_generation:
+                self._request_inflight = False
+                self._request_inflight_generation = None
+                self.processing = False
             return
+        self._request_inflight = False
+        self._request_inflight_generation = None
         self.processing = False
         ok = bool(response.get("ok")) if isinstance(response, dict) else False
         if ok:
@@ -188,6 +205,8 @@ class ResetPinScreen(ResponsiveScreen):
 
         self.processing = True
         generation = self._request_generation
+        self._request_inflight = True
+        self._request_inflight_generation = generation
 
         def _worker():
             try:
@@ -200,15 +219,33 @@ class ResetPinScreen(ResponsiveScreen):
 
     def _on_reset_finish(self, response, generation: int | None = None):
         if not self._active or generation != self._request_generation:
+            if generation == self._request_inflight_generation:
+                self._request_inflight = False
+                self._request_inflight_generation = None
+                self.processing = False
             return
+        self._request_inflight = False
+        self._request_inflight_generation = None
         self.processing = False
         if isinstance(response, dict) and response.get("ok"):
             show_message_dialog(self, "Success", "PIN reset successfully. You can now login.", 
-                                on_close=lambda: MDApp.get_running_app().go_to_screen("login"))
+                                on_close=lambda gen=generation: self._continue_to_login(gen))
             return
 
         payload = response.get("data", response) if isinstance(response, dict) else response
         detail = extract_backend_message(payload, fallback="We could not reset your PIN. Check the code and try again.")
         show_message_dialog(self, "PIN not changed", detail)
+
+    def _continue_to_login(self, generation: int) -> None:
+        if not self._active or generation != self._request_generation:
+            return
+        app = MDApp.get_running_app()
+        go_to_screen = getattr(app, "go_to_screen", None)
+        if callable(go_to_screen):
+            go_to_screen("login", fallback="", transition_style="fade")
+        elif self.manager:
+            from core.navigation import navigate
+
+            navigate(self.manager, "login", fallback="", transition_style="fade")
 
 Builder.load_string(KV)

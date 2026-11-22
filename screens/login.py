@@ -32,6 +32,9 @@ class LoginScreen(ResponsiveScreen):
         self.controller = AuthController()
         self._lookup_event = None
         self._lookup_seq = 0
+        self._login_generation = 0
+        self._login_inflight = False
+        self._active = False
         self._syncing_momo_input = False
 
     def on_leave(self, *_args):
@@ -39,8 +42,17 @@ class LoginScreen(ResponsiveScreen):
             self._lookup_event.cancel()
             self._lookup_event = None
         self._lookup_seq += 1
+        self._active = False
+        self._login_generation += 1
+        self._set_loading(False)
+        self._set_text("", "pin_input")
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def on_pre_enter(self, *_args):
+        self._active = True
+        self._login_generation += 1
         self.remember_me = True
         self.password_visible = False
         self._set_text("", "momo_input", "pin_input", "first_name_input")
@@ -50,6 +62,7 @@ class LoginScreen(ResponsiveScreen):
             pin_input.password = True
         if pin_input is not None and hasattr(pin_input, "password_visible"):
             pin_input.password_visible = False
+        self._set_loading(self._login_inflight)
         self._sync_auth_controls()
 
     def on_enter(self):
@@ -224,7 +237,7 @@ class LoginScreen(ResponsiveScreen):
         self._sync_auth_controls()
 
     def login(self):
-        if self.loading:
+        if self._login_inflight:
             return
 
         momo_number = self._get_text("momo_input")
@@ -239,9 +252,11 @@ class LoginScreen(ResponsiveScreen):
             return
 
         self._set_loading(True)
+        self._login_inflight = True
+        generation = self._login_generation
         Thread(
             target=self._login_worker,
-            args=(momo_number, pin),
+            args=(momo_number, pin, generation),
             daemon=True,
         ).start()
 
@@ -254,29 +269,36 @@ class LoginScreen(ResponsiveScreen):
             else:
                 button.disabled = bool(value)
 
-    def _login_worker(self, momo_number: str, pin: str) -> None:
+    def _login_worker(self, momo_number: str, pin: str, generation: int) -> None:
         try:
-            result = self.controller.login(momo_number, pin)
+            result = self.controller.login(momo_number, pin, defer_apply=True)
         except Exception as exc:
             message = extract_backend_message(
                 exc,
                 fallback="Login failed. Please try again.",
             )
-            Clock.schedule_once(lambda _dt, msg=message: self._finish_login_failure(msg))
+            Clock.schedule_once(lambda _dt, msg=message, gen=generation: self._finish_login_failure(msg, gen))
             return
 
         Clock.schedule_once(
-            lambda _dt, res=result, momo=momo_number: self._apply_login_response(
+            lambda _dt, res=result, momo=momo_number, gen=generation: self._apply_login_response(
                 momo,
                 res,
+                gen,
             )
         )
 
-    def _finish_login_failure(self, message: str) -> None:
+    def _finish_login_failure(self, message: str, generation: int | None = None) -> None:
+        self._login_inflight = False
+        if not self._active or generation != self._login_generation:
+            return
         self._set_loading(False)
         self.show_message(message)
 
-    def _apply_login_response(self, momo_number: str, result: dict) -> None:
+    def _apply_login_response(self, momo_number: str, result: dict, generation: int | None = None) -> None:
+        self._login_inflight = False
+        if not self._active or generation != self._login_generation:
+            return
         try:
             if not isinstance(result, dict):
                 self.show_message("Unable to sign in right now.")
@@ -298,6 +320,7 @@ class LoginScreen(ResponsiveScreen):
 
             token = str(result.get("access_token", "") or "").strip()
             if token:
+                self.controller.apply_login_result(result, momo_number=momo_number, prepared=True)
                 if self.remember_me:
                     self._save_remember_me(momo_number, result)
                 else:

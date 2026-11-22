@@ -206,6 +206,8 @@ class OTPScreen(ResponsiveScreen):
         self.timer_event = None
         self._verifying = False
         self._resending = False
+        self._verify_inflight_generation = None
+        self._resend_inflight_generation = None
         self._active = False
         self._screen_generation = 0
 
@@ -256,11 +258,20 @@ class OTPScreen(ResponsiveScreen):
     def on_leave(self, *_args):
         self._active = False
         self._screen_generation += 1
-        self._verifying = False
-        self._resending = False
         if self.timer_event:
             self.timer_event.cancel()
             self.timer_event = None
+        for field_name in ("otp_input", "momo_input"):
+            field = self.ids.get(field_name)
+            if field is not None:
+                field.text = ""
+        self.momo_number = None
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "pending_momo"):
+            app.pending_momo = ""
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def start_timer(self):
         self.countdown = 120
@@ -302,6 +313,7 @@ class OTPScreen(ResponsiveScreen):
 
         self._set_feedback("Verifying OTP...", "info")
         self._verifying = True
+        self._verify_inflight_generation = self._screen_generation
 
         threading.Thread(
             target=self._verify_worker,
@@ -318,8 +330,12 @@ class OTPScreen(ResponsiveScreen):
 
     def _apply_verify_response(self, response: dict, generation: int | None = None):
         if not self._active or generation != self._screen_generation:
+            if generation == self._verify_inflight_generation:
+                self._verifying = False
+                self._verify_inflight_generation = None
             return
         self._verifying = False
+        self._verify_inflight_generation = None
         app = MDApp.get_running_app()
 
         if isinstance(response, dict) and str(response.get("status", "")).strip().lower() == "verified":
@@ -327,19 +343,24 @@ class OTPScreen(ResponsiveScreen):
             first_name = str(response.get("first_name", "") or "").strip()
             save_token(token)
             app.access_token = token
-            app.pending_momo = first_name or ""
+            app.pending_momo = ""
             app.user_name = first_name or getattr(app, "user_name", "Cyber Cash User")
             self._set_feedback("Verification successful.", "success")
             self._show_popup(
                 "Verification Successful",
                 "Your account is verified and ready to use.",
-                on_close=self._go_home,
+                on_close=lambda gen=generation: self._continue_after_verification(gen),
             )
             return
 
         error_message = self._extract_detail(response) or "Verification failed."
         self._set_feedback(error_message, "error")
         self._show_popup("Verification Failed", error_message)
+
+    def _continue_after_verification(self, generation: int) -> None:
+        if not self._active or generation != self._screen_generation:
+            return
+        self._go_home()
 
     def resend(self):
         if self._resending:
@@ -356,6 +377,7 @@ class OTPScreen(ResponsiveScreen):
 
         self._set_feedback("Resending OTP...", "info")
         self._resending = True
+        self._resend_inflight_generation = self._screen_generation
         threading.Thread(
             target=self._resend_worker,
             args=(momo, self._screen_generation),
@@ -371,8 +393,12 @@ class OTPScreen(ResponsiveScreen):
 
     def _apply_resend_response(self, response: dict, generation: int | None = None):
         if not self._active or generation != self._screen_generation:
+            if generation == self._resend_inflight_generation:
+                self._resending = False
+                self._resend_inflight_generation = None
             return
         self._resending = False
+        self._resend_inflight_generation = None
         if not isinstance(response, dict) or response.get("detail"):
             error_message = self._extract_detail(response) or "Unable to resend OTP right now."
             self._set_feedback(error_message, "error")

@@ -851,9 +851,12 @@ class WalletScreen(ActionScreen):
         if resume_deposit:
             Clock.schedule_once(lambda _dt: self.initiate_deposit(), 0.45)
 
-    def on_leave(self):
+    def on_leave(self, *_args):
         self._verify_sequence += 1
         self._dashboard_sequence += 1
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     @staticmethod
     def _safe_first_name(value: str) -> str:
