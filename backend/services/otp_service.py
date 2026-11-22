@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -58,6 +59,9 @@ class OTPService:
         self.provider = "email"
         self.redis: Optional[Redis] = None
         self._memory_store: dict[str, tuple[str, float]] = {}
+        # Bounded lock stripes prevent parallel requests from issuing competing
+        # codes for the same account in this single-worker production service.
+        self._issue_locks = tuple(asyncio.Lock() for _ in range(64))
         self.hubtel_client = hubtel_client or HubtelOTPClient()
 
     async def _get_redis(self) -> Redis:
@@ -149,6 +153,24 @@ class OTPService:
         allow_refresh: bool = False,
     ) -> tuple[str | None, dict]:
         key = self._otp_key(identity, purpose=purpose)
+        lock = self._issue_locks[hash(key) % len(self._issue_locks)]
+        async with lock:
+            return await self._issue_otp_locked(
+                key,
+                identity,
+                purpose,
+                recipient_email,
+                allow_refresh,
+            )
+
+    async def _issue_otp_locked(
+        self,
+        key: str,
+        identity: str,
+        purpose: str,
+        recipient_email: str | None,
+        allow_refresh: bool,
+    ) -> tuple[str | None, dict]:
         email = str(recipient_email or "").strip().lower()
         if not _is_valid_email(email):
             return None, {
