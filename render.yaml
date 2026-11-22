@@ -15,3 +15,9 @@ services:
         value: sqlite+aiosqlite:///./cybercash.db
       - key: SYNC_DATABASE_URL
         value: sqlite:///./cybercash.db
+      - key: OTP_PROVIDER
+        value: email
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: MAIL_TIMEOUT_SECONDS
+        value: "8"

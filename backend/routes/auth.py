@@ -91,10 +91,25 @@ def _with_debug_otp(payload: dict, otp_service: OTPService, otp_code: str | None
     """
     Expose OTP in API response only for local/log transport.
     """
+    environment = str(os.getenv("ENV", "development") or "development").strip().lower()
+    if environment in {"prod", "production", "live"}:
+        return payload
     force_expose = str(os.getenv("EXPOSE_OTP_IN_API", "")).strip().lower() in {"1", "true", "yes", "on"}
-    if otp_code and (force_expose or otp_service.provider == "log"):
+    running_tests = str(os.getenv("RUNNING_TESTS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    if otp_code and (force_expose or running_tests):
         payload["debug_otp"] = str(otp_code)
     return payload
+
+
+def _require_account_email(value: str | None) -> str:
+    email = str(value or "").strip().lower()
+    local, separator, domain = email.partition("@")
+    if not separator or not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Add a valid email address to your account to receive verification codes.",
+        )
+    return email
 
 
 def _raise_if_otp_dispatch_failed(send_result: dict | None) -> None:
@@ -256,7 +271,7 @@ async def register_initiate(
             )
             db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(identity_number)
+    otp_code, send_result = await otp_service.issue_otp(identity_number, recipient_email=_require_account_email(normalized_email))
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
     return _with_debug_otp(
@@ -395,7 +410,7 @@ async def register_user(
             )
             db.add(agent)
 
-    otp_code, send_result = await otp_service.issue_otp(identity_number, purpose="access_verify")
+    otp_code, send_result = await otp_service.issue_otp(identity_number, purpose="access_verify", recipient_email=_require_account_email(normalized_email))
     _raise_if_otp_dispatch_failed(send_result)
     await db.commit()
 
@@ -507,7 +522,7 @@ async def access_account(
     otp_service: OTPService = Depends(get_otp_service),
 ):
     identity = _normalize_identity_number(data.momo_number)
-    normalized_email = None
+    normalized_email = str(getattr(data, "email", "") or "").strip().lower() or None
     await _cleanup_stale_unverified(db, identity)
     _enforce_access_rate_limit(identity, request.client.host if request.client else None)
 
@@ -554,6 +569,7 @@ async def access_account(
             otp_code, send_result = await otp_service.issue_otp(
                 user.momo_number,
                 purpose="access_verify",
+                recipient_email=_require_account_email(user.email),
             )
             _raise_if_otp_dispatch_failed(send_result)
             user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -624,6 +640,7 @@ async def access_account(
     otp_code, send_result = await otp_service.issue_otp(
         identity,
         purpose="access_verify",
+        recipient_email=_require_account_email(new_user.email),
     )
     _raise_if_otp_dispatch_failed(send_result)
     new_user.otp_expires_at = _now_utc() + timedelta(minutes=2)
@@ -728,8 +745,9 @@ async def verify_account(
 
 
 @router.post("/resend-otp")
-async def resend(data: ResendSchema, db: AsyncSession = Depends(get_db), otp_service: OTPService = Depends(get_otp_service)):
+async def resend(data: ResendSchema, request: Request, db: AsyncSession = Depends(get_db), otp_service: OTPService = Depends(get_otp_service)):
     identity = _normalize_identity_number(data.momo_number)
+    _enforce_rate_limit("resend_otp", identity, request.client.host if request.client else None)
     result = await db.execute(select(User).filter(User.momo_number == identity))
     user = result.scalars().first()
     if not user:
@@ -738,12 +756,15 @@ async def resend(data: ResendSchema, db: AsyncSession = Depends(get_db), otp_ser
     otp_code, send_result = await otp_service.resend_otp(
         user.momo_number,
         purpose="access_verify",
+        recipient_email=_require_account_email(user.email),
     )
     _raise_if_otp_dispatch_failed(send_result)
+    if str(send_result.get("status", "")).strip().lower() == "already_sent":
+        return {"message": "A code was sent recently. Please check your inbox or wait a few seconds before requesting another."}
     user.otp_expires_at = _now_utc() + timedelta(minutes=2)
     db.add(user)
     await db.commit()
-    return _with_debug_otp({"message": "OTP resent"}, otp_service, otp_code)
+    return _with_debug_otp({"message": "A new verification code was sent to your account email."}, otp_service, otp_code)
 
 
 @router.post("/change-pin")
@@ -775,9 +796,13 @@ async def change_pin(
     db.add(user)
     await db.commit()
 
-    target = user.momo_number or user.phone_number
-    if target:
-        otp_service.send_sms(target, "Your PIN was changed")
+    email = _require_account_email(user.email)
+    from backend.core.mailer import send_email
+    await send_email(
+        "Your CyberCash PIN was changed",
+        [email],
+        "<p>Your account PIN was changed successfully. If you did not make this change, contact CyberCash support immediately.</p>",
+    )
     return {"message": "PIN updated successfully"}
 
 
@@ -826,7 +851,7 @@ async def request_reset_pin_otp(
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="Account not found")
-    otp_code, send_result = await otp_service.issue_otp(identity, purpose="reset_pin")
+    otp_code, send_result = await otp_service.issue_otp(identity, purpose="reset_pin", recipient_email=_require_account_email(user.email))
     _raise_if_otp_dispatch_failed(send_result)
     return _with_debug_otp({"message": "OTP sent."}, otp_service, otp_code)
 
@@ -860,7 +885,13 @@ async def reset_pin(
     db.add(user)
     await db.commit()
 
-    otp_service.send_sms(identity, "Your PIN was reset")
+    email = _require_account_email(user.email)
+    from backend.core.mailer import send_email
+    await send_email(
+        "Your CyberCash PIN was reset",
+        [email],
+        "<p>Your account PIN was reset successfully. If you did not make this change, contact CyberCash support immediately.</p>",
+    )
     return {"message": "PIN reset successful"}
 
 @router.post("/reset")

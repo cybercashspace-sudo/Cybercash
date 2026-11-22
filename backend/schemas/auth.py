@@ -103,6 +103,7 @@ class ResetPinSchema(BaseModel):
 
 class AccessSchema(BaseModel):
     momo_number: str = Field(..., min_length=8, max_length=20)
+    email: Optional[str] = Field(default=None, min_length=5, max_length=254)
     pin: str = Field(..., min_length=4, max_length=4)
     first_name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     is_agent: bool = False
@@ -115,6 +116,16 @@ class AccessSchema(BaseModel):
         if not re.fullmatch(r"\d{4}", value or ""):
             raise ValueError("PIN must be exactly 4 digits.")
         return value
+
+    @field_validator("email")
+    @classmethod
+    def email_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        email = str(value).strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("Email must be a valid email address.")
+        return email
 
 
 class VerifySchema(BaseModel):

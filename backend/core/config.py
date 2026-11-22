@@ -1,12 +1,14 @@
 import os
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ROOT_DIR = os.path.dirname(_BACKEND_DIR)
 
-# Load the shared root .env first, then let backend/.env override backend-only secrets.
+# Load shared values first; non-empty backend-only values can override them.
 load_dotenv(os.path.join(_ROOT_DIR, ".env"))
-load_dotenv(os.path.join(_BACKEND_DIR, ".env"), override=True)
+for _key, _value in dotenv_values(os.path.join(_BACKEND_DIR, ".env")).items():
+    if _value is not None and str(_value).strip():
+        os.environ[_key] = str(_value)
 
 class Settings:
     ENV = os.getenv("ENV", "development")
@@ -23,6 +25,9 @@ class Settings:
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
     MAIL_SERVER = os.getenv("MAIL_SERVER")
     MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "CyberCash")
+    MAIL_TIMEOUT_SECONDS = max(5, min(30, int(os.getenv("MAIL_TIMEOUT_SECONDS", "15"))))
+    MAIL_PROVIDER = str(os.getenv("MAIL_PROVIDER", "auto") or "auto").strip().lower()
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
     HUBTEL_AUTH: str = os.getenv("HUBTEL_AUTH", "")
     HUBTEL_BASE_URL: str = os.getenv("HUBTEL_BASE_URL", "https://api-otp.hubtel.com")
     HUBTEL_SENDER_ID: str = os.getenv("HUBTEL_SENDER_ID", "CyberCash")

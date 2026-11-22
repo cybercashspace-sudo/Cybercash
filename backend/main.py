@@ -1,21 +1,13 @@
 import os
 import logging
 import asyncio
-from dotenv import load_dotenv
 
-_backend_dir = os.path.dirname(os.path.abspath(__file__))
-_root_dir = os.path.dirname(_backend_dir)
-
-# Load shared values first, then let backend/.env win for backend credentials.
-root_dotenv_path = os.path.join(_root_dir, ".env")
-backend_dotenv_path = os.path.join(_backend_dir, ".env")
-load_dotenv(root_dotenv_path)
-load_dotenv(backend_dotenv_path, override=True)
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text, select, or_
 
+from backend.core.config import settings
 from backend.database import async_engine, async_session, Base
 from backend.models import User, Agent, Wallet
 from utils.security import hash_pin
@@ -71,15 +63,6 @@ async def healthcheck():
     if _database_startup_error:
         payload["database_error"] = _database_startup_error
     return payload
-
-def _mask_secret(value: str, prefix: int = 3, suffix: int = 2) -> str:
-    raw = str(value or "")
-    if not raw:
-        return "<missing>"
-    if len(raw) <= (prefix + suffix):
-        return "***"
-    return f"{raw[:prefix]}***{raw[-suffix:]}"
-
 
 def _patch_datetime_type() -> str:
     dialect_name = ""
@@ -301,15 +284,15 @@ async def startup_db_events():
     sms_service = get_sms_service()
     sms_provider = sms_service.provider
     logger.info(
-        "OTP/SMS config loaded: OTP_PROVIDER=%s (effective=%s) SMS_PROVIDER=%s (effective=%s) SMS_SENDER_ID=%s (effective=%s) MNOTIFY_API_KEY=%s MNOTIFY_SENDER=%s",
+        "OTP/SMS config loaded: OTP_PROVIDER=%s (effective=%s) SMS_PROVIDER=%s (effective=%s) SMS_SENDER_ID=%s (effective=%s) EMAIL_HTTP_CONFIGURED=%s MAIL_PROVIDER=%s",
         configured_otp_provider,
         otp_provider,
         configured_sms_provider,
         sms_provider,
         configured_sender_id,
         sms_service.sender_id,
-        _mask_secret(os.getenv("MNOTIFY_API_KEY", "")),
-        str(os.getenv("MNOTIFY_SENDER", "") or "").strip() or "<default>",
+        bool(settings.RESEND_API_KEY and settings.MAIL_FROM),
+        str(settings.MAIL_PROVIDER or "auto"),
     )
 
     startup_timeout_seconds = float(os.getenv("STARTUP_DB_INIT_TIMEOUT_SECONDS", "25"))
