@@ -126,7 +126,7 @@ KV = """
                             size_hint: None, None
                             size: dp(40 * root.layout_scale), dp(40 * root.layout_scale)
                             radius: [dp(20 * root.layout_scale)]
-                            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                            pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
 
                     MDLabel:
                         text: "CYBER CASH"
