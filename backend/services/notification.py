@@ -34,7 +34,21 @@ def _humanize_transaction_type(value: str | None, *, direction: str | None = Non
         "data bundle": "data bundle purchase",
         "wallet topup": "wallet top up",
         "topup": "wallet top up",
-        "agent withdrawal": "agent withdrawal",
+        "agent withdrawal": "withdrawal",
+        "mobile money": "mobile money withdrawal",
+        "loan disburse": "loan disbursement",
+        "loan repay": "loan repayment",
+        "investment create": "investment",
+        "investment payout": "investment payout",
+        "escrow create": "escrow funding",
+        "escrow release": "escrow release",
+        "escrow fee": "escrow fee",
+        "card load": "card top-up",
+        "card withdraw": "card withdrawal",
+        "card spend": "card purchase",
+        "virtual card issuance fee": "virtual card setup",
+        "btc deposit": "crypto deposit",
+        "btc withdraw": "crypto withdrawal",
     }
     label = labels.get(normalized, normalized or "transaction")
     if direction == "receive" and label == "transfer":
@@ -100,7 +114,6 @@ class NotificationService:
             return {"status": "error", "provider": "email", "detail": "Invalid transaction amount."}
         label = _humanize_transaction_type(transaction_type, direction=direction)
         amount_text = f"{currency.upper()} {abs(amount_value):.2f}"
-        action = "received" if direction == "receive" else "sent" if direction == "send" else "completed"
         if label == "deposit":
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
         elif label == "transfer received":
@@ -123,12 +136,24 @@ class NotificationService:
         *,
         subject: str = "CyberCash account notification",
     ) -> dict:
-        result = await db.execute(select(User).filter(User.id == user_id))
-        user = result.scalars().one_or_none()
-        if not user:
-            logger.warning("Email notification unavailable: user_id=%s was not found", user_id)
-            return {"status": "error", "provider": "email", "detail": "Notification account not found."}
-        return await self.send_to_user(user, message, subject=subject)
+        try:
+            result = await db.execute(select(User).filter(User.id == user_id))
+            user = result.scalars().one_or_none()
+            if not user:
+                logger.warning("Email notification unavailable: user_id=%s was not found", user_id)
+                return {"status": "error", "provider": "email", "detail": "Notification account not found."}
+            return await self.send_to_user(user, message, subject=subject)
+        except Exception as exc:
+            logger.warning(
+                "Email notification failed for user_id=%s (error_type=%s)",
+                user_id,
+                type(exc).__name__,
+            )
+            return {
+                "status": "error",
+                "provider": "email",
+                "detail": "Email is temporarily unavailable. Please try again shortly.",
+            }
 
     async def send_to_users(
         self,

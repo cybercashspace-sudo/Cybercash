@@ -104,3 +104,23 @@ async def test_send_transaction_notification_sends_for_completed_transaction(mon
     assert "deposit" in sends[0][2].lower()
     assert "250" in sends[0][2]
     assert "ghs" in sends[0][2].lower()
+
+
+@pytest.mark.parametrize(
+    ("transaction_type", "expected_label"),
+    [
+        ("AGENT_WITHDRAWAL", "withdrawal"),
+        ("LOAN_DISBURSE", "loan disbursement"),
+        ("LOAN_REPAY", "loan repayment"),
+        ("INVESTMENT_CREATE", "investment"),
+        ("INVESTMENT_PAYOUT", "investment payout"),
+        ("ESCROW_CREATE", "escrow funding"),
+        ("ESCROW_RELEASE", "escrow release"),
+        ("CARD_LOAD", "card top-up"),
+        ("CARD_SPEND", "card purchase"),
+        ("DATA", "data bundle purchase"),
+        ("AIRTIME", "airtime purchase"),
+    ],
+)
+def test_transaction_types_have_user_friendly_notification_labels(transaction_type, expected_label):
+    assert notification._humanize_transaction_type(transaction_type) == expected_label

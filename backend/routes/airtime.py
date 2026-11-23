@@ -375,6 +375,9 @@ async def receive_airtime_cash_sms(
             sms_log.received_at = payload.received_at
         db.add(sms_log)
 
+        notification_message = None
+        notification_subject = "Airtime sale update"
+        previous_sale_status = str(matched_sale.status or "").strip().lower() if matched_sale else ""
         if matched_sale and matched_sale.status not in {"paid", "payout_pending"}:
             metadata = _parse_metadata_json(matched_sale.metadata_json)
             metadata["sms_message"] = payload.message
@@ -393,13 +396,12 @@ async def receive_airtime_cash_sms(
                 matched_sale.verified_at = datetime.now(timezone.utc)
                 matched_sale.metadata_json = json.dumps(metadata)
                 db.add(matched_sale)
-                await notification_service.send_to_user_id(
-                    db,
-                    matched_sale.user_id,
-                    f"CyberCash: Airtime received for {matched_sale.currency} {matched_sale.amount:.2f}. "
-                    "Manual review is required before payout.",
-                    subject="Airtime payment under review",
-                )
+                if previous_sale_status != "manual_review":
+                    notification_message = (
+                        f"CyberCash: Airtime received for {matched_sale.currency} {matched_sale.amount:.2f}. "
+                        "Manual review is required before payout."
+                    )
+                    notification_subject = "Airtime payment under review"
             else:
                 matched_sale.status = "verified"
                 matched_sale.verified_at = datetime.now(timezone.utc)
@@ -417,14 +419,17 @@ async def receive_airtime_cash_sms(
                     payout_text = (
                         "CyberCash: Payout failed. Please contact support or try again."
                     )
-                await notification_service.send_to_user_id(
-                    db,
-                    matched_sale.user_id,
-                    payout_text,
-                    subject="Airtime sale payout update",
-                )
+                notification_message = payout_text
+                notification_subject = "Airtime sale payout update"
 
         await db.commit()
+        if matched_sale and notification_message:
+            await notification_service.send_to_user_id(
+                db,
+                matched_sale.user_id,
+                notification_message,
+                subject=notification_subject,
+            )
         return {"status": "ok", "matched_sale_id": matched_sale.id if matched_sale else None}
     finally:
         await db.close()

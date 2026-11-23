@@ -38,3 +38,39 @@ async def test_get_wallet_success():
 
     result = await engine._get_wallet(123)
     assert result == mock_wallet
+
+@pytest.mark.asyncio
+async def test_completed_transfer_notifies_recipient_once_with_received_direction():
+    engine = TransactionEngine(AsyncMock(), MagicMock())
+    engine._send_notification = AsyncMock()
+
+    await engine._notify_transaction_recipient(
+        "TRANSFER",
+        {"receiver_id": 24},
+        12.50,
+        currency="GHS",
+        sender_user_id=19,
+    )
+
+    engine._send_notification.assert_awaited_once()
+    args, kwargs = engine._send_notification.await_args
+    assert args[0] == 24
+    assert kwargs["transaction_type"] == "transfer"
+    assert kwargs["direction"] == "receive"
+    assert kwargs["amount"] == 12.50
+
+
+@pytest.mark.asyncio
+async def test_transaction_recipient_notification_skips_sender_self_transfer():
+    engine = TransactionEngine(AsyncMock(), MagicMock())
+    engine._send_notification = AsyncMock()
+
+    await engine._notify_transaction_recipient(
+        "TRANSFER",
+        {"receiver_id": 19},
+        12.50,
+        currency="GHS",
+        sender_user_id=19,
+    )
+
+    engine._send_notification.assert_not_awaited()

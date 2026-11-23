@@ -215,8 +215,16 @@ class TransactionEngine:
                 transaction_type=normalized_type,
                 amount=amount,
                 currency=wallet.currency or "GHS",
+                direction="send" if normalized_type == TransactionType.TRANSFER else None,
             )
-            
+            await self._notify_transaction_recipient(
+                normalized_type,
+                metadata or {},
+                amount,
+                currency=wallet.currency or "GHS",
+                sender_user_id=user_id,
+            )
+
             return transaction
 
         except Exception as e:
@@ -319,8 +327,16 @@ class TransactionEngine:
                 transaction_type=transaction.type,
                 amount=transaction.amount,
                 currency=transaction.currency or "GHS",
+                direction="send" if normalize_transaction_type(transaction.type) == TransactionType.TRANSFER else None,
             )
-            
+            await self._notify_transaction_recipient(
+                normalize_transaction_type(transaction.type),
+                metadata,
+                Decimal(str(transaction.amount or 0)),
+                currency=transaction.currency or "GHS",
+                sender_user_id=int(transaction.user_id),
+            )
+
             return transaction
         except Exception as e:
             await self.db.rollback()
@@ -953,7 +969,61 @@ class TransactionEngine:
         wallet.version += 1
         self.db.add(wallet)
 
-    async def _send_notification(self, user_id: int, message: str, *, transaction_type: str | None = None, amount: Decimal | float | int | str | None = None, currency: str = "GHS"):
+    async def _notify_transaction_recipient(
+        self,
+        transaction_type: str,
+        metadata: Dict[str, Any],
+        amount: Decimal | float | int | str,
+        *,
+        currency: str,
+        sender_user_id: int,
+    ) -> None:
+        """Notify the other account when a completed flow credits or involves it."""
+        recipient_id = metadata.get("receiver_id") or metadata.get("recipient_id")
+        try:
+            recipient_id = int(recipient_id) if recipient_id is not None else None
+        except (TypeError, ValueError):
+            recipient_id = None
+        if recipient_id is None or recipient_id == int(sender_user_id):
+            return
+
+        if transaction_type == TransactionType.TRANSFER:
+            await self._send_notification(
+                recipient_id,
+                "CyberCash: You received a transfer successfully.",
+                transaction_type="transfer",
+                amount=amount,
+                currency=currency,
+                direction="receive",
+            )
+        elif transaction_type == TransactionType.ESCROW_RELEASE:
+            release_amount = Decimal(str(amount or 0)) - _money(metadata.get("fee", 0))
+            await self._send_notification(
+                recipient_id,
+                "CyberCash: An escrow payment was released to your wallet successfully.",
+                transaction_type="escrow release",
+                amount=max(release_amount, Decimal("0.00")),
+                currency=currency,
+                direction="receive",
+            )
+        elif transaction_type == TransactionType.ESCROW_CREATE:
+            await self._send_notification(
+                recipient_id,
+                "CyberCash: A new escrow deal is ready for you. Sign in to review the details.",
+                subject="New escrow deal",
+            )
+
+    async def _send_notification(
+        self,
+        user_id: int,
+        message: str,
+        *,
+        transaction_type: str | None = None,
+        amount: Decimal | float | int | str | None = None,
+        currency: str = "GHS",
+        direction: str | None = None,
+        subject: str = "Transaction update",
+    ):
         from backend.services.notification import NotificationService
 
         try:
@@ -969,13 +1039,14 @@ class TransactionEngine:
                     transaction_type,
                     amount,
                     currency=currency,
-                    subject="Transaction update",
+                    subject=subject,
+                    direction=direction,
                 )
             else:
                 result = await NotificationService().send_to_user(
                     user,
                     message,
-                    subject="Transaction update",
+                    subject=subject,
                 )
 
             if result.get("status") != "queued":
