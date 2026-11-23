@@ -24,15 +24,23 @@ mkdir -p "$stage_dir" "$artifact_dir"
 copy_paths=(
   buildozer.spec
   app.py
+  kivy_app.py
   main.py
   app_config.json
   api
   assets
   components
   core
+  features
+  models
   screens
   services
+  runtime_database_guard.py
+  runtime_money_guard.py
   storage.py
+  sitecustomize.py
+  widgets.py
+  theme
   theme.py
   utils
 )
@@ -51,6 +59,11 @@ fi
 
 if [ ! -f "$app_src_dir/app.py" ]; then
   echo "Staged Android source is missing app.py" >&2
+  find "$app_src_dir" -maxdepth 2 -type f | sort >&2
+  exit 1
+fi
+if [ ! -f "$app_src_dir/kivy_app.py" ]; then
+  echo "Staged Android source is missing kivy_app.py, required by main.py" >&2
   find "$app_src_dir" -maxdepth 2 -type f | sort >&2
   exit 1
 fi
@@ -76,7 +89,7 @@ PY
 echo "Staged Android app source:"
 find "$app_src_dir" -maxdepth 2 -type f | sort | head -n 60
 echo "Staged Android entrypoint files:"
-ls -l "$app_src_dir/main.py" "$app_src_dir/app.py"
+ls -l "$app_src_dir/main.py" "$app_src_dir/app.py" "$app_src_dir/kivy_app.py"
 
 python3 -m venv .ci-buildozer-venv
 source .ci-buildozer-venv/bin/activate
@@ -150,6 +163,44 @@ if [ "${#artifacts[@]}" -eq 0 ]; then
   exit 1
 fi
 
+python3 - "${artifacts[@]}" <<'PY'
+import io
+import sys
+import tarfile
+import zipfile
+
+
+def has_module(names, module_name):
+    path_module = module_name.replace(".", "/")
+    suffixes = (f"{module_name}.py", f"{module_name}.pyc", f"{path_module}.py", f"{path_module}.pyc")
+    return any(name.endswith(suffixes) for name in names)
+
+
+failures = []
+for artifact in sys.argv[1:]:
+    try:
+        with zipfile.ZipFile(artifact) as apk:
+            private_tar = apk.read("assets/private.tar")
+        with tarfile.open(fileobj=io.BytesIO(private_tar)) as archive:
+            names = set(archive.getnames())
+    except Exception as exc:
+        failures.append(f"{artifact}: unable to inspect assets/private.tar: {exc}")
+        continue
+
+    required_modules = ("main", "kivy_app", "screens.dashboard", "screens.wallet")
+    missing = [module for module in required_modules if not has_module(names, module)]
+    if missing:
+        failures.append(f"{artifact}: missing Android app module(s): {', '.join(missing)}")
+        continue
+
+    print(f"Verified Android startup and dashboard/deposit modules in {artifact}")
+
+if failures:
+    print("Android artifact validation failed:", file=sys.stderr)
+    for failure in failures:
+        print(f" - {failure}", file=sys.stderr)
+    sys.exit(1)
+PY
 cp -f "${artifacts[@]}" "$artifact_dir/"
 echo "Android artifacts copied to $artifact_dir:"
 for artifact in "${artifacts[@]}"; do
