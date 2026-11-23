@@ -332,17 +332,20 @@ KV = """
                                 ripple_behavior: True
                                 on_release: root.toggle_balance()
 
-                                MDIcon:
-                                    icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
-                                    size_hint: None, None
-                                    size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
-                                    font_size: sp(18 * root.icon_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
-                                    pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
-                                    theme_text_color: "Custom"
-                                    text_color: 0.90, 0.96, 0.84, 1
+                                MDAnchorLayout:
+                                    anchor_x: "center"
+                                    anchor_y: "center"
+
+                                    MDIcon:
+                                        icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
+                                        size_hint: None, None
+                                        size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                        font_size: sp(18 * root.icon_scale)
+                                        text_size: self.size
+                                        halign: "center"
+                                        valign: "center"
+                                        theme_text_color: "Custom"
+                                        text_color: 0.90, 0.96, 0.84, 1
                         MDLabel:
                             text: root.balance_display
                             bold: True
