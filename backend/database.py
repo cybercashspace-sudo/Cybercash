@@ -20,7 +20,9 @@ def _normalize_database_url(url: str, *, asynchronous: bool) -> str:
     if asynchronous and value.startswith("postgresql://"):
         return "postgresql+asyncpg://" + value[len("postgresql://"):]
     if not asynchronous and value.startswith("postgresql+asyncpg://"):
-        return "postgresql://" + value[len("postgresql+asyncpg://"):]
+        return "postgresql+psycopg2://" + value[len("postgresql+asyncpg://"):]
+    if not asynchronous and value.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + value[len("postgresql://"):]
     return value
 
 
