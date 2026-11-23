@@ -1131,9 +1131,30 @@ class DashboardScreen(MDScreen):
             self.manager.current = "wallet"
 
     def go_to_deposit(self):
-        if self.manager and self.manager.has_screen("deposit"):
-            self.manager.current = "deposit"
+        manager = self.manager
+        if not manager:
+            return
 
+        app = MDApp.get_running_app()
+        ensure_screen = getattr(app, "ensure_screen", None)
+        try:
+            if callable(ensure_screen):
+                available = bool(ensure_screen("deposit"))
+            else:
+                available = bool(manager.has_screen("deposit"))
+        except Exception:
+            available = False
+
+        if not available:
+            show_message_dialog(
+                self,
+                title="Deposit unavailable",
+                message="We couldn't open deposits right now. Please try again. Your wallet balance hasn't changed.",
+                close_label="Close",
+            )
+            return
+
+        manager.current = "deposit"
     def go_to_withdraw(self):
         if self.manager and self.manager.has_screen("withdraw"):
             self.manager.current = "withdraw"
