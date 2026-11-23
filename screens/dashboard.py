@@ -223,17 +223,20 @@ KV = """
                             elevation: 0
                             padding: 0
 
-                            MDIcon:
-                                icon: "card-account-details-outline"
-                                size_hint: None, None
-                                size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
-                                font_size: sp(18 * root.icon_scale)
-                                text_size: self.size
-                                halign: "center"
-                                valign: "center"
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.94, 0.78, 0.44, 1
+                            MDAnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "center"
+
+                                MDIcon:
+                                    icon: "card-account-details-outline"
+                                    size_hint: None, None
+                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                    font_size: sp(18 * root.icon_scale)
+                                    text_size: self.size
+                                    halign: "center"
+                                    valign: "center"
+                                    theme_text_color: "Custom"
+                                    text_color: 0.94, 0.78, 0.44, 1
 
                         MDLabel:
                             text: root.greeting_text
