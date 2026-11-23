@@ -98,7 +98,7 @@ SCREEN_SPECS = {
     "reset_pin": ("screens.reset_pin", "ResetPinScreen"),
     "home": ("screens.dashboard", "DashboardScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
-    "deposit": ("features.deposit.deposit_screen", "DepositScreen"),
+    "deposit": ("screens.wallet", "DepositScreen"),
     "withdraw": ("features.withdrawal.withdrawal_screen", "WithdrawalScreen"),
     "airtime": ("features.airtime_data.airtime_screen", "AirtimeScreen"),
     "data_bundle": ("features.airtime_data.data_screen", "DataScreen"),
