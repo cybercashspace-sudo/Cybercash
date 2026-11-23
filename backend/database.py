@@ -11,10 +11,27 @@ load_dotenv(dotenv_path)
 # ==========================================
 # DATABASE URLS
 # ==========================================
-# You can set DATABASE_URL in .env, otherwise use the local PostgreSQL dev database.
-SYNC_DATABASE_URL = os.getenv("SYNC_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5433/cybercash")
-ASYNC_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/cybercash")
+# Render supplies postgres:// URLs; SQLAlchemy needs explicit sync/async drivers.
+def _normalize_database_url(url: str, *, asynchronous: bool) -> str:
+    value = str(url or "").strip()
+    if value.startswith("postgres://"):
+        value = "postgresql://" + value[len("postgres://"):]
 
+    if asynchronous and value.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + value[len("postgresql://"):]
+    if not asynchronous and value.startswith("postgresql+asyncpg://"):
+        return "postgresql://" + value[len("postgresql+asyncpg://"):]
+    return value
+
+
+SYNC_DATABASE_URL = _normalize_database_url(
+    os.getenv("SYNC_DATABASE_URL", "postgresql://cyber_app@127.0.0.1:5433/cybercash"),
+    asynchronous=False,
+)
+ASYNC_DATABASE_URL = _normalize_database_url(
+    os.getenv("DATABASE_URL", "postgresql+asyncpg://cyber_app@127.0.0.1:5433/cybercash"),
+    asynchronous=True,
+)
 # ==========================================
 # SYNC ENGINE & SESSION (for tests / admin scripts)
 # ==========================================
