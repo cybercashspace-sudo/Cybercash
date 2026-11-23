@@ -1661,11 +1661,7 @@ class DashboardScreen(MDScreen):
         )
         menu_content.add_widget(
             MDLabel(
-                text=(
-                    "Airtime, data bundle, BTC, or open your agent dashboard."
-                    if self.is_agent_valid
-                    else "Airtime, data bundle, BTC, or become an agent."
-                ),
+                text="Airtime, data bundles, Airtime2Cash, bills, BTC, and agent services.",
                 adaptive_height=True,
                 font_style="Body",
                 font_name=FONT_REGULAR,
@@ -1782,6 +1778,24 @@ class DashboardScreen(MDScreen):
             list(app.ui_surface_soft),
             [0.35, 0.50, 0.41, 0.42],
             lambda: self._navigate_more_action("data_bundle"),
+        )
+        add_action_card(
+            "Airtime2Cash",
+            "Convert airtime to wallet cash",
+            "cash-multiple",
+            list(app.emerald),
+            list(app.ui_surface_soft),
+            [0.35, 0.50, 0.41, 0.42],
+            lambda: self._navigate_more_action("airtime_2_cash"),
+        )
+        add_action_card(
+            "Pay Bills",
+            "Pay utilities and invoices",
+            "file-document-outline",
+            list(app.gold),
+            list(app.ui_surface_soft),
+            [0.53, 0.41, 0.23, 0.40],
+            lambda: self._navigate_more_action("pay_bills"),
         )
         add_action_card(
             "BTC",
