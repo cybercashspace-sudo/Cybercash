@@ -12,9 +12,13 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./cybercash.db
+        fromDatabase:
+          name: cybercash-postgres-test
+          property: connectionString
       - key: SYNC_DATABASE_URL
-        value: sqlite:///./cybercash.db
+        fromDatabase:
+          name: cybercash-postgres-test
+          property: connectionString
       - key: OTP_PROVIDER
         value: email
       - key: MAIL_PROVIDER
