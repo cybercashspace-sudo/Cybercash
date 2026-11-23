@@ -216,31 +216,37 @@ class BottomNavBar(MDCard):
         self.line_color = [0.52, 0.52, 0.56, 0.34]
 
         items = self._items()
-        grid = GridLayout(cols=max(1, len(items)), spacing=0)
+        icon_slot_height = dp((72 if is_dashboard else 48) * layout_scale)
+        grid = GridLayout(cols=max(1, len(items)), rows=1, spacing=0, size_hint=(1, 1))
 
         def build_item(item: dict) -> MDBoxLayout:
             target = str(item["target"])
             is_active = target == self.active_target
             text_color = self.active_color if is_active else self.inactive_color
-            container = MDBoxLayout(orientation="vertical", spacing=dp(4 * layout_scale), padding=[0, dp(4 * layout_scale), 0, 0], adaptive_height=True)
+            container = MDBoxLayout(
+                orientation="vertical",
+                size_hint=(1, 1),
+                spacing=dp(2 * layout_scale),
+                padding=0,
+            )
 
             if item.get("special"):
-                card = MDCard(
+                icon_wrap = MDCard(
                     size_hint=(None, None),
-                    size=(dp(92 * layout_scale), dp(92 * layout_scale)),
-                    radius=[dp(46 * layout_scale)],
+                    size=(dp(68 * layout_scale), dp(68 * layout_scale)),
+                    radius=[dp(34 * layout_scale)],
                     md_bg_color=[0.05, 0.05, 0.06, 0.98],
                     line_color=self.active_color if is_active else [0.40, 0.40, 0.42, 0.55],
                     elevation=0,
-                    pos_hint={"center_x": 0.5},
+                    pos_hint={"center_x": 0.5, "center_y": 0.5},
                     on_release=lambda _btn, item_target=target: self._navigate(item_target),
                 )
                 art = FloatLayout()
                 art.add_widget(
                     MDCard(
                         size_hint=(None, None),
-                        size=(dp(68 * layout_scale), dp(68 * layout_scale)),
-                        radius=[dp(34 * layout_scale)],
+                        size=(dp(52 * layout_scale), dp(52 * layout_scale)),
+                        radius=[dp(26 * layout_scale)],
                         md_bg_color=[0.08, 0.08, 0.09, 0.98],
                         line_color=[0.95, 0.74, 0.12, 0.88],
                         elevation=0,
@@ -260,122 +266,58 @@ class BottomNavBar(MDCard):
                 badge = self._build_badge(target, layout_scale)
                 if badge is not None:
                     art.add_widget(badge)
-                card.add_widget(art)
-                container.add_widget(card)
-                container.add_widget(
-                    MDLabel(
-                        text=item["label"],
-                        halign="center",
+                icon_wrap.add_widget(art)
+            else:
+                icon_wrap = MDCard(
+                    size_hint=(None, None),
+                    size=(dp(46 * layout_scale), dp(46 * layout_scale)),
+                    radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
+                    md_bg_color=self.active_color if is_active else [0.18, 0.18, 0.20, 0.92],
+                    line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
+                    elevation=0,
+                    pos_hint={"center_x": 0.5, "center_y": 0.5},
+                    on_release=lambda _btn, item_target=target: self._navigate(item_target),
+                )
+                icon_wrap.add_widget(
+                    MDIconButton(
+                        icon=item["icon"],
+                        icon_size=f"{25 * icon_scale:.1f}sp",
+                        pos_hint={"center_x": 0.5, "center_y": 0.5},
                         theme_text_color="Custom",
-                        text_color=text_color,
-                        font_size=f"{10.0 * text_scale:.1f}sp",
-                        shorten=True,
-                        shorten_from="right",
+                        text_color=[0.08, 0.08, 0.08, 1] if is_active else text_color,
+                        disabled=True,
                     )
                 )
-                self._item_widgets[target] = card
-                return container
+                badge = self._build_badge(target, layout_scale)
 
-            icon_bg = self.active_color if is_active else [0.18, 0.18, 0.20, 0.92]
-            icon_fg = [0.08, 0.08, 0.08, 1] if is_active else text_color
-            icon_wrap = MDCard(
-                size_hint=(None, None),
-                size=(dp(46 * layout_scale), dp(46 * layout_scale)),
-                radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
-                md_bg_color=icon_bg,
-                line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
-                elevation=0,
-                pos_hint={"center_x": 0.5},
-                on_release=lambda _btn, item_target=target: self._navigate(item_target),
-            )
-            icon_wrap.add_widget(
-                MDIconButton(
-                    icon=item["icon"],
-                    icon_size=f"{23 * icon_scale:.1f}sp",
-                    pos_hint={"center_x": 0.5, "center_y": 0.5},
-                    theme_text_color="Custom",
-                    text_color=icon_fg,
-                    disabled=True,
-                )
-            )
-
-            icon_layer = FloatLayout(size_hint=(None, None), size=(dp(48 * layout_scale), dp(48 * layout_scale)))
+            icon_layer = FloatLayout(size_hint=(1, None), height=icon_slot_height)
             icon_layer.add_widget(icon_wrap)
-            badge = self._build_badge(target, layout_scale)
-            if badge is not None:
+            if badge is not None and not item.get("special"):
                 icon_layer.add_widget(badge)
-
             container.add_widget(icon_layer)
             container.add_widget(
                 MDLabel(
                     text=item["label"],
+                    size_hint=(1, None),
+                    height=dp(18 * layout_scale),
                     halign="center",
+                    valign="middle",
                     theme_text_color="Custom",
                     text_color=text_color,
                     font_size=f"{10.5 * text_scale:.1f}sp",
                     shorten=True,
                     shorten_from="right",
+                    text_size=(None, dp(18 * layout_scale)),
                 )
             )
             self._item_widgets[target] = icon_wrap
             return container
 
-        if is_dashboard:
-            grid = GridLayout(cols=max(1, len(items)), spacing=0)
-            for item in items:
-                grid.add_widget(build_item(item))
-            self.add_widget(grid)
-            Clock.schedule_once(lambda _dt: self._animate_active_item(), 0)
-            return
-
         for item in items:
-            target = str(item["target"])
-            is_active = target == self.active_target
-            text_color = self.active_color if is_active else self.inactive_color
-            container = MDBoxLayout(orientation="vertical", spacing=0, adaptive_height=True)
-            icon_wrap = MDCard(
-                size_hint=(None, None),
-                size=(dp(46 * layout_scale), dp(46 * layout_scale)),
-                radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
-                md_bg_color=self.active_color if is_active else [0.18, 0.18, 0.20, 0.92],
-                line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
-                elevation=0,
-                pos_hint={"center_x": 0.5},
-                on_release=lambda _btn, item_target=target: self._navigate(item_target),
-            )
-            icon_wrap.add_widget(
-                MDIconButton(
-                    icon=item["icon"],
-                    icon_size=f"{27 * icon_scale:.1f}sp",
-                    pos_hint={"center_x": 0.5, "center_y": 0.5},
-                    theme_text_color="Custom",
-                    text_color=[0.08, 0.08, 0.08, 1] if is_active else text_color,
-                    disabled=True,
-                )
-            )
-            icon_layer = FloatLayout(size_hint=(None, None), size=(dp(48 * layout_scale), dp(48 * layout_scale)))
-            icon_layer.add_widget(icon_wrap)
-            badge = self._build_badge(target, layout_scale)
-            if badge is not None:
-                icon_layer.add_widget(badge)
-            container.add_widget(icon_layer)
-            container.add_widget(
-                MDLabel(
-                    text=item["label"],
-                    halign="center",
-                    theme_text_color="Custom",
-                    text_color=text_color,
-                    font_size=f"{10.5 * text_scale:.1f}sp",
-                    shorten=True,
-                    shorten_from="right",
-                )
-            )
-            grid.add_widget(container)
-            self._item_widgets[target] = icon_wrap
+            grid.add_widget(build_item(item))
 
         self.add_widget(grid)
         Clock.schedule_once(lambda _dt: self._animate_active_item(), 0)
-
 
 try:
     from kivy.factory import Factory
