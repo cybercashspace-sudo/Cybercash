@@ -22,6 +22,9 @@ android.enable_androidx = True
 android.accept_sdk_license = True
 android.logcat_filters = *:S python:D
 
+# Keep Android recipes and Python host tools on the stable Python 3.11 toolchain.
+p4a.branch = v2024.01.21
+
 [buildozer]
 log_level = 2
 warn_on_root = 0

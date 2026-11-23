@@ -94,15 +94,16 @@ pushd "$stage_dir" >/dev/null
 p4a_parent_dir=".buildozer/android/platform"
 p4a_dir="$p4a_parent_dir/python-for-android"
 private_app_dir=".buildozer/android/app"
+p4a_ref="v2024.01.21"
 mkdir -p "$p4a_parent_dir"
 
 if ! git -C "$p4a_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
    ! git -C "$p4a_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
   rm -rf "$p4a_dir"
-  echo "Pre-cloning python-for-android with retries..."
+  echo "Pre-cloning python-for-android $p4a_ref with retries..."
   for attempt in 1 2 3 4 5; do
-    echo "python-for-android clone attempt $attempt/5"
-    if git clone --depth 1 --single-branch --branch master https://github.com/kivy/python-for-android.git "$p4a_dir"; then
+    echo "python-for-android $p4a_ref clone attempt $attempt/5"
+    if git clone --depth 1 --single-branch --branch "$p4a_ref" https://github.com/kivy/python-for-android.git "$p4a_dir"; then
       break
     fi
     rm -rf "$p4a_dir"
