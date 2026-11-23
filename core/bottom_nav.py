@@ -233,8 +233,8 @@ class BottomNavBar(MDCard):
             if item.get("special"):
                 icon_wrap = MDCard(
                     size_hint=(None, None),
-                    size=(dp(68 * layout_scale), dp(68 * layout_scale)),
-                    radius=[dp(34 * layout_scale)],
+                    size=(dp(92 * layout_scale), dp(92 * layout_scale)),
+                    radius=[dp(46 * layout_scale)],
                     md_bg_color=[0.05, 0.05, 0.06, 0.98],
                     line_color=self.active_color if is_active else [0.40, 0.40, 0.42, 0.55],
                     elevation=0,
@@ -245,12 +245,27 @@ class BottomNavBar(MDCard):
                 art.add_widget(
                     MDCard(
                         size_hint=(None, None),
-                        size=(dp(52 * layout_scale), dp(52 * layout_scale)),
-                        radius=[dp(26 * layout_scale)],
+                        size=(dp(68 * layout_scale), dp(68 * layout_scale)),
+                        radius=[dp(34 * layout_scale)],
                         md_bg_color=[0.08, 0.08, 0.09, 0.98],
                         line_color=[0.95, 0.74, 0.12, 0.88],
                         elevation=0,
                         pos_hint={"center_x": 0.5, "center_y": 0.58},
+                    )
+                )
+                art.add_widget(
+                    MDLabel(
+                        text=item["label"],
+                        size_hint=(1, None),
+                        height=dp(18 * layout_scale),
+                        pos_hint={"x": 0, "y": 0},
+                        halign="center",
+                        valign="middle",
+                        theme_text_color="Custom",
+                        text_color=text_color,
+                        font_size=f"{10.5 * text_scale:.1f}sp",
+                        shorten=True,
+                        shorten_from="right",
                     )
                 )
                 art.add_widget(
@@ -295,21 +310,22 @@ class BottomNavBar(MDCard):
             if badge is not None and not item.get("special"):
                 icon_layer.add_widget(badge)
             container.add_widget(icon_layer)
-            container.add_widget(
-                MDLabel(
-                    text=item["label"],
-                    size_hint=(1, None),
-                    height=dp(18 * layout_scale),
-                    halign="center",
-                    valign="middle",
-                    theme_text_color="Custom",
-                    text_color=text_color,
-                    font_size=f"{10.5 * text_scale:.1f}sp",
-                    shorten=True,
-                    shorten_from="right",
-                    text_size=(None, dp(18 * layout_scale)),
+            if not item.get("special"):
+                container.add_widget(
+                    MDLabel(
+                        text=item["label"],
+                        size_hint=(1, None),
+                        height=dp(18 * layout_scale),
+                        halign="center",
+                        valign="middle",
+                        theme_text_color="Custom",
+                        text_color=text_color,
+                        font_size=f"{10.5 * text_scale:.1f}sp",
+                        shorten=True,
+                        shorten_from="right",
+                        text_size=(None, dp(18 * layout_scale)),
+                    )
                 )
-            )
             self._item_widgets[target] = icon_wrap
             return container
 
