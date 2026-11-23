@@ -159,7 +159,7 @@ KV = """
                                 size_hint: None, None
                                 size: dp(32 * root.layout_scale), dp(32 * root.layout_scale)
                                 icon_size: sp(23 * root.icon_scale)
-                                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
                                 theme_text_color: "Custom"
                                 text_color: app.gold
                                 disabled: True
@@ -379,17 +379,15 @@ KV = """
                                 elevation: 0
                                 padding: 0
 
-                                MDIcon:
+                                MDIconButton:
                                     icon: "plus"
                                     size_hint: None, None
-                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    font_size: sp(20 * root.icon_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    icon_size: sp(20 * root.icon_scale)
+                                    pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
                                     theme_text_color: "Custom"
                                     text_color: 0.23, 0.17, 0.08, 1
+                                    disabled: True
 
                             MDLabel:
                                 text: "Deposit"
@@ -429,17 +427,15 @@ KV = """
                                 elevation: 0
                                 padding: 0
 
-                                MDIcon:
+                                MDIconButton:
                                     icon: "cash-minus"
                                     size_hint: None, None
-                                    size: dp(25 * root.layout_scale), dp(25 * root.layout_scale)
-                                    font_size: sp(20 * root.icon_scale)
-                                    text_size: self.size
-                                    halign: "center"
-                                    valign: "center"
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
+                                    icon_size: sp(20 * root.icon_scale)
+                                    pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
                                     theme_text_color: "Custom"
                                     text_color: 0.78, 0.93, 0.77, 1
+                                    disabled: True
 
                             MDBoxLayout:
                                 orientation: "vertical"
