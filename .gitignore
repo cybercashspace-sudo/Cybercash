@@ -34,6 +34,7 @@ buildozer_build.log
 downloaded_artifacts/
 cybercash-android-apk*.zip
 github_run_*.json
+github_run_*.html
 cybercash_icon_check.png
 
 # Local PostgreSQL safety backups
