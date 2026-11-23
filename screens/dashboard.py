@@ -121,12 +121,15 @@ KV = """
                         pos_hint: {"center_y": 0.5}
                         on_release: root.go_to_settings()
 
-                        FitImage:
-                            source: root.avatar_source
-                            size_hint: None, None
-                            size: dp(40 * root.layout_scale), dp(40 * root.layout_scale)
-                            radius: [dp(20 * root.layout_scale)]
-                            pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
+                        MDAnchorLayout:
+                            anchor_x: "center"
+                            anchor_y: "center"
+
+                            FitImage:
+                                source: root.avatar_source
+                                size_hint: None, None
+                                size: dp(46 * root.layout_scale), dp(46 * root.layout_scale)
+                                radius: [dp(23 * root.layout_scale)]
 
                     MDLabel:
                         text: "CYBER CASH"
