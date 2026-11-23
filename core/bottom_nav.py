@@ -309,16 +309,23 @@ class BottomNavBar(MDCard):
                     pos_hint={"center_x": 0.5, "center_y": 0.5},
                     on_release=lambda _btn, item_target=target: self._navigate(item_target),
                 )
-                icon_wrap.add_widget(
-                    MDIconButton(
-                        icon=item["icon"],
-                        icon_size=f"{(30 if is_dashboard else 25) * icon_scale:.1f}sp",
-                        pos_hint={"center_x": 0.5, "center_y": 0.5},
-                        theme_text_color="Custom",
-                        text_color=text_color if is_dashboard else ([0.08, 0.08, 0.08, 1] if is_active else text_color),
-                        disabled=True,
-                    )
+                icon_button = MDIconButton(
+                    icon=item["icon"],
+                    icon_size=f"{(30 if is_dashboard else 25) * icon_scale:.1f}sp",
+                    theme_text_color="Custom",
+                    text_color=text_color if is_dashboard else ([0.08, 0.08, 0.08, 1] if is_active else text_color),
+                    disabled=True,
                 )
+                icon_wrap.add_widget(icon_button)
+
+                def center_icon(card, *_args, button=icon_button):
+                    button.pos = (
+                        card.center_x - button.width / 2,
+                        card.center_y - button.height / 2,
+                    )
+
+                icon_wrap.bind(pos=center_icon, size=center_icon)
+                center_icon(icon_wrap)
                 badge = self._build_badge(target, layout_scale)
 
             icon_layer = FloatLayout(size_hint=(1, None), height=icon_slot_height)

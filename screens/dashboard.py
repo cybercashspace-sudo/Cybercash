@@ -659,7 +659,7 @@ KV = """
                     height: dp(8 * root.layout_scale)
 
         BottomNavBar:
-            nav_variant: "dashboard"
+            nav_variant: "default"
             active_target: "home"
             layout_scale: root.layout_scale
             text_scale: root.text_scale
