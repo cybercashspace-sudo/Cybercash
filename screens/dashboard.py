@@ -316,27 +316,27 @@ KV = """
 
                             MDCard:
                                 size_hint: None, None
-                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                radius: [dp(17 * root.layout_scale)]
+                                size: dp(38 * root.layout_scale), dp(38 * root.layout_scale)
+                                radius: [dp(19 * root.layout_scale)]
                                 md_bg_color: 0.12, 0.22, 0.19, 0.62
                                 line_color: [0.55, 0.73, 0.62, 0.22]
                                 pos_hint: {"center_y": 0.5}
-                                padding: dp(5 * root.layout_scale)
+                                padding: 0
                                 elevation: 0
+                                ripple_behavior: True
+                                on_release: root.toggle_balance()
 
-                                MDIconButton:
+                                MDIcon:
                                     icon: "eye-off-outline" if root.balance_hidden else "eye-outline"
-                                    user_font_size: str(18 * root.icon_scale) + "sp"
                                     size_hint: None, None
-                                    size: dp(24 * root.layout_scale), dp(24 * root.layout_scale)
+                                    size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
+                                    font_size: sp(18 * root.icon_scale)
+                                    text_size: self.size
                                     halign: "center"
                                     valign: "center"
-                                    text_size: self.size
-                                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                                    pos: self.parent.center_x - self.width / 2, self.parent.center_y - self.height / 2
                                     theme_text_color: "Custom"
                                     text_color: 0.90, 0.96, 0.84, 1
-                                    on_release: root.toggle_balance()
-
                         MDLabel:
                             text: root.balance_display
                             bold: True
