@@ -102,7 +102,7 @@ SCREEN_SPECS = {
     "withdraw": ("screens.wallet", "WithdrawScreen"),
     "airtime": ("features.airtime_data.airtime_screen", "AirtimeScreen"),
     "data_bundle": ("features.airtime_data.data_screen", "DataScreen"),
-    "p2p_transfer": ("features.transfer.transfer_screen", "TransferScreen"),
+    "p2p_transfer": ("screens.p2p_transfer", "P2PTransferScreen"),
     "agent": ("screens.agent", "AgentScreen"),
     "airtime_2_cash": ("screens.airtime_cash", "AirtimeCashScreen"),
     "loans": ("screens.loans", "LoanScreen"),
