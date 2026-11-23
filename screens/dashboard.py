@@ -16,7 +16,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.screen import MDScreen
 
 from api.client import api_client
@@ -117,6 +117,7 @@ KV = """
                         line_color: [0.36, 0.31, 0.24, 0.34]
                         elevation: 0
                         padding: 0
+                        ripple_behavior: True
                         pos_hint: {"center_y": 0.5}
                         on_release: root.go_to_settings()
 
@@ -149,6 +150,7 @@ KV = """
                             line_color: [0.36, 0.31, 0.24, 0.28]
                             elevation: 0
                             padding: 0
+                            ripple_behavior: True
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
                             on_release: root.show_notifications()
 
@@ -171,9 +173,11 @@ KV = """
                             md_bg_color: 0.86, 0.18, 0.14, 1
                             pos_hint: {"center_x": 0.82, "center_y": 0.78}
                             elevation: 0
+                            opacity: 1 if root.notification_badge_visible else 0
+                            disabled: True
 
                             MDLabel:
-                                text: "1"
+                                text: root.notification_badge_text
                                 halign: "center"
                                 valign: "center"
                                 theme_text_color: "Custom"
@@ -290,9 +294,9 @@ KV = """
                                 padding: dp(6 * root.layout_scale)
                                 elevation: 0
 
-                                MDIconButton:
+                                MDIcon:
                                     icon: "wallet-outline"
-                                    user_font_size: str(18 * root.icon_scale) + "sp"
+                                    font_size: sp(18 * root.icon_scale)
                                     size_hint: None, None
                                     size: dp(22 * root.layout_scale), dp(22 * root.layout_scale)
                                     pos_hint: {"center_x": 0.5, "center_y": 0.5}
@@ -301,7 +305,6 @@ KV = """
                                     halign: "center"
                                     valign: "center"
                                     text_size: self.size
-                                    disabled: True
 
                             MDLabel:
                                 text: "Wallet Balance"
@@ -355,6 +358,7 @@ KV = """
                         md_bg_color: app.gold
                         line_color: [0.97, 0.86, 0.62, 0.76]
                         elevation: 0
+                        ripple_behavior: True
                         padding: [dp(10 * root.layout_scale), dp(8 * root.layout_scale), dp(14 * root.layout_scale), dp(8 * root.layout_scale)]
                         on_release: root.go_to_deposit()
                         canvas.before:
@@ -404,6 +408,7 @@ KV = """
                         md_bg_color: app.emerald
                         line_color: [0.59, 0.79, 0.66, 0.54]
                         elevation: 0
+                        ripple_behavior: True
                         padding: [dp(10 * root.layout_scale), dp(8 * root.layout_scale), dp(14 * root.layout_scale), dp(8 * root.layout_scale)]
                         on_release: root.go_to_withdraw()
                         canvas.before:
@@ -494,19 +499,20 @@ KV = """
                         md_bg_color: app.ui_surface_soft
                         line_color: [0.31, 0.48, 0.41, 0.42]
                         elevation: 0
+                        ripple_behavior: True
+                        on_release: root.go_to_p2p_transfer()
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
                             spacing: "0dp"
-                            MDIconButton:
+                            MDIcon:
                                 icon: "send"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
+                                font_size: sp(30 * root.icon_scale)
                                 size_hint: None, None
                                 size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.55, 0.84, 0.66, 1
-                                on_release: root.go_to_p2p_transfer()
                             MDLabel:
                                 text: "Send"
                                 halign: "center"
@@ -520,19 +526,20 @@ KV = """
                         md_bg_color: app.ui_surface_soft
                         line_color: [0.35, 0.50, 0.41, 0.42]
                         elevation: 0
+                        ripple_behavior: True
+                        on_release: root.go_to_investments()
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
                             spacing: "0dp"
-                            MDIconButton:
+                            MDIcon:
                                 icon: "finance"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
+                                font_size: sp(30 * root.icon_scale)
                                 size_hint: None, None
                                 size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.91, 0.75, 0.44, 1
-                                on_release: root.go_to_investments()
                             MDLabel:
                                 text: "Invest"
                                 halign: "center"
@@ -546,19 +553,20 @@ KV = """
                         md_bg_color: app.ui_surface_soft
                         line_color: [0.34, 0.48, 0.40, 0.38]
                         elevation: 0
+                        ripple_behavior: True
+                        on_release: root.go_to_loans()
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
                             spacing: "0dp"
-                            MDIconButton:
+                            MDIcon:
                                 icon: "shield-check-outline"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
+                                font_size: sp(30 * root.icon_scale)
                                 size_hint: None, None
                                 size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.83, 0.92, 0.60, 1
-                                on_release: root.go_to_loans()
                             MDLabel:
                                 text: "Loan"
                                 halign: "center"
@@ -572,20 +580,20 @@ KV = """
                         md_bg_color: app.ui_surface_soft
                         line_color: [0.53, 0.41, 0.23, 0.40]
                         elevation: 0
+                        ripple_behavior: True
                         on_release: root.open_more_actions()
                         padding: [dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale), dp(4 * root.layout_scale)]
                         MDBoxLayout:
                             orientation: "vertical"
                             spacing: "0dp"
-                            MDIconButton:
+                            MDIcon:
                                 icon: "view-grid"
-                                user_font_size: str(30 * root.icon_scale) + "sp"
                                 size_hint: None, None
                                 size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: 0.90, 0.75, 0.43, 1
-                                on_release: root.open_more_actions()
+                                font_size: sp(30 * root.icon_scale)
                             MDLabel:
                                 text: "More"
                                 halign: "center"
@@ -683,6 +691,9 @@ class DashboardScreen(MDScreen):
     balance_display = StringProperty("GHS —")
     is_agent_valid = BooleanProperty(False)
     is_admin_user = BooleanProperty(False)
+    notification_badge_text = StringProperty("")
+    notification_badge_visible = BooleanProperty(False)
+
     def __init__(self, **kwargs):
         self._refresh_event = None
         self._is_loading = False
@@ -692,6 +703,7 @@ class DashboardScreen(MDScreen):
         self._agent_verify_sequence = 0
         self._last_agent_reference = ""
         self._event_bus = None
+        self._notification_event_bus = None
         self._realtime_refresh_trigger = Clock.create_trigger(self._on_realtime_refresh, 0.35)
         super().__init__(**kwargs)
         self.avatar_source = self._resolve_avatar_source()
@@ -718,6 +730,7 @@ class DashboardScreen(MDScreen):
     def on_pre_enter(self):
         self._refresh_responsive_metrics()
         self.is_admin_user = self._has_admin_access()
+        self._refresh_notification_badge()
         self.load_dashboard_data()
 
     def on_enter(self):
@@ -726,6 +739,10 @@ class DashboardScreen(MDScreen):
         if self._event_bus is not None:
             self._event_bus.subscribe(AppEvents.WALLET_UPDATED, self._schedule_realtime_refresh)
             self._event_bus.subscribe(AppEvents.TRANSACTION_CREATED, self._schedule_realtime_refresh)
+        self._notification_event_bus = getattr(app, "event_bus", None)
+        if self._notification_event_bus is not None:
+            for event_name in (AppEvents.NOTIFICATIONS_UPDATED, AppEvents.NOTIFICATION_RECEIVED, "NotificationCreated"):
+                self._notification_event_bus.subscribe(event_name, self._schedule_notification_badge_refresh)
         if not self._refresh_event:
             self._refresh_event = Clock.schedule_interval(lambda _dt: self.load_dashboard_data(), 25)
 
@@ -734,6 +751,10 @@ class DashboardScreen(MDScreen):
             self._event_bus.unsubscribe(AppEvents.WALLET_UPDATED, self._schedule_realtime_refresh)
             self._event_bus.unsubscribe(AppEvents.TRANSACTION_CREATED, self._schedule_realtime_refresh)
             self._event_bus = None
+        if self._notification_event_bus is not None:
+            for event_name in (AppEvents.NOTIFICATIONS_UPDATED, AppEvents.NOTIFICATION_RECEIVED, "NotificationCreated"):
+                self._notification_event_bus.unsubscribe(event_name, self._schedule_notification_badge_refresh)
+            self._notification_event_bus = None
         if self._refresh_event:
             self._refresh_event.cancel()
             self._refresh_event = None
@@ -755,6 +776,23 @@ class DashboardScreen(MDScreen):
     def _on_realtime_refresh(self, _dt):
         if self.manager and self.manager.current == self.name:
             self.load_dashboard_data()
+
+    def _schedule_notification_badge_refresh(self, _payload=None):
+        Clock.schedule_once(lambda _dt: self._refresh_notification_badge(), 0)
+
+    def _refresh_notification_badge(self, *_args):
+        app = MDApp.get_running_app()
+        manager = getattr(app, "notification_manager", None) if app is not None else None
+        unread = getattr(manager, "unread", None)
+        if unread is None:
+            app_state = getattr(app, "app_state", None) if app is not None else None
+            unread = getattr(app_state, "unread_notifications", 0)
+        try:
+            unread_count = max(0, int(unread or 0))
+        except (TypeError, ValueError):
+            unread_count = 0
+        self.notification_badge_visible = unread_count > 0
+        self.notification_badge_text = str(unread_count) if unread_count < 100 else "99+"
 
     def on_parent(self, _instance, parent):
         if parent is None:
@@ -1663,21 +1701,21 @@ class DashboardScreen(MDScreen):
                 line_color=card_line,
                 padding=[dp(8 * layout_scale)] * 4,
                 elevation=0,
+                ripple_behavior=True,
             )
             card.bind(on_release=_select)
 
             content = MDBoxLayout(orientation="vertical", spacing=dp(3 * layout_scale))
-            icon_btn = MDIconButton(
+            icon = MDIcon(
                 icon=icon_name,
-                user_font_size=f"{30 * icon_scale:.1f}sp",
                 size_hint=(None, None),
                 size=(dp(36 * layout_scale), dp(36 * layout_scale)),
                 pos_hint={"center_x": 0.5},
                 theme_text_color="Custom",
                 text_color=icon_color,
+                font_size=sp(30 * icon_scale),
             )
-            icon_btn.bind(on_release=_select)
-            content.add_widget(icon_btn)
+            content.add_widget(icon)
             content.add_widget(
                 MDLabel(
                     text=label,
