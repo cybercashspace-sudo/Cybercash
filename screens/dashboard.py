@@ -154,17 +154,15 @@ KV = """
                             pos_hint: {"center_x": 0.5, "center_y": 0.5}
                             on_release: root.show_notifications()
 
-                            MDIcon:
+                            MDIconButton:
                                 icon: "bell-ring-outline"
                                 size_hint: None, None
-                                size: dp(28 * root.layout_scale), dp(28 * root.layout_scale)
-                                font_size: sp(24 * root.icon_scale)
-                                text_size: self.size
-                                halign: "center"
-                                valign: "center"
+                                size: dp(32 * root.layout_scale), dp(32 * root.layout_scale)
+                                icon_size: sp(23 * root.icon_scale)
                                 pos_hint: {"center_x": 0.5, "center_y": 0.5}
                                 theme_text_color: "Custom"
                                 text_color: app.gold
+                                disabled: True
 
                         MDCard:
                             size_hint: None, None
