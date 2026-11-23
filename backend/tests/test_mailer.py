@@ -199,3 +199,46 @@ async def test_send_email_does_not_log_transport_exception_details(monkeypatch, 
     assert "owner@example.com" not in caplog.text
     assert "mail-secret" not in caplog.text
     assert "123456" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_resend_stable_notification_key_deduplicates_repeated_sends(monkeypatch):
+    keys = []
+
+    class FakeResponse:
+        is_success = True
+        status_code = 200
+
+    class FakeClient:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, *, json, headers):
+            keys.append(headers["Idempotency-Key"])
+            return FakeResponse()
+
+    monkeypatch.setattr(mailer.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(mailer.settings, "RESEND_API_KEY", "resend-test-key")
+    monkeypatch.setattr(mailer.settings, "MAIL_PROVIDER", "resend")
+    monkeypatch.setattr(mailer.settings, "MAIL_FROM", "noreply@example.com")
+    monkeypatch.setattr(mailer.settings, "MAIL_TIMEOUT_SECONDS", 15)
+
+    for _ in range(2):
+        result = await mailer.send_email(
+            "Transaction update",
+            ["person@example.com"],
+            "Your transfer was completed.",
+            idempotency_key="transaction:42:user:7:success",
+        )
+        assert result["status"] == "queued"
+
+    assert len(keys) == 2
+    assert keys[0] == keys[1]
+    assert "transaction:42" not in keys[0]
+    assert len(keys[0]) == 64

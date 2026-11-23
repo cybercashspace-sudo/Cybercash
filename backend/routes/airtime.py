@@ -190,6 +190,7 @@ async def purchase_airtime(
                 current_user,
                 f"CyberCash: Airtime purchase successful. {transaction.currency} {amount:.2f} on {network}.",
                 subject="Airtime purchase successful",
+                idempotency_key=f"transaction:{transaction.id}:user:{current_user.id}:success",
             )
             return transaction
 
@@ -323,7 +324,12 @@ async def confirm_airtime_cash_transfer(
                 f"CyberCash: Airtime transfer noted for {sale.currency} {sale.amount:.2f}. "
                 "Manual review is required before payout."
             )
-        await notification_service.send_to_user(current_user, note, subject="Airtime sale update")
+        await notification_service.send_to_user(
+            current_user,
+            note,
+            subject="Airtime sale update",
+            idempotency_key=f"airtime-sale:{sale.id}:status:{sale.status}:user:{current_user.id}",
+        )
         return sale
     finally:
         await db.close()

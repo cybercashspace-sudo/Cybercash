@@ -516,6 +516,7 @@ async def transfer_funds(
             currency=request.currency,
             subject="Transfer sent",
             direction="send",
+            idempotency_key=f"transaction:{sender_transaction.id}:user:{current_user.id}:success",
         )
         await NotificationService().send_transaction_notification(
             recipient_user,
@@ -524,6 +525,7 @@ async def transfer_funds(
             currency=request.currency,
             subject="Transfer received",
             direction="receive",
+            idempotency_key=f"transaction:{recipient_transaction.id}:user:{recipient_user.id}:success",
         )
 
         transfer_reference = f"TRX-{int(sender_transaction.id)}"

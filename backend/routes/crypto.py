@@ -355,6 +355,7 @@ async def crypto_deposit_webhook(
                     amount,
                     currency=coin_type,
                     subject=f"{coin_type} deposit successful",
+                    idempotency_key=f"crypto-deposit:{db_crypto_transaction.id}:user:{crypto_wallet.user_id}:success",
                 )
         except Exception as exc:
             logger.warning(

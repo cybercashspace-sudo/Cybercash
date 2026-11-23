@@ -292,6 +292,7 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
                 amount,
                 currency="GHS",
                 subject="Wallet top-up successful",
+                idempotency_key=f"paystack-topup:{processor_reference}:user:{user_id}:success",
             )
     except Exception as exc:
         logger.warning(

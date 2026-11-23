@@ -609,6 +609,7 @@ async def purchase_data_bundle(
                 current_user,
                 notice,
                 subject="Data bundle purchase update",
+                idempotency_key=f"transaction:{transaction.id}:user:{current_user.id}:success",
             )
 
             return transaction

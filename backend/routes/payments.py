@@ -179,6 +179,7 @@ async def initiate_momo_bill_payment(
             bill_payment_request.amount,
             currency=bill_payment_request.currency,
             subject="Bill payment successful",
+            idempotency_key=f"transaction:{db_transaction.id}:user:{current_user.id}:success",
         )
         return db_payment
     finally:

@@ -216,6 +216,7 @@ class TransactionEngine:
                 amount=amount,
                 currency=wallet.currency or "GHS",
                 direction="send" if normalized_type == TransactionType.TRANSFER else None,
+                notification_key=f"transaction:{transaction.id}:user:{user_id}:success",
             )
             await self._notify_transaction_recipient(
                 normalized_type,
@@ -223,6 +224,7 @@ class TransactionEngine:
                 amount,
                 currency=wallet.currency or "GHS",
                 sender_user_id=user_id,
+                transaction_id=transaction.id,
             )
 
             return transaction
@@ -328,6 +330,7 @@ class TransactionEngine:
                 amount=transaction.amount,
                 currency=transaction.currency or "GHS",
                 direction="send" if normalize_transaction_type(transaction.type) == TransactionType.TRANSFER else None,
+                notification_key=f"transaction:{transaction.id}:user:{transaction.user_id}:success",
             )
             await self._notify_transaction_recipient(
                 normalize_transaction_type(transaction.type),
@@ -335,6 +338,7 @@ class TransactionEngine:
                 Decimal(str(transaction.amount or 0)),
                 currency=transaction.currency or "GHS",
                 sender_user_id=int(transaction.user_id),
+                transaction_id=transaction.id,
             )
 
             return transaction
@@ -977,6 +981,7 @@ class TransactionEngine:
         *,
         currency: str,
         sender_user_id: int,
+        transaction_id: int,
     ) -> None:
         """Notify the other account when a completed flow credits or involves it."""
         recipient_id = metadata.get("receiver_id") or metadata.get("recipient_id")
@@ -995,6 +1000,7 @@ class TransactionEngine:
                 amount=amount,
                 currency=currency,
                 direction="receive",
+                notification_key=f"transaction:{transaction_id}:user:{recipient_id}:success",
             )
         elif transaction_type == TransactionType.ESCROW_RELEASE:
             release_amount = Decimal(str(amount or 0)) - _money(metadata.get("fee", 0))
@@ -1005,12 +1011,14 @@ class TransactionEngine:
                 amount=max(release_amount, Decimal("0.00")),
                 currency=currency,
                 direction="receive",
+                notification_key=f"transaction:{transaction_id}:user:{recipient_id}:success",
             )
         elif transaction_type == TransactionType.ESCROW_CREATE:
             await self._send_notification(
                 recipient_id,
                 "CyberCash: A new escrow deal is ready for you. Sign in to review the details.",
                 subject="New escrow deal",
+                notification_key=f"transaction:{transaction_id}:user:{recipient_id}:success",
             )
 
     async def _send_notification(
@@ -1023,6 +1031,7 @@ class TransactionEngine:
         currency: str = "GHS",
         direction: str | None = None,
         subject: str = "Transaction update",
+        notification_key: str | None = None,
     ):
         from backend.services.notification import NotificationService
 
@@ -1041,12 +1050,14 @@ class TransactionEngine:
                     currency=currency,
                     subject=subject,
                     direction=direction,
+                    idempotency_key=notification_key,
                 )
             else:
                 result = await NotificationService().send_to_user(
                     user,
                     message,
                     subject=subject,
+                    idempotency_key=notification_key,
                 )
 
             if result.get("status") != "queued":

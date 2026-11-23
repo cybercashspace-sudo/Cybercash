@@ -65,6 +65,7 @@ class NotificationService:
         message: str,
         *,
         subject: str = "CyberCash account notification",
+        idempotency_key: str | None = None,
     ) -> dict:
         email = str(getattr(user, "email", "") or "").strip().lower()
         if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -75,7 +76,15 @@ class NotificationService:
                 "detail": "A valid account email is required for notifications.",
             }
         try:
-            result = await send_email(subject, [email], f"<p>{html.escape(str(message))}</p>")
+            if idempotency_key:
+                result = await send_email(
+                    subject,
+                    [email],
+                    f"<p>{html.escape(str(message))}</p>",
+                    idempotency_key=idempotency_key,
+                )
+            else:
+                result = await send_email(subject, [email], f"<p>{html.escape(str(message))}</p>")
         except Exception as exc:
             # Email is a side effect: a provider outage must not make a
             # committed transaction appear to have failed in the app.
@@ -106,6 +115,7 @@ class NotificationService:
         currency: str = "GHS",
         subject: str = "Transaction update",
         direction: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict:
         try:
             amount_value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
@@ -126,7 +136,7 @@ class NotificationService:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
         if label in {"deposit", "withdrawal", "wallet top up"}:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
-        return await self.send_to_user(user, message, subject=subject)
+        return await self.send_to_user(user, message, subject=subject, idempotency_key=idempotency_key)
 
     async def send_to_user_id(
         self,

@@ -401,6 +401,7 @@ async def purchase_data_as_agent(
             current_user,
             "CyberCash: Your data bundle has been delivered successfully.",
             subject="Data bundle purchase update",
+            idempotency_key=f"data-order:{data_order.id}:user:{current_user.id}:success",
         )
 
         # Refresh response models.

@@ -50,6 +50,7 @@ async def test_completed_transfer_notifies_recipient_once_with_received_directio
         12.50,
         currency="GHS",
         sender_user_id=19,
+        transaction_id=321,
     )
 
     engine._send_notification.assert_awaited_once()
@@ -58,6 +59,7 @@ async def test_completed_transfer_notifies_recipient_once_with_received_directio
     assert kwargs["transaction_type"] == "transfer"
     assert kwargs["direction"] == "receive"
     assert kwargs["amount"] == 12.50
+    assert kwargs["notification_key"] == "transaction:321:user:24:success"
 
 
 @pytest.mark.asyncio
@@ -71,6 +73,7 @@ async def test_transaction_recipient_notification_skips_sender_self_transfer():
         12.50,
         currency="GHS",
         sender_user_id=19,
+        transaction_id=321,
     )
 
     engine._send_notification.assert_not_awaited()

@@ -53,6 +53,7 @@ def test_airtime_purchase_success(client, db_session):
         "Airtime purchase successful",
         ["airtime_success@test.com"],
         "<p>CyberCash: Airtime purchase successful. GHS 20.00 on MTN.</p>",
+        idempotency_key="transaction:1:user:1:success",
     )
 
 
