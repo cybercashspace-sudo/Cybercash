@@ -4,6 +4,7 @@ from sqlalchemy import select
 from typing import List
 from datetime import datetime, timezone
 import json
+import logging
 import uuid
 from pydantic import BaseModel, Field
 import requests
@@ -23,6 +24,7 @@ router = APIRouter(
 )
 
 crypto_service = CryptoService()
+logger = logging.getLogger(__name__)
 
 class CryptoWithdrawalRequest(BaseModel):
     to_address: str
@@ -341,6 +343,25 @@ async def crypto_deposit_webhook(
         )
         await db.commit()
 
+        try:
+            notification_result = await db.execute(select(User).filter(User.id == crypto_wallet.user_id))
+            notification_user = notification_result.scalars().first()
+            if notification_user is not None:
+                from backend.services.notification import NotificationService
+
+                await NotificationService().send_transaction_notification(
+                    notification_user,
+                    f"{coin_type} deposit",
+                    amount,
+                    currency=coin_type,
+                    subject=f"{coin_type} deposit successful",
+                )
+        except Exception as exc:
+            logger.warning(
+                "Crypto deposit notification could not be queued for user_id=%s (error_type=%s)",
+                crypto_wallet.user_id,
+                type(exc).__name__,
+            )
         return {"message": "Crypto deposit processed successfully."}
     finally:
         await db.close()

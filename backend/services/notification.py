@@ -60,7 +60,21 @@ class NotificationService:
                 "provider": "email",
                 "detail": "A valid account email is required for notifications.",
             }
-        result = await send_email(subject, [email], f"<p>{html.escape(str(message))}</p>")
+        try:
+            result = await send_email(subject, [email], f"<p>{html.escape(str(message))}</p>")
+        except Exception as exc:
+            # Email is a side effect: a provider outage must not make a
+            # committed transaction appear to have failed in the app.
+            logger.warning(
+                "Email notification failed for user_id=%s (error_type=%s)",
+                user.id,
+                type(exc).__name__,
+            )
+            return {
+                "status": "error",
+                "provider": "email",
+                "detail": "Email is temporarily unavailable. Please try again shortly.",
+            }
         if result.get("status") != "queued":
             logger.warning(
                 "Email notification failed for user_id=%s: %s",
@@ -79,7 +93,11 @@ class NotificationService:
         subject: str = "Transaction update",
         direction: str | None = None,
     ) -> dict:
-        amount_value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        try:
+            amount_value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        except Exception:
+            logger.warning("Transaction notification skipped for user_id=%s: invalid amount", user.id)
+            return {"status": "error", "provider": "email", "detail": "Invalid transaction amount."}
         label = _humanize_transaction_type(transaction_type, direction=direction)
         amount_text = f"{currency.upper()} {abs(amount_value):.2f}"
         action = "received" if direction == "receive" else "sent" if direction == "send" else "completed"

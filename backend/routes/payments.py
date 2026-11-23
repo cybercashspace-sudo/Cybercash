@@ -171,6 +171,15 @@ async def initiate_momo_bill_payment(
         await db.refresh(db_payment)
         await db.refresh(db_transaction)
 
+        from backend.services.notification import NotificationService
+
+        await NotificationService().send_transaction_notification(
+            current_user,
+            "bill payment",
+            bill_payment_request.amount,
+            currency=bill_payment_request.currency,
+            subject="Bill payment successful",
+        )
         return db_payment
     finally:
         await db.close()

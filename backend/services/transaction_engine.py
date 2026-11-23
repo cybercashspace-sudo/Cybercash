@@ -198,9 +198,17 @@ class TransactionEngine:
             transaction.status = "completed"
             await self.db.commit()
             await self.db.refresh(transaction)
-            await self._run_post_commit_hooks(transaction, metadata)
-            
-            # 7. Real-Time Notification
+            try:
+                await self._run_post_commit_hooks(transaction, metadata)
+            except Exception as hook_error:
+                logger.warning(
+                    "Post-commit transaction hook failed for transaction_id=%s (error_type=%s)",
+                    transaction.id,
+                    type(hook_error).__name__,
+                )
+
+            # A notification failure must never make a committed transaction
+            # look unsuccessful to the user or create a false failed record.
             await self._send_notification(
                 user_id,
                 f"Transaction {normalized_type} of {amount} completed.",
@@ -295,9 +303,16 @@ class TransactionEngine:
             transaction.status = "completed"
             await self.db.commit()
             await self.db.refresh(transaction)
-            await self._run_post_commit_hooks(transaction, metadata)
-            
-            # 7. Notification
+            try:
+                await self._run_post_commit_hooks(transaction, metadata)
+            except Exception as hook_error:
+                logger.warning(
+                    "Post-commit transaction hook failed for transaction_id=%s (error_type=%s)",
+                    transaction.id,
+                    type(hook_error).__name__,
+                )
+
+            # Notification delivery is isolated from committed transaction state.
             await self._send_notification(
                 transaction.user_id,
                 f"Transaction {transaction.type} of {transaction.amount} confirmed.",
@@ -941,29 +956,36 @@ class TransactionEngine:
     async def _send_notification(self, user_id: int, message: str, *, transaction_type: str | None = None, amount: Decimal | float | int | str | None = None, currency: str = "GHS"):
         from backend.services.notification import NotificationService
 
-        user_result = await self.db.execute(select(User).filter(User.id == user_id))
-        user = user_result.scalars().one_or_none()
-        if user is None:
-            logger.warning("Transaction email notification skipped for missing user_id=%s", user_id)
-            return
+        try:
+            user_result = await self.db.execute(select(User).filter(User.id == user_id))
+            user = user_result.scalars().one_or_none()
+            if user is None:
+                logger.warning("Transaction email notification skipped for missing user_id=%s", user_id)
+                return
 
-        if transaction_type is not None and amount is not None:
-            result = await NotificationService().send_transaction_notification(
-                user,
-                transaction_type,
-                amount,
-                currency=currency,
-                subject="Transaction update",
-            )
-        else:
-            result = await NotificationService().send_to_user(
-                user,
-                message,
-                subject="Transaction update",
-            )
+            if transaction_type is not None and amount is not None:
+                result = await NotificationService().send_transaction_notification(
+                    user,
+                    transaction_type,
+                    amount,
+                    currency=currency,
+                    subject="Transaction update",
+                )
+            else:
+                result = await NotificationService().send_to_user(
+                    user,
+                    message,
+                    subject="Transaction update",
+                )
 
-        if result.get("status") != "queued":
-            logger.warning("Transaction email notification failed for user_id=%s: %s", user_id, result.get("detail"))
+            if result.get("status") != "queued":
+                logger.warning("Transaction email notification failed for user_id=%s: %s", user_id, result.get("detail"))
+        except Exception as notification_error:
+            logger.warning(
+                "Transaction email notification failed for user_id=%s (error_type=%s)",
+                user_id,
+                type(notification_error).__name__,
+            )
 
 # Dependency Injection Helper
 async def get_transaction_engine(

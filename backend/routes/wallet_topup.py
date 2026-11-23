@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from typing import Any
 
@@ -18,6 +19,8 @@ from backend.services.reconciliation_service import log_wallet_audit
 
 router = APIRouter(prefix="/api/wallet/topup/paystack", tags=["Wallet Top-up"])
 alias_router = APIRouter(tags=["Wallet Top-up"])
+
+logger = logging.getLogger(__name__)
 
 
 class PaystackWalletTopupRequest(BaseModel):
@@ -272,6 +275,30 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
     )
     
     await db.commit()
+
+    # The duplicate-verification branches above return early, so this email is
+    # emitted once for the first committed credit only.
+    try:
+        notification_user = current_user
+        if notification_user is None:
+            user_result = await db.execute(select(User).filter(User.id == int(user_id)))
+            notification_user = user_result.scalars().first()
+        if notification_user is not None:
+            from backend.services.notification import NotificationService
+
+            await NotificationService().send_transaction_notification(
+                notification_user,
+                "wallet top up",
+                amount,
+                currency="GHS",
+                subject="Wallet top-up successful",
+            )
+    except Exception as exc:
+        logger.warning(
+            "Wallet top-up notification could not be queued for user_id=%s (error_type=%s)",
+            user_id,
+            type(exc).__name__,
+        )
 
     return {
         "status": "success",
