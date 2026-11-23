@@ -99,7 +99,7 @@ SCREEN_SPECS = {
     "home": ("screens.dashboard", "DashboardScreen"),
     "wallet": ("screens.wallet", "WalletScreen"),
     "deposit": ("screens.wallet", "DepositScreen"),
-    "withdraw": ("features.withdrawal.withdrawal_screen", "WithdrawalScreen"),
+    "withdraw": ("screens.wallet", "WithdrawScreen"),
     "airtime": ("features.airtime_data.airtime_screen", "AirtimeScreen"),
     "data_bundle": ("features.airtime_data.data_screen", "DataScreen"),
     "p2p_transfer": ("features.transfer.transfer_screen", "TransferScreen"),
