@@ -3,6 +3,7 @@ from __future__ import annotations
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.metrics import dp
+from kivy.graphics import Color, RoundedRectangle
 from kivy.properties import BooleanProperty, ColorProperty, DictProperty, NumericProperty, StringProperty
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
@@ -210,8 +211,8 @@ class BottomNavBar(MDCard):
 
         is_dashboard = self.nav_variant == "dashboard"
         self.height = dp((112 if is_dashboard else 92) * layout_scale)
-        self.radius = [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
-        self.padding = [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
+        self.radius = [dp(56 * layout_scale)] if is_dashboard else [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
+        self.padding = [dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)] if is_dashboard else [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
         self.md_bg_color = list(self.bar_color)
         self.line_color = [0.52, 0.52, 0.56, 0.34]
 
@@ -229,6 +230,21 @@ class BottomNavBar(MDCard):
                 spacing=dp(2 * layout_scale),
                 padding=0,
             )
+            if is_dashboard:
+                background_color = Color(0.22, 0.18, 0.08, 0.94 if is_active else 0)
+                with container.canvas.before:
+                    background_color
+                    background_shape = RoundedRectangle(
+                        pos=container.pos,
+                        size=container.size,
+                        radius=[dp(30 * layout_scale)],
+                    )
+
+                def update_background(widget, _value, shape=background_shape):
+                    shape.pos = widget.pos
+                    shape.size = widget.size
+
+                container.bind(pos=update_background, size=update_background)
 
             if item.get("special"):
                 icon_wrap = MDCard(
@@ -287,8 +303,8 @@ class BottomNavBar(MDCard):
                     size_hint=(None, None),
                     size=(dp(46 * layout_scale), dp(46 * layout_scale)),
                     radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
-                    md_bg_color=self.active_color if is_active else [0.18, 0.18, 0.20, 0.92],
-                    line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
+                    md_bg_color=([0, 0, 0, 0] if is_dashboard else self.active_color if is_active else [0.18, 0.18, 0.20, 0.92]),
+                    line_color=[0, 0, 0, 0] if is_dashboard else ([0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06]),
                     elevation=0,
                     pos_hint={"center_x": 0.5, "center_y": 0.5},
                     on_release=lambda _btn, item_target=target: self._navigate(item_target),
@@ -296,10 +312,10 @@ class BottomNavBar(MDCard):
                 icon_wrap.add_widget(
                     MDIconButton(
                         icon=item["icon"],
-                        icon_size=f"{25 * icon_scale:.1f}sp",
+                        icon_size=f"{(30 if is_dashboard else 25) * icon_scale:.1f}sp",
                         pos_hint={"center_x": 0.5, "center_y": 0.5},
                         theme_text_color="Custom",
-                        text_color=[0.08, 0.08, 0.08, 1] if is_active else text_color,
+                        text_color=text_color if is_dashboard else ([0.08, 0.08, 0.08, 1] if is_active else text_color),
                         disabled=True,
                     )
                 )
