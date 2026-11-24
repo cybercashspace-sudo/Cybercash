@@ -256,7 +256,7 @@ class SettingsScreen(ActionScreen):
         elif section_name == "Profile":
             self._go_to_screen("profile")
         elif section_name == "Notifications":
-            self._go_to_screen("notifications")
+            self.open_notification_preferences()
         else:
             self._show_popup(section_name, f"Manage your {section_name.lower()} settings. This section is coming soon.")
 
@@ -267,6 +267,65 @@ class SettingsScreen(ActionScreen):
             return
         if self.manager is not None and self.manager.has_screen(screen_name):
             navigate(self.manager, screen_name, fallback="settings", transition_style="slide_left")
+
+    def open_notification_preferences(self) -> None:
+        """Explain the account's supported notification delivery settings."""
+        app = MDApp.get_running_app()
+        email = str(getattr(app, "user_email", "") or "").strip() if app else ""
+        content = MDBoxLayout(
+            orientation="vertical",
+            adaptive_height=True,
+            spacing=dp(14),
+            padding=dp(18),
+        )
+        content.add_widget(
+            MDLabel(
+                text="Email alerts are enabled",
+                bold=True,
+                theme_text_color="Primary",
+                font_size=sp(16),
+                adaptive_height=True,
+            )
+        )
+        content.add_widget(
+            MDLabel(
+                text=(
+                    "Verification codes, security notices, and transaction updates are sent "
+                    "to your account email. Email delivery stays on to help protect your account; "
+                    "SMS alerts are unavailable."
+                ),
+                theme_text_color="Secondary",
+                font_size=sp(13),
+                adaptive_height=True,
+                text_size=(dp(300), None),
+            )
+        )
+        content.add_widget(
+            MDLabel(
+                text=f"Delivery email: {email or 'Add an email in your profile'}",
+                theme_text_color="Primary",
+                font_size=sp(13),
+                adaptive_height=True,
+                text_size=(dp(300), None),
+            )
+        )
+        content.add_widget(
+            MDRaisedButton(
+                text="Update account email",
+                size_hint_x=1,
+                on_release=lambda *_args: self.open_profile_from_notifications(),
+            )
+        )
+        show_custom_dialog(self, title="Notification Settings", content_cls=content)
+
+    def open_profile_from_notifications(self) -> None:
+        dialog = getattr(self, "_active_dialog", None)
+        if dialog is not None:
+            try:
+                dialog.dismiss()
+            except Exception:
+                pass
+        self._go_to_screen("profile")
 
     def open_security_dialog(self):
         """Show safe, working privacy and PIN recovery controls."""
