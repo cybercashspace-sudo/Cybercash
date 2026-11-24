@@ -100,8 +100,10 @@ SCREEN_SPECS = {
     "wallet": ("screens.wallet", "WalletScreen"),
     "deposit": ("screens.wallet", "DepositScreen"),
     "withdraw": ("screens.wallet", "WithdrawScreen"),
-    "airtime": ("features.airtime_data.airtime_screen", "AirtimeScreen"),
-    "data_bundle": ("features.airtime_data.data_screen", "DataScreen"),
+    # Keep the service screens aligned with the versions packaged in the reference APK.
+    # The bundle screen also handles the authenticated live catalog and agent entry path.
+    "airtime": ("screens.airtime", "AirtimeScreen"),
+    "data_bundle": ("screens.data_bundle", "DataBundleScreen"),
     "p2p_transfer": ("screens.p2p_transfer", "P2PTransferScreen"),
     "agent": ("screens.agent", "AgentScreen"),
     "airtime_2_cash": ("screens.airtime_cash", "AirtimeCashScreen"),
