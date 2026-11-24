@@ -173,27 +173,37 @@ KV = """
 
                 MDBoxLayout:
                     orientation: "vertical"
+                    size_hint_y: None
                     adaptive_height: True
-                    spacing: dp(5)
-                    padding: [0, dp(40), 0, 0]
+                    spacing: dp(4)
+                    padding: [dp(8), dp(20), dp(8), 0]
 
                     MDLabel:
                         text: "Cyber Cash Technologies Ltd."
                         halign: "center"
                         theme_text_color: "Hint"
-                        font_size: sp(13)
-                    
+                        font_size: sp(12 * root.text_scale)
+                        size_hint_y: None
+                        adaptive_height: True
+                        text_size: self.width, None
+
                     MDLabel:
                         text: "Version 1.0.0"
                         halign: "center"
                         theme_text_color: "Hint"
-                        font_size: sp(12)
+                        font_size: sp(11 * root.text_scale)
+                        size_hint_y: None
+                        adaptive_height: True
+                        text_size: self.width, None
 
                     MDLabel:
-                        text: "© 2026 All Rights Reserved"
+                        text: "Copyright 2026. All rights reserved."
                         halign: "center"
                         theme_text_color: "Hint"
-                        font_size: sp(11)
+                        font_size: sp(10 * root.text_scale)
+                        size_hint_y: None
+                        adaptive_height: True
+                        text_size: self.width, None
 
         BottomNavBar:
             nav_variant: "default"
