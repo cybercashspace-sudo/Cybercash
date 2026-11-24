@@ -55,31 +55,37 @@ class PullToRefreshMixin:
         self._pull_refresh_event = None
         self._pull_refresh_busy = False
         super().__init__(**kwargs)
-        self.bind(on_leave=self._hide_pull_refresh_spinners)
+        self.bind(on_leave=self._on_pull_refresh_leave)
         self.bind(on_parent=self._on_pull_refresh_parent)
 
     def pull_to_refresh(self, *_args):
         if self._pull_refresh_busy:
             return
         self._pull_refresh_busy = True
-        try:
-            self.refresh_content_from_pull()
-        except Exception:
-            # Keep gesture handling safe even when an optional screen endpoint fails.
-            pass
         self._pull_refresh_event = Clock.schedule_once(self._finish_pull_refresh, 8.0)
+        try:
+            started = self.refresh_content_from_pull()
+        except Exception:
+            feedback = getattr(self, "_set_feedback", None)
+            if callable(feedback):
+                feedback("Couldn't refresh right now. Please try again.", "error")
+            self._finish_pull_refresh()
+            return
+        if not started:
+            self._finish_pull_refresh()
+            return
 
     def refresh_content_from_pull(self):
         screen_name = str(getattr(self, "name", "") or "").strip().lower()
         if screen_name == "data":
             if self._screen_refresh_is_busy():
-                return
+                return False
             self._set_wallet_balance()
             network_widget = getattr(self, "ids", {}).get("network")
             network = str(getattr(network_widget, "text", "") or "").strip()
             if network and network.lower() != "unknown":
                 self.load_packages(network)
-            return
+            return True
         route = self._PULL_REFRESH_ROUTES.get(screen_name)
         if route:
             method_name, kwargs = route
@@ -96,7 +102,7 @@ class PullToRefreshMixin:
                 )
             if callable(method):
                 if self._screen_refresh_is_busy():
-                    return
+                    return False
                 method(**kwargs)
                 if screen_name == "loans":
                     eligibility = getattr(self, "load_eligibility", None)
@@ -110,7 +116,7 @@ class PullToRefreshMixin:
                     last_investment = getattr(self, "load_last_active_investment", None)
                     if callable(last_investment):
                         last_investment()
-                return
+                return True
 
         # Forms keep user-entered values intact. Pulling them never resubmits a payment,
         # resends an OTP, or clears fields; the user can continue with the visible action.
@@ -122,6 +128,7 @@ class PullToRefreshMixin:
                 self.feedback_text = "Your form is up to date. Continue when ready."
             except Exception:
                 pass
+        return False
 
     def _screen_refresh_is_busy(self) -> bool:
         return any(
@@ -134,7 +141,10 @@ class PullToRefreshMixin:
 
     def _on_pull_refresh_parent(self, _instance, parent):
         if parent is None:
-            self._hide_pull_refresh_spinners()
+            self._finish_pull_refresh()
+
+    def _on_pull_refresh_leave(self, *_args):
+        self._finish_pull_refresh()
 
     def _finish_pull_refresh(self, *_args):
         event = self._pull_refresh_event

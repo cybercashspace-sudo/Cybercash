@@ -25,6 +25,7 @@ from kivymd.app import MDApp
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
+from core.biometric_auth import FingerprintAuthenticator
 from core.config import config as app_config
 from core.logger import get_logger
 from core.session import session
@@ -420,27 +421,7 @@ class CyberCashApp(MDApp):
 
     def is_biometric_available(self) -> bool:
         """Return whether Android has an enrolled fingerprint for this device."""
-        if platform != "android":
-            return False
-        try:
-            from jnius import autoclass, cast
-
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            Context = autoclass("android.content.Context")
-            activity = PythonActivity.mActivity
-            # BiometricPrompt is modality-agnostic on modern Android; this API only scans fingerprints.
-            fingerprint_manager = cast(
-                "android.hardware.fingerprint.FingerprintManager",
-                activity.getSystemService(Context.FINGERPRINT_SERVICE),
-            )
-            return bool(
-                fingerprint_manager is not None
-                and fingerprint_manager.isHardwareDetected()
-                and fingerprint_manager.hasEnrolledFingerprints()
-            )
-        except Exception:
-            logger.debug("Could not check Android fingerprint availability", exc_info=True)
-            return False
+        return FingerprintAuthenticator.is_available()
 
     def _lock_app_to_login(self, message="Session Locked"):
         self._biometric_unlocked_for_session = False
@@ -509,7 +490,7 @@ class CyberCashApp(MDApp):
         request_id = int(getattr(self, "_biometric_request_id", 0)) + 1
         self._biometric_request_id = request_id
         settled = {"value": False}
-        fingerprint_dialog = {"popup": None, "status_label": None}
+        fingerprint_dialog = {"popup": None}
 
         def finish(success, message=""):
             if settled["value"]:
@@ -520,9 +501,11 @@ class CyberCashApp(MDApp):
                 if request_id != getattr(self, "_biometric_request_id", 0):
                     return
                 self._biometric_prompt_active = False
-                self._biometric_prompt = None
-                self._biometric_callback = None
                 self._biometric_dialog = None
+                authenticator = self._fingerprint_authenticator
+                self._fingerprint_authenticator = None
+                if authenticator is not None:
+                    authenticator.release()
                 popup = fingerprint_dialog.get("popup")
                 if popup is not None:
                     popup.dismiss()
@@ -536,57 +519,12 @@ class CyberCashApp(MDApp):
             Clock.schedule_once(apply_result, 0)
 
         try:
-            from jnius import autoclass, cast, PythonJavaClass, java_method
             from kivy.metrics import dp
             from kivy.uix.popup import Popup
             from kivymd.uix.boxlayout import MDBoxLayout
             from kivymd.uix.button import MDRaisedButton
             from kivymd.uix.label import MDLabel
 
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            Context = autoclass("android.content.Context")
-            CancellationSignal = autoclass("android.os.CancellationSignal")
-            activity = PythonActivity.mActivity
-            fingerprint_manager = cast(
-                "android.hardware.fingerprint.FingerprintManager",
-                activity.getSystemService(Context.FINGERPRINT_SERVICE),
-            )
-            if (
-                fingerprint_manager is None
-                or not fingerprint_manager.isHardwareDetected()
-                or not fingerprint_manager.hasEnrolledFingerprints()
-            ):
-                finish(False, "Set up a fingerprint on this device, then sign in with your PIN.")
-                return False
-
-            class FingerprintCallback(PythonJavaClass):
-                __javainterfaces__ = ["android/hardware/fingerprint/FingerprintManager$AuthenticationCallback"]
-                __javacontext__ = "app"
-
-                @java_method("(Landroid/hardware/fingerprint/FingerprintManager$AuthenticationResult;)V")
-                def onAuthenticationSucceeded(self, _result):
-                    finish(True)
-
-                @java_method("(ILjava/lang/CharSequence;)V")
-                def onAuthenticationError(self, _error_code, error_text):
-                    finish(False, str(error_text or "Fingerprint check was not completed."))
-
-                @java_method("()V")
-                def onAuthenticationFailed(self):
-                    # Keep scanning and give the user a simple retry hint.
-                    status_label = fingerprint_dialog.get("status_label")
-                    if status_label is not None:
-                        Clock.schedule_once(
-                            lambda _dt: setattr(
-                                status_label,
-                                "text",
-                                "Fingerprint not recognized. Touch the sensor and try again.",
-                            ),
-                            0,
-                        )
-
-            callback = FingerprintCallback()
-            cancellation = CancellationSignal()
             prompt_content = MDBoxLayout(
                 orientation="vertical",
                 spacing=dp(16),
@@ -601,10 +539,9 @@ class CyberCashApp(MDApp):
             prompt_content.add_widget(status_label)
 
             def cancel_fingerprint(*_args):
-                try:
-                    cancellation.cancel()
-                except Exception:
-                    pass
+                authenticator = self._fingerprint_authenticator
+                if authenticator is not None:
+                    authenticator.cancel()
                 finish(False, "Fingerprint sign-in cancelled. Enter your PIN to continue.")
 
             cancel_button = MDRaisedButton(
@@ -621,17 +558,29 @@ class CyberCashApp(MDApp):
                 auto_dismiss=False,
             )
             fingerprint_dialog["popup"] = popup
-            fingerprint_dialog["status_label"] = status_label
             self._biometric_dialog = popup
             popup.open()
-            self._biometric_callback = callback
-            self._biometric_prompt = cancellation
-            activity.runOnUiThread(
-                lambda: fingerprint_manager.authenticate(
-                    None, cancellation, 0, callback, None
+            authenticator = FingerprintAuthenticator()
+            self._fingerprint_authenticator = authenticator
+
+            def show_retry_hint():
+                Clock.schedule_once(
+                    lambda _dt: setattr(
+                        status_label,
+                        "text",
+                        "Fingerprint not recognized. Touch the sensor and try again.",
+                    ),
+                    0,
                 )
+
+            started = authenticator.authenticate(
+                on_success=lambda: finish(True),
+                on_error=lambda message: finish(False, message),
+                on_failed=show_retry_hint,
             )
-            return True
+            if not started:
+                finish(False, "Fingerprint unlock is unavailable right now. Sign in with your PIN.")
+            return started
         except Exception:
             logging.exception("Android fingerprint prompt could not be started")
             finish(False, "Fingerprint unlock is unavailable right now. Sign in with your PIN.")
@@ -952,9 +901,8 @@ class CyberCashApp(MDApp):
         self._startup_attempts = 0
         self._startup_request_event = None
         self._biometric_prompt_active = False
-        self._biometric_prompt = None
-        self._biometric_callback = None
         self._biometric_dialog = None
+        self._fingerprint_authenticator = None
         self._biometric_request_id = 0
         self._biometric_unlocked_for_session = False
         self._admin_dashboard_entry_authorized = False
