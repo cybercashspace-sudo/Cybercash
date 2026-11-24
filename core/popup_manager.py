@@ -204,6 +204,7 @@ def show_confirm_dialog(
     on_confirm: Callable[[], None],
     confirm_label: str = "Confirm",
     cancel_label: str = "Cancel",
+    on_cancel: Optional[Callable[[], None]] = None,
 ) -> None:
     _dismiss_dialog(owner)
 
@@ -225,6 +226,8 @@ def show_confirm_dialog(
 
     def _on_cancel(*_args):
         _dismiss_dialog(owner)
+        if on_cancel:
+            on_cancel()
 
     def _on_confirm(*_args):
         _dismiss_dialog(owner)

@@ -5,6 +5,7 @@ from backend.core.security import create_access_token
 from backend.core.transaction_types import TransactionType
 from backend.database import SessionLocal
 from backend.models import Transaction, User, Wallet
+from utils.security import hash_pin
 
 
 def _auth_headers(user_id: int) -> dict:
@@ -12,13 +13,20 @@ def _auth_headers(user_id: int) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _build_create_payload(amount: float, duration_days: int, plan_name: str = "Risk-Free Plan") -> dict:
+def _build_create_payload(
+    amount: float,
+    duration_days: int,
+    plan_name: str = "Standard Plan",
+    request_id: str | None = None,
+    pin: str = "1234",
+) -> dict:
     return {
         "amount": amount,
         "duration_days": duration_days,
         "plan_name": plan_name,
         "expected_rate": 99.0,
-        "pin_verified": True,
+        "pin": pin,
+        "request_id": request_id,
         "biometric_verified": False,
         "channel": "APP",
         "daily_limit": 1000000.0,
@@ -27,11 +35,11 @@ def _build_create_payload(amount: float, duration_days: int, plan_name: str = "R
     }
 
 
-def _build_payout_payload(investment_id: int | None, amount: float = 0.0) -> dict:
+def _build_payout_payload(investment_id: int | None, amount: float = 0.0, pin: str = "1234") -> dict:
     payload = {
         "amount": amount,
         "gain": 0.0,
-        "pin_verified": True,
+        "pin": pin,
         "biometric_verified": False,
         "channel": "APP",
         "daily_limit": 1000000.0,
@@ -55,7 +63,8 @@ def _create_user_and_wallet(
     user = User(
         email=email,
         phone_number=phone_number,
-        password_hash="hash",
+        password_hash=hash_pin("1234"),
+        pin_hash=hash_pin("1234"),
         is_active=True,
         is_verified=True,
         is_agent=is_agent,
@@ -150,6 +159,57 @@ def test_user_create_investment_stores_fixed_risk_free_projection(client, db_ses
         assert float(metadata.get("projected_net_profit", 0.0)) == 10.8
         assert float(metadata.get("profit_fee_rate", 0.0)) == 0.10
         assert str(metadata.get("investment_status", "")).lower() == "active"
+    finally:
+        verify_db.close()
+
+
+def test_investment_requires_correct_pin_even_if_client_claims_verified(client, db_session):
+    user_id = _create_user_and_wallet(db_session, "invest_wrong_pin@test.com", balance=100.0)
+    db_session.close()
+    payload = _build_create_payload(amount=50.0, duration_days=30, pin="9999")
+    payload["pin_verified"] = True
+
+    response = client.post(
+        "/transactions/investment/create",
+        json=payload,
+        headers=_auth_headers(user_id),
+    )
+
+    assert response.status_code == 400
+    assert "pin was not accepted" in response.json()["detail"].lower()
+    verify_db = SessionLocal()
+    try:
+        wallet = verify_db.query(Wallet).filter(Wallet.user_id == user_id).first()
+        assert wallet is not None
+        assert wallet.balance == 100.0
+        assert wallet.investment_balance == 0.0
+    finally:
+        verify_db.close()
+
+
+def test_investment_retries_with_same_request_id_do_not_debit_twice(client, db_session):
+    user_id = _create_user_and_wallet(db_session, "invest_duplicate@test.com", balance=100.0)
+    db_session.close()
+    payload = _build_create_payload(amount=40.0, duration_days=30, request_id="a" * 32)
+    headers = _auth_headers(user_id)
+
+    first = client.post("/transactions/investment/create", json=payload, headers=headers)
+    retry = client.post("/transactions/investment/create", json=payload, headers=headers)
+
+    assert first.status_code == 201
+    assert retry.status_code == 201
+    assert retry.json()["id"] == first.json()["id"]
+    verify_db = SessionLocal()
+    try:
+        wallet = verify_db.query(Wallet).filter(Wallet.user_id == user_id).first()
+        assert wallet is not None
+        assert wallet.balance == 60.0
+        assert wallet.investment_balance == 40.0
+        txs = verify_db.query(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.type == TransactionType.INVESTMENT_CREATE,
+        ).all()
+        assert len(txs) == 1
     finally:
         verify_db.close()
 
@@ -263,7 +323,7 @@ def test_investment_payout_charges_ten_percent_of_gross_profit(client, db_sessio
 
         wallet = verify_db.query(Wallet).filter(Wallet.user_id == user_id).first()
         assert wallet is not None
-        assert wallet.balance == 160.8
+        assert float(wallet.balance) == 160.8
         assert wallet.investment_balance == 0.0
     finally:
         verify_db.close()

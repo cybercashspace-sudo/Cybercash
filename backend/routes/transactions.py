@@ -22,6 +22,7 @@ from backend.services.transaction_engine import TransactionEngine, get_transacti
 from backend.core.transaction_types import TransactionType
 from backend.core.config import settings
 from utils.network import normalize_ghana_number
+from utils.security import verify_pin
 
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -91,6 +92,40 @@ def _parse_iso_utc(dt_raw: str | None) -> datetime | None:
         return _as_aware_utc(dt)
     except Exception:
         return None
+
+
+async def _verify_investment_pin(db: AsyncSession, user_id: int, pin: str) -> None:
+    pin = str(pin or "").strip()
+    if len(pin) != 4 or not pin.isdigit():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter your 4-digit transaction PIN.")
+
+    result = await db.execute(select(User).filter(User.id == user_id).with_for_update())
+    pin_user = result.scalars().first()
+    if not pin_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in again.")
+
+    locked_until = pin_user.pin_locked_until
+    if locked_until is not None:
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < locked_until:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail="PIN verification is temporarily locked. Please try again later.",
+            )
+
+    stored_pin = pin_user.pin_hash or pin_user.password_hash
+    if not verify_pin(pin, stored_pin):
+        pin_user.failed_pin_attempts = int(pin_user.failed_pin_attempts or 0) + 1
+        if pin_user.failed_pin_attempts >= 3:
+            pin_user.pin_locked_until = datetime.utcnow() + timedelta(minutes=5)
+        db.add(pin_user)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transaction PIN was not accepted.")
+
+    pin_user.failed_pin_attempts = 0
+    pin_user.pin_locked_until = None
+    db.add(pin_user)
 
 
 @router.post("/airtime", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
@@ -448,6 +483,29 @@ async def create_investment(
     transaction_engine: TransactionEngine = Depends(get_transaction_engine),
 ):
     try:
+        pin = request.pin.get_secret_value().strip() if request.pin else ""
+        await _verify_investment_pin(db, current_user.id, pin)
+
+        request_id = str(request.request_id or "").strip()
+        if request_id:
+            if not request_id.isalnum():
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid investment request reference.")
+            duplicate_result = await db.execute(
+                select(Transaction)
+                .filter(
+                    Transaction.user_id == current_user.id,
+                    Transaction.type == TransactionType.INVESTMENT_CREATE,
+                    Transaction.metadata_json.contains(f'"client_request_id": "{request_id}"'),
+                )
+                .order_by(Transaction.id.desc())
+                .limit(1)
+            )
+            duplicate_transaction = duplicate_result.scalars().first()
+            if duplicate_transaction:
+                await db.commit()
+                await db.refresh(duplicate_transaction)
+                return duplicate_transaction
+
         if request.amount < INVESTMENT_MIN_AMOUNT_GHS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -478,9 +536,11 @@ async def create_investment(
         maturity_at = (datetime.utcnow() + timedelta(days=duration_days)).isoformat()
 
         metadata = _security_metadata(request)
+        # The client cannot assert PIN verification: only the server-side check above can.
+        metadata["pin_verified"] = True
         metadata.update(
             {
-                "plan_name": request.plan_name or f"Risk-Free {duration_days}D Plan",
+                "plan_name": request.plan_name or f"Standard {duration_days}D Plan",
                 "duration_days": duration_days,
                 "expected_rate": annual_rate_pct,
                 "projected_gross_profit": gross_profit,
@@ -491,6 +551,7 @@ async def create_investment(
                 "investment_created_at": datetime.utcnow().isoformat(),
                 "maturity_at": maturity_at,
                 "investment_currency": "GHS",
+                "client_request_id": request_id or None,
             }
         )
         return await transaction_engine.process_transaction(
@@ -519,12 +580,15 @@ async def payout_investment(
                 detail="Investment ID is required to process payout.",
             )
 
+        pin = request.pin.get_secret_value().strip() if request.pin else ""
+        await _verify_investment_pin(db, current_user.id, pin)
+
         investment_result = await db.execute(
             select(Transaction).filter(
                 Transaction.id == request.investment_id,
                 Transaction.user_id == current_user.id,
                 Transaction.type == TransactionType.INVESTMENT_CREATE,
-            )
+            ).with_for_update()
         )
         investment_tx = investment_result.scalars().first()
         if not investment_tx:
@@ -578,10 +642,11 @@ async def payout_investment(
         )
 
         metadata = _security_metadata(request)
+        metadata["pin_verified"] = True
         metadata.update(
             {
                 "investment_id": investment_tx.id,
-                "plan_name": investment_metadata.get("plan_name") or request.plan_name or f"Risk-Free {duration_days}D Plan",
+                "plan_name": investment_metadata.get("plan_name") or request.plan_name or f"Standard {duration_days}D Plan",
                 "duration_days": duration_days,
                 "expected_rate": annual_rate_pct,
                 "gross_profit": gross_profit,
@@ -592,6 +657,14 @@ async def payout_investment(
                 "payout_currency": "GHS",
             }
         )
+        # Persist the closed state in the same transaction as the wallet credit.
+        # TransactionEngine commits both together, preventing a retry from paying twice.
+        investment_metadata["investment_status"] = "paid_out"
+        investment_metadata["paid_out_at"] = datetime.utcnow().isoformat()
+        investment_metadata["realized_gross_profit"] = gross_profit
+        investment_metadata["realized_profit_fee"] = profit_fee
+        investment_metadata["realized_net_profit"] = net_profit
+        db.add(investment_tx)
         payout_tx = await transaction_engine.process_transaction(
             user_id=current_user.id,
             transaction_type=TransactionType.INVESTMENT_PAYOUT,
@@ -599,12 +672,7 @@ async def payout_investment(
             metadata=metadata,
         )
 
-        investment_metadata["investment_status"] = "paid_out"
         investment_metadata["payout_transaction_id"] = payout_tx.id
-        investment_metadata["paid_out_at"] = datetime.utcnow().isoformat()
-        investment_metadata["realized_gross_profit"] = gross_profit
-        investment_metadata["realized_profit_fee"] = profit_fee
-        investment_metadata["realized_net_profit"] = net_profit
         investment_tx.metadata_json = json.dumps(investment_metadata)
         db.add(investment_tx)
         await db.commit()

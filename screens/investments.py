@@ -1,10 +1,13 @@
 import json
+import uuid
 from datetime import datetime
 
 from kivy.lang import Builder
 from kivy.properties import StringProperty
+from kivymd.app import MDApp
 
 from core.screen_actions import ActionScreen
+from core.popup_manager import show_confirm_dialog
 
 INVESTMENT_MIN_AMOUNT_GHS = 10.0
 STANDARD_ANNUAL_RATE_PCT = 12.0
@@ -130,6 +133,14 @@ KV = """
                             input_filter: "float"
                             on_text: root.update_projection(self.text)
 
+                        MDTextField:
+                            id: investment_pin
+                            hint_text: "4-digit transaction PIN"
+                            mode: "rectangle"
+                            password: True
+                            input_filter: "int"
+                            max_text_length: 4
+
                         MDLabel:
                             text: "Choose Investment Period"
                             theme_text_color: "Custom"
@@ -240,6 +251,14 @@ KV = """
                             mode: "rectangle"
                             input_filter: "int"
 
+                        MDTextField:
+                            id: payout_pin
+                            hint_text: "4-digit transaction PIN"
+                            mode: "rectangle"
+                            password: True
+                            input_filter: "int"
+                            max_text_length: 4
+
                         MDGridLayout:
                             cols: 1 if root.compact_mode else 2
                             spacing: dp(8 * root.layout_scale)
@@ -292,12 +311,26 @@ class InvestmentScreen(ActionScreen):
     lock_note_text = StringProperty(
         "Investments use your main balance and stay locked until the selected period ends."
     )
+    _investment_busy = False
+    _payout_busy = False
+    _active_investment_amount = 0.0
+    _pending_investment_request_id = ""
+    _pending_investment_terms = None
 
     def on_pre_enter(self):
         if self.selected_duration_text not in {str(item) for item in ALLOWED_INVESTMENT_PERIODS}:
             self.selected_duration_text = str(DEFAULT_INVESTMENT_PERIOD_DAYS)
         self.load_wallet_balance(notify=False)
         self.update_projection()
+
+    def on_pre_leave(self, *_args):
+        for field_name in ("investment_pin", "payout_pin"):
+            field = self.ids.get(field_name)
+            if field is not None:
+                field.text = ""
+        parent_handler = getattr(super(), "on_pre_leave", None)
+        if callable(parent_handler):
+            parent_handler(*_args)
 
     @staticmethod
     def _parse_float(raw: str) -> float:
@@ -390,6 +423,7 @@ class InvestmentScreen(ActionScreen):
     def create_investment(self):
         amount = self._parse_float(self.ids.invest_amount.text)
         duration = self._selected_duration_days()
+        pin = str(self.ids.investment_pin.text or "").strip()
 
         if amount < INVESTMENT_MIN_AMOUNT_GHS:
             self._set_feedback("Minimum investment is GHS 10.00.", "error")
@@ -400,14 +434,103 @@ class InvestmentScreen(ActionScreen):
             self._set_feedback("Unsupported investment period selected.", "error")
             self._show_popup("Invalid Period", f"Choose one of these periods: {allowed_text} days.")
             return
+        if len(pin) != 4 or not pin.isdigit():
+            self._set_feedback("Enter your 4-digit transaction PIN to confirm.", "error")
+            self._show_popup("PIN Required", "Enter your 4-digit transaction PIN to invest securely.")
+            return
+        if self._investment_busy:
+            return
 
-        self._set_feedback("Creating investment from main balance...", "info")
-        ok, payload = self._request(
-            "POST",
-            "/transactions/investment/create",
-            payload={"amount": amount, "duration_days": duration},
+        gross_profit = round(amount * (STANDARD_ANNUAL_RATE_PCT / 100.0) * (duration / 365.0), 2)
+        profit_fee = round(gross_profit * STANDARD_PROFIT_FEE_RATE, 2)
+        net_profit = round(gross_profit - profit_fee, 2)
+        confirm_message = (
+            f"Invest: GHS {amount:,.2f}\nPeriod: {duration} days\n"
+            f"Projected net profit: GHS {net_profit:,.2f}\n"
+            f"Profit fee: GHS {profit_fee:,.2f}\n\n"
+            "Your principal will be locked until maturity. Returns are projections, not a guarantee."
         )
+
+        def _confirm():
+            confirmed_pin = str(self.ids.investment_pin.text or "").strip()
+            self.ids.investment_pin.text = ""
+            if amount >= 2500:
+                app = MDApp.get_running_app()
+                authenticate = getattr(app, "request_biometric_auth", None) if app else None
+                if not callable(authenticate):
+                    self.ids.investment_pin.text = ""
+                    self._set_feedback("Fingerprint confirmation is required for this amount.", "error")
+                    self._show_popup("Fingerprint Required", "Enable fingerprint sign-in on this device, then try again.")
+                    return
+                authenticate(
+                    reason="Confirm investment",
+                    on_success=lambda: self._submit_investment(amount, duration, confirmed_pin, True),
+                    on_failure=lambda detail: self._investment_auth_failed(detail),
+                )
+                return
+            self._submit_investment(amount, duration, confirmed_pin, False)
+
+        def _cancel():
+            self.ids.investment_pin.text = ""
+
+        show_confirm_dialog(
+            self,
+            title="Confirm Investment",
+            message=confirm_message,
+            on_confirm=_confirm,
+            confirm_label="Invest",
+            cancel_label="Review",
+            on_cancel=_cancel,
+        )
+
+    def _investment_auth_failed(self, detail):
+        if "investment_pin" in self.ids:
+            self.ids.investment_pin.text = ""
+        if "payout_pin" in self.ids:
+            self.ids.payout_pin.text = ""
+        self._investment_busy = False
+        self._payout_busy = False
+        message = str(detail or "Fingerprint verification was not completed.")
+        self._set_feedback(message, "warning")
+        self._show_popup("Investment Not Confirmed", message)
+
+    def _submit_investment(self, amount, duration, pin, biometric_verified):
+        if self._investment_busy:
+            return
+        terms = (round(float(amount), 2), int(duration))
+        if self._pending_investment_request_id and self._pending_investment_terms != terms:
+            self.ids.investment_pin.text = ""
+            self._set_feedback("A previous investment request is still being confirmed.", "warning")
+            self._show_popup(
+                "Check Investment Status",
+                "Refresh your investments and transaction history before changing the amount or period. This avoids creating a duplicate.",
+            )
+            return
+        self._investment_busy = True
+        if not self._pending_investment_request_id:
+            self._pending_investment_request_id = uuid.uuid4().hex
+            self._pending_investment_terms = terms
+        self._set_feedback("Confirming PIN and creating your investment...", "info")
+        try:
+            ok, payload = self._request(
+                "POST",
+                "/transactions/investment/create",
+                payload={
+                    "amount": amount,
+                    "duration_days": duration,
+                    "pin": pin,
+                    "biometric_verified": bool(biometric_verified),
+                    "request_id": self._pending_investment_request_id,
+                },
+            )
+        finally:
+            if "investment_pin" in self.ids:
+                self.ids.investment_pin.text = ""
+            self._investment_busy = False
+
         if ok and isinstance(payload, dict):
+            self._pending_investment_request_id = ""
+            self._pending_investment_terms = None
             tx_id = int(payload.get("id", 0) or 0)
             metadata = self._parse_metadata(payload.get("metadata_json"))
             projected_fee = float(metadata.get("projected_profit_fee", 0.0) or 0.0)
@@ -416,8 +539,9 @@ class InvestmentScreen(ActionScreen):
 
             if tx_id > 0:
                 self.ids.payout_id.text = str(tx_id)
+            self._active_investment_amount = amount
 
-            message = (
+            result_message = (
                 f"Investment created from main balance.\n"
                 f"Period: {duration} days\n"
                 f"Projected fee (10%): GHS {projected_fee:,.2f}\n"
@@ -429,13 +553,21 @@ class InvestmentScreen(ActionScreen):
                 f"Period: {duration}D | Locked until {maturity_date}"
             )
             self._set_feedback("Investment created successfully.", "success")
-            self._show_popup("Investment Created", message)
+            self._show_popup("Investment Created", result_message)
             self.ids.invest_amount.text = ""
             self.update_projection()
             self.load_wallet_balance(notify=False)
             return
 
-        detail = self._extract_detail(payload) or "Unable to create investment."
+        detail = self._extract_detail(payload) or "Unable to create investment. Please try again."
+        status_code = int(payload.get("_status_code", 0) or 0) if isinstance(payload, dict) else 0
+        if status_code:
+            self._pending_investment_request_id = ""
+            self._pending_investment_terms = None
+        if "locked" in detail.lower():
+            detail = "PIN verification is temporarily locked. Please wait a few minutes before trying again."
+        elif "pin" in detail.lower():
+            detail = "The transaction PIN was not accepted. Check it and try again."
         self._set_feedback(detail, "error")
         self._show_popup("Investment Failed", detail)
 
@@ -463,7 +595,7 @@ class InvestmentScreen(ActionScreen):
             self._set_feedback("No active investment found.", "warning")
             self._show_popup(
                 "No Active Investment",
-                "No active investment is available. Create one from your main balance to begin earning standard profit.",
+                "No active investment was found. Create one from your main balance to view its projected returns.",
             )
             return
 
@@ -475,6 +607,7 @@ class InvestmentScreen(ActionScreen):
         maturity_date = self._format_date_short(str(metadata.get("maturity_at") or ""))
 
         self.ids.payout_id.text = str(inv_id)
+        self._active_investment_amount = amount
         self.investment_summary = (
             f"Active #{inv_id} | Principal: GHS {amount:,.2f} | Period: {duration}D | "
             f"Projected Net: GHS {projected_net:,.2f} | Locked until {maturity_date}"
@@ -482,18 +615,53 @@ class InvestmentScreen(ActionScreen):
         self._set_feedback("Loaded latest active investment.", "success")
 
     def payout_investment(self):
+        if self._payout_busy:
+            return
         investment_id = self._parse_int(self.ids.payout_id.text)
+        pin = str(self.ids.payout_pin.text or "").strip()
         if investment_id <= 0:
             self._set_feedback("Enter a valid investment ID.", "error")
             self._show_popup("Invalid Investment ID", "Please provide a valid investment ID.")
             return
+        if len(pin) != 4 or not pin.isdigit():
+            self._set_feedback("Enter your 4-digit transaction PIN to confirm payout.", "error")
+            self._show_popup("PIN Required", "Enter your 4-digit transaction PIN to request payout.")
+            return
 
+        self._payout_busy = True
+        if self._active_investment_amount >= 2500:
+            app = MDApp.get_running_app()
+            authenticate = getattr(app, "request_biometric_auth", None) if app else None
+            if not callable(authenticate):
+                self._payout_busy = False
+                self.ids.payout_pin.text = ""
+                self._set_feedback("Fingerprint confirmation is required for this payout.", "error")
+                self._show_popup("Fingerprint Required", "Enable fingerprint sign-in on this device, then try again.")
+                return
+            authenticate(
+                reason="Confirm investment payout",
+                on_success=lambda: self._submit_payout(investment_id, pin, True),
+                on_failure=lambda detail: self._investment_auth_failed(detail),
+            )
+            return
+        self._submit_payout(investment_id, pin, False)
+
+    def _submit_payout(self, investment_id, pin, biometric_verified):
         self._set_feedback("Checking maturity and processing payout...", "info")
-        ok, payload = self._request(
-            "POST",
-            "/transactions/investment/payout",
-            payload={"investment_id": investment_id},
-        )
+        try:
+            ok, payload = self._request(
+                "POST",
+                "/transactions/investment/payout",
+                payload={
+                    "investment_id": investment_id,
+                    "pin": pin,
+                    "biometric_verified": bool(biometric_verified),
+                },
+            )
+        finally:
+            if "payout_pin" in self.ids:
+                self.ids.payout_pin.text = ""
+            self._payout_busy = False
         if ok and isinstance(payload, dict):
             tx_id = int(payload.get("id", 0) or 0)
             principal = float(payload.get("amount", 0.0) or 0.0)

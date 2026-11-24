@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class TransactionSecurityContext(BaseModel):
@@ -50,6 +50,9 @@ class InvestmentCreateRequest(TransactionSecurityContext):
     plan_name: Optional[str] = None
     duration_days: Optional[int] = Field(default=None, ge=7, le=365)
     expected_rate: Optional[float] = Field(default=None, ge=0)
+    # Verified server-side and excluded from persisted transaction metadata.
+    pin: Optional[SecretStr] = None
+    request_id: Optional[str] = Field(default=None, min_length=16, max_length=64)
 
 
 class InvestmentPayoutRequest(TransactionSecurityContext):
@@ -57,6 +60,7 @@ class InvestmentPayoutRequest(TransactionSecurityContext):
     investment_id: Optional[int] = Field(default=None, gt=0)
     gain: float = Field(default=0.0, ge=0)
     plan_name: Optional[str] = None
+    pin: Optional[SecretStr] = None
 
 
 class CardSpendRequest(TransactionSecurityContext):
