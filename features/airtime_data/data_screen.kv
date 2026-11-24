@@ -1,4 +1,4 @@
-#:import DataPackageCard features.airtime_data.data_screen.DataPackageCard
+#:import DataPackageCard features.airtime_data.data_package_card.DataPackageCard
 #:import GlassCard widgets.GlassCard
 #:import AppButton components.app_button.AppButton
 #:import AppTextField components.app_textfield.AppTextField
@@ -12,6 +12,12 @@
             size_hint_y: None
             height: "72dp"
             padding: "18dp", "12dp"
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 0.76, 0.12, 1
+                on_release: root.go_back()
 
             MDLabel:
                 text: "Data Bundle"

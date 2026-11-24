@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import threading
 import time
@@ -25,6 +25,7 @@ from core.event_bus import AppEvents
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
+from components.app_snackbar import show_app_snackbar
 
 AGENT_REGISTRATION_FEE_GHS = 100.0
 AGENT_STARTUP_LOAN_GHS = 50.0
@@ -1612,7 +1613,23 @@ class DashboardScreen(MDScreen):
 
     def _navigate_more_action(self, screen_name: str):
         self._close_more_actions_dialog()
-        self._go_to_screen(screen_name)
+        app = MDApp.get_running_app()
+        opened = False
+        if app is not None and hasattr(app, "go_to_screen"):
+            opened = bool(app.go_to_screen(screen_name, fallback="", transition_style="fade"))
+        elif self.manager is not None and self.manager.has_screen(screen_name):
+            self.manager.current = screen_name
+            opened = True
+        if not opened:
+            labels = {
+                "airtime": "Airtime",
+                "data_bundle": "Data Bundle",
+                "airtime_2_cash": "Airtime2Cash",
+                "pay_bills": "Pay Bills",
+            }
+            label = labels.get(screen_name, "This service")
+            show_app_snackbar(f"{label} could not open. Please try again.")
+        return opened
 
     def _open_btc_action(self):
         self._close_more_actions_dialog()

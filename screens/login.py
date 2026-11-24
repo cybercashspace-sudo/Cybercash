@@ -6,6 +6,7 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ColorProperty, StringProperty
+from kivy.utils import platform
 from kivymd.app import MDApp
 from core.message_sanitizer import extract_backend_message
 from core.navigation import navigate
@@ -21,6 +22,8 @@ class LoginScreen(ResponsiveScreen):
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
+    biometric_login_enabled = BooleanProperty(False)
+    biometric_available = BooleanProperty(platform == "android")
     network_text = StringProperty("Network: Enter your Ghana MoMo number to detect your network.")
     name_hint_text = StringProperty("We will confirm your saved profile name automatically if this number is already registered.")
     detected_first_name = StringProperty("")
@@ -62,6 +65,7 @@ class LoginScreen(ResponsiveScreen):
         self._active = True
         self._login_generation += 1
         self.remember_me = True
+        self.biometric_login_enabled = False
         self.password_visible = False
         self._set_text("", "momo_input", "pin_input", "first_name_input")
         self._restore_remembered_identity()
@@ -103,7 +107,11 @@ class LoginScreen(ResponsiveScreen):
             remembered = {}
 
         momo_number = str(remembered.get("momo") or "").strip()
+        self.biometric_login_enabled = bool(
+            remembered.get("biometric_enabled", False) and self.biometric_available
+        )
         if not momo_number:
+            self._sync_auth_controls()
             return
 
         self.remember_me = True
@@ -132,6 +140,10 @@ class LoginScreen(ResponsiveScreen):
                 remember_toggle.checked = self.remember_me
             elif hasattr(remember_toggle, "active"):
                 remember_toggle.active = self.remember_me
+
+        biometric_toggle = self.ids.get("biometric_toggle")
+        if biometric_toggle is not None:
+            biometric_toggle.active = self.biometric_login_enabled
 
     def toggle_password(self):
         self.password_visible = not self.password_visible
@@ -238,10 +250,17 @@ class LoginScreen(ResponsiveScreen):
                 break
         self.remember_me = bool(active)
         if not self.remember_me:
+            self.biometric_login_enabled = False
             try:
                 session.clear_remember_me()
             except Exception:
                 pass
+        self._sync_auth_controls()
+
+    def toggle_biometric_login(self, _instance, active: bool) -> None:
+        self.biometric_login_enabled = bool(active) and self.remember_me and self.biometric_available
+        if active and not self.remember_me:
+            self.show_message("Turn on Remember Me to use biometric unlock.")
         self._sync_auth_controls()
 
     def login(self):
@@ -376,8 +395,11 @@ class LoginScreen(ResponsiveScreen):
                 first_name = str(result.get("first_name") or "").strip()
 
         try:
-            # The app only needs a truthy marker to restore the biometric prompt flow.
-            session.set_remember_me(momo_number, first_name=first_name, pin="1")
+            session.set_remember_me(
+                momo_number,
+                first_name=first_name,
+                biometric_enabled=self.biometric_login_enabled,
+            )
         except Exception:
             pass
 
@@ -454,10 +476,18 @@ class LoginScreen(ResponsiveScreen):
 
     def biometric_login(self):
         app = MDApp.get_running_app()
-        if app is not None and getattr(app, "access_token", ""):
-            self._go_to_screen("home", fallback="login")
+        if not self.biometric_available:
+            self.show_message("Biometric unlock is available in the Android app.")
             return
-        self.show_message("Use your saved session to continue.")
+        if not self.biometric_login_enabled:
+            self.show_message("Sign in with your PIN and enable biometric unlock for this device.")
+            return
+        if app is not None:
+            app.request_biometric_auth(
+                reason="Unlock your existing session",
+                on_success=lambda: app.go_to_screen(app.get_authenticated_target(), fallback="login"),
+                on_failure=lambda message: self.show_message(message),
+            )
 
     def show_message(self, text):
         show_app_snackbar(text)

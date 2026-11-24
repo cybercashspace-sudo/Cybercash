@@ -171,6 +171,35 @@
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
 
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: self.minimum_height if root.biometric_available else 0
+                            spacing: "8dp"
+                            opacity: 1 if root.biometric_available else 0
+                            disabled: not root.biometric_available
+
+                            MDCheckbox:
+                                id: biometric_toggle
+                                size_hint: None, None
+                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
+                                active: root.biometric_login_enabled
+                                on_active: root.toggle_biometric_login(self, self.active)
+
+                            MDLabel:
+                                text: "Use face or fingerprint next time"
+                                valign: "center"
+                                theme_text_color: "Custom"
+                                text_color: TEXT_MAIN
+
+                        MDLabel:
+                            text: "Biometrics unlock this device's signed-in session. You can always use your PIN."
+                            theme_text_color: "Custom"
+                            text_color: TEXT_SUB
+                            font_size: sp(11.5 * root.text_scale)
+                            size_hint_y: None
+                            height: self.texture_size[1] if root.biometric_available else 0
+                            opacity: 1 if root.biometric_available else 0
+
                         MDLabel:
                             text: root.network_text
                             theme_text_color: "Custom"

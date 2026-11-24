@@ -151,9 +151,18 @@ class SessionManager:
         self.privacy_mode = True
         _storage.clear()
 
-    def set_remember_me(self, momo: str, first_name: str = "", pin: str = "") -> None:
-        self.remember_me = {"momo": momo, "first_name": first_name, "pin": pin}
-        _storage.save_remember_me(momo, first_name=first_name, pin=pin)
+    def set_remember_me(
+        self,
+        momo: str,
+        first_name: str = "",
+        biometric_enabled: bool = False,
+    ) -> None:
+        self.remember_me = {
+            "momo": str(momo or "").strip(),
+            "first_name": str(first_name or "").strip(),
+            "biometric_enabled": bool(biometric_enabled),
+        }
+        _storage.save_remember_me(momo, first_name=first_name, biometric_enabled=biometric_enabled)
 
     def clear_remember_me(self) -> None:
         self.remember_me = None

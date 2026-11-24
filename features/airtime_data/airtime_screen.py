@@ -21,6 +21,16 @@ class AirtimeScreen(RequestGuardMixin, MDScreen):
         self.controller = AirtimeController()
         self._last_network = "Unknown"
 
+    def go_back(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            if app.go_to_screen("home", fallback="login", transition_style="fade"):
+                return True
+        if self.manager is not None and self.manager.has_screen("home"):
+            self.manager.current = "home"
+            return True
+        return False
+
     def on_enter(self):
         self._set_wallet_balance()
         self.detect_network(self.ids.phone.text if "phone" in self.ids else "")

@@ -3,42 +3,17 @@ from threading import Thread
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import BooleanProperty
-from kivy.properties import ObjectProperty
-from kivy.properties import StringProperty
-from kivy.uix.behaviors import ButtonBehavior
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.data_controller import DataController
+from features.airtime_data.data_package_card import DataPackageCard
 from features.airtime_data.network_detector import NetworkDetector
 from features.airtime_data.request_guard import RequestGuardMixin
-from widgets import GlassCard
 
 
 Builder.load_file(str(Path(__file__).with_name("data_screen.kv")))
-
-
-class DataPackageCard(ButtonBehavior, GlassCard):
-    package_id = StringProperty("")
-    title = StringProperty("")
-    summary = StringProperty("")
-    price_text = StringProperty("")
-    selected = BooleanProperty(False)
-    callback = ObjectProperty(None, allownone=True)
-
-    def on_selected(self, *_):
-        if self.selected:
-            self.md_bg_color = (0.18, 0.14, 0.02, 1)
-            self.line_color = (1, 0.76, 0.12, 1)
-        else:
-            self.md_bg_color = (0.10, 0.10, 0.10, 1)
-            self.line_color = (0.20, 0.20, 0.20, 1)
-
-    def on_release(self):
-        if callable(self.callback):
-            self.callback(self.package_id)
 
 
 class DataScreen(RequestGuardMixin, MDScreen):
@@ -48,6 +23,16 @@ class DataScreen(RequestGuardMixin, MDScreen):
         self.selected_package = None
         self._last_network = "Unknown"
         self._packages = {}
+
+    def go_back(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            if app.go_to_screen("home", fallback="login", transition_style="fade"):
+                return True
+        if self.manager is not None and self.manager.has_screen("home"):
+            self.manager.current = "home"
+            return True
+        return False
 
     def on_enter(self):
         self._set_wallet_balance()

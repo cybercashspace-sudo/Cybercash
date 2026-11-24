@@ -390,23 +390,48 @@ class CyberCashApp(MDApp):
             logging.exception("Failed to apply Android Privacy Mode flags")
 
     def on_pause(self):
-        # Allow the app to pause and save the state
+        # Ignore the pause caused by the Android biometric sheet itself.
+        if not getattr(self, "_biometric_prompt_active", False):
+            self._biometric_unlocked_for_session = False
         return True
 
     def on_resume(self):
-        # Trigger App Lock if authenticated and biometric-ready
-        if self.access_token:
-            data = get_remember_me()
-            if data.get("pin"):
-                self.request_biometric_auth(
-                    reason="Resume Session",
-                    on_success=lambda: None, # Stay on current screen
-                    on_failure=self._lock_app_to_login
-                )
+        if not getattr(self, "_startup_complete", False) or not self.access_token:
+            return
+        if self._biometric_opted_in() and not getattr(self, "_biometric_unlocked_for_session", False):
+            manager = getattr(self, "root", None)
+            resume_target = str(getattr(manager, "current", "") or self.get_authenticated_target())
+            if resume_target in {"login", "splash"}:
+                resume_target = self.get_authenticated_target()
+            self.go_to_screen("login", fallback="login")
+            self.request_biometric_auth(
+                reason="Unlock your session",
+                on_success=lambda: self.go_to_screen(resume_target, fallback="login"),
+                on_failure=self._lock_app_to_login,
+            )
+
+    def _biometric_opted_in(self) -> bool:
+        try:
+            return bool(get_remember_me().get("biometric_enabled", False))
+        except Exception:
+            return False
 
     def _lock_app_to_login(self, message="Session Locked"):
+        self._biometric_unlocked_for_session = False
+        try:
+            remembered = get_remember_me()
+            if remembered.get("momo"):
+                session.set_remember_me(
+                    remembered.get("momo", ""),
+                    first_name=remembered.get("first_name", ""),
+                    biometric_enabled=False,
+                )
+        except Exception:
+            logging.exception("Could not disable biometric unlock after a failed prompt")
         self.reset_session_state(clear_wallet_state=False)
         self.go_to_screen("login")
+        if message:
+            show_app_snackbar("Biometric unlock was cancelled or unavailable. Sign in with your PIN; you can enable it again after login.")
 
     def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
         self.stop_background_services()
@@ -447,64 +472,96 @@ class CyberCashApp(MDApp):
             pass
 
     def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None):
-        """Central biometric service for Login and App Lock."""
-        data = get_remember_me()
-        momo = data.get("momo", "User")
-        pin = data.get("pin")
+        """Require the Android system biometric prompt for an existing session."""
+        if getattr(self, "_biometric_prompt_active", False):
+            return False
+        if not self.access_token or not session.authenticated():
+            if on_failure:
+                on_failure("Sign in with your PIN before using biometric unlock.")
+            return False
+        if not self._biometric_opted_in():
+            if on_failure:
+                on_failure("Biometric unlock is not enabled for this device.")
+            return False
+        if platform != "android":
+            if on_failure:
+                on_failure("Biometric unlock is available in the Android app.")
+            return False
 
-        if not pin:
-            if on_failure: on_failure("Biometric not set up")
-            return
+        self._biometric_prompt_active = True
+        self._biometric_unlocked_for_session = False
+        request_id = int(getattr(self, "_biometric_request_id", 0)) + 1
+        self._biometric_request_id = request_id
+        settled = {"value": False}
 
-        if platform == 'android':
-            try:
-                from jnius import autoclass, PythonJavaClass, java_method
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                BiometricPrompt = autoclass('androidx.biometric.BiometricPrompt')
-                PromptInfo = autoclass('androidx.biometric.BiometricPrompt$PromptInfo')
-                ContextCompat = autoclass('androidx.core.content.ContextCompat')
-                
-                activity = PythonActivity.mActivity
-                executor = ContextCompat.getMainExecutor(activity)
-
-                class BiometricCallback(PythonJavaClass):
-                    __javainterfaces__ = ['androidx/biometric/BiometricPrompt$AuthenticationCallback']
-                    def __init__(self, s_cb, f_cb):
-                        self.s_cb = s_cb
-                        self.f_cb = f_cb
-                        super().__init__()
-
-                    @java_method('(Landroidx/biometric/BiometricPrompt$AuthenticationResult;)V')
-                    def onAuthenticationSucceeded(self, result):
-                        Clock.schedule_once(lambda dt: self.s_cb())
-
-                    @java_method('(ILjava/lang/CharSequence;)V')
-                    def onAuthenticationError(self, errorCode, errString):
-                        if int(errorCode) != 13: # 13 is cancel
-                            Clock.schedule_once(lambda dt: self.f_cb(str(errString)))
-
-                callback = BiometricCallback(
-                    lambda: on_success() if on_success else None,
-                    lambda msg: on_failure(msg) if on_failure else None
-                )
-                prompt = BiometricPrompt(activity, executor, callback)
-                builder = PromptInfo.Builder()
-                builder.setTitle("CYBER CASH Secure Access")
-                builder.setSubtitle(f"{reason} for {momo}")
-                builder.setNegativeButtonText("Cancel")
-                builder.setAllowedAuthenticators(15)
-                activity.runOnUiThread(lambda: prompt.authenticate(builder.build()))
+        def finish(success, message=""):
+            if settled["value"]:
                 return
-            except Exception:
-                logging.warning("Native auth failed")
+            settled["value"] = True
 
-        # Fallback simulation
-        from core.popup_manager import show_message_dialog
-        show_message_dialog(
-            self.root, title="Biometric Check", 
-            message=f"Authenticating {momo}...",
-            on_close=lambda: Clock.schedule_once(lambda dt: on_success(), 0.5) if on_success else None
-        )
+            def apply_result(_dt):
+                if request_id != getattr(self, "_biometric_request_id", 0):
+                    return
+                self._biometric_prompt_active = False
+                self._biometric_prompt = None
+                self._biometric_callback = None
+                if success:
+                    self._biometric_unlocked_for_session = True
+                    if on_success:
+                        on_success()
+                elif on_failure:
+                    on_failure(str(message or "Biometric check was not completed."))
+
+            Clock.schedule_once(apply_result, 0)
+
+        try:
+            from jnius import autoclass, PythonJavaClass, java_method
+
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            BiometricPrompt = autoclass("androidx.biometric.BiometricPrompt")
+            PromptInfo = autoclass("androidx.biometric.BiometricPrompt$PromptInfo")
+            BiometricManager = autoclass("androidx.biometric.BiometricManager")
+            ContextCompat = autoclass("androidx.core.content.ContextCompat")
+            activity = PythonActivity.mActivity
+            authenticators = 15  # BIOMETRIC_STRONG
+            availability = BiometricManager.from_(activity).canAuthenticate(authenticators)
+            if int(availability) != 0:
+                finish(False, "No enrolled face or fingerprint is available. Sign in with your PIN.")
+                return False
+            executor = ContextCompat.getMainExecutor(activity)
+
+            class BiometricCallback(PythonJavaClass):
+                __javainterfaces__ = ["androidx/biometric/BiometricPrompt$AuthenticationCallback"]
+                __javacontext__ = "app"
+
+                @java_method("(Landroidx/biometric/BiometricPrompt$AuthenticationResult;)V")
+                def onAuthenticationSucceeded(self, _result):
+                    finish(True)
+
+                @java_method("(ILjava/lang/CharSequence;)V")
+                def onAuthenticationError(self, _error_code, error_text):
+                    finish(False, str(error_text or "Biometric check was not completed."))
+
+                @java_method("()V")
+                def onAuthenticationFailed(self):
+                    # A failed sample leaves the system sheet open for another try.
+                    return
+
+            callback = BiometricCallback()
+            prompt = BiometricPrompt(activity, executor, callback)
+            builder = PromptInfo.Builder()
+            builder.setTitle("CYBER CASH Secure Access")
+            builder.setSubtitle(str(reason or "Unlock your session"))
+            builder.setNegativeButtonText("Use PIN later")
+            builder.setAllowedAuthenticators(authenticators)
+            self._biometric_callback = callback
+            self._biometric_prompt = prompt
+            activity.runOnUiThread(lambda: prompt.authenticate(builder.build()))
+            return True
+        except Exception:
+            logging.exception("Android biometric prompt could not be started")
+            finish(False, "Biometric unlock is unavailable right now. Sign in with your PIN.")
+            return False
 
     def _open_authenticated_start_screen(self, *_args) -> None:
         if self.access_token:
@@ -533,8 +590,10 @@ class CyberCashApp(MDApp):
             return False
 
         target = self.get_authenticated_target() if self.access_token else "login"
-        if not self.go_to_screen(target, fallback="login"):
-            logger.warning("Startup route to %s is not ready yet; retrying.", target)
+        biometric_required = bool(self.access_token and self._biometric_opted_in())
+        initial_target = "login" if biometric_required else target
+        if not self.go_to_screen(initial_target, fallback="login"):
+            logger.warning("Startup route to %s is not ready yet; retrying.", initial_target)
             return False
 
         self._startup_complete = True
@@ -546,6 +605,21 @@ class CyberCashApp(MDApp):
                 lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
                 0.35,
             )
+
+        if biometric_required:
+            def open_after_biometric():
+                if self.go_to_screen(target, fallback="login"):
+                    self.start_background_services()
+                else:
+                    self._lock_app_to_login("Please sign in with your PIN to continue.")
+
+            self.request_biometric_auth(
+                reason="Unlock your account",
+                on_success=open_after_biometric,
+                on_failure=self._lock_app_to_login,
+            )
+            return True
+
         if self.access_token:
             self.start_background_services()
         return True
@@ -803,6 +877,11 @@ class CyberCashApp(MDApp):
         self._startup_complete = False
         self._startup_attempts = 0
         self._startup_request_event = None
+        self._biometric_prompt_active = False
+        self._biometric_prompt = None
+        self._biometric_callback = None
+        self._biometric_request_id = 0
+        self._biometric_unlocked_for_session = False
         self._admin_dashboard_entry_authorized = False
         self.app_state.set_screen("splash", "")
 
