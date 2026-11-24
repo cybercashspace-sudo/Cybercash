@@ -1,11 +1,19 @@
-import os
+﻿import os
 import threading
+from urllib.parse import urlsplit
 
 import requests
 from requests.adapters import HTTPAdapter
 
 from core.config import config as app_config
-from core.environment import load_runtime_environment, resolve_api_base_url, resolve_api_urls
+from core.environment import (
+    Environment,
+    _is_mobile_platform,
+    load_runtime_environment,
+    resolve_api_base_url,
+    resolve_api_urls as resolve_environment_api_urls,
+    resolve_environment,
+)
 from core.session import session
 from core.message_sanitizer import sanitize_backend_message
 
@@ -36,10 +44,15 @@ def _normalize_api_url(value: str | None) -> str:
         return ""
     if "://" not in cleaned:
         cleaned = f"https://{cleaned}"
-    lowered = cleaned.lower()
-    if "localhost" in lowered or "127.0.0.1" in lowered:
+    try:
+        host = (urlsplit(cleaned).hostname or "").lower()
+    except ValueError:
         return ""
-    if lowered.startswith("https://cybercash.space"):
+    if host in {"localhost", "127.0.0.1", "::1"} and (
+        _is_mobile_platform() or resolve_environment() != Environment.DEVELOPMENT
+    ):
+        return ""
+    if cleaned.lower().startswith("https://cybercash.space"):
         return "https://www.cybercash.space"
     return cleaned
 
@@ -77,6 +90,7 @@ def resolve_api_url() -> str:
 def resolve_api_urls() -> list[str]:
     urls: list[str] = []
     seen: set[str] = set()
+    primary = resolve_api_url()
 
     def _append(value: str | None) -> None:
         normalized = _normalize_api_url(value)
@@ -85,7 +99,13 @@ def resolve_api_urls() -> list[str]:
         seen.add(normalized)
         urls.append(normalized)
 
-    _append(resolve_api_url())
+    _append(primary)
+    try:
+        primary_host = (urlsplit(primary).hostname or "").lower()
+    except ValueError:
+        primary_host = ""
+    if primary_host in {"localhost", "127.0.0.1", "::1"} and not _is_mobile_platform():
+        return urls
     for value in (
         "https://cybercash.space",
         "https://www.cybercash.space",

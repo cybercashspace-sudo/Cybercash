@@ -4,6 +4,7 @@ import json
 import os
 from enum import Enum
 from pathlib import Path
+from urllib.parse import urlsplit
 
 try:
     from kivy.utils import platform as kivy_platform
@@ -116,11 +117,24 @@ def resolve_api_base_url(environment: Environment | None = None) -> str:
     return _normalize_url(_default_api_url(env))
 
 
+def _is_loopback_url(value: str) -> bool:
+    try:
+        return (urlsplit(str(value or "")).hostname or "").lower() in {"localhost", "127.0.0.1", "::1"}
+    except ValueError:
+        return False
+
+
 def resolve_api_urls(environment: Environment | None = None) -> list[str]:
     load_runtime_environment()
     env = environment or resolve_environment()
     urls: list[str] = []
     seen: set[str] = set()
+    primary = resolve_api_base_url(env)
+    local_desktop_development = (
+        env == Environment.DEVELOPMENT
+        and not _is_mobile_platform()
+        and _is_loopback_url(primary)
+    )
 
     def _append(value: str) -> None:
         normalized = _normalize_url(value)
@@ -129,13 +143,15 @@ def resolve_api_urls(environment: Environment | None = None) -> list[str]:
         lowered = normalized.lower()
         if lowered.startswith(("javascript:", "data:", "file:")):
             return
-        if "localhost" in lowered or "127.0.0.1" in lowered:
+        if _is_loopback_url(normalized) and not local_desktop_development:
             return
         if normalized not in seen:
             seen.add(normalized)
             urls.append(normalized)
 
-    _append(resolve_api_base_url(env))
+    _append(primary)
+    if local_desktop_development:
+        return urls
 
     legacy_urls = (
         "https://cybercash.space",

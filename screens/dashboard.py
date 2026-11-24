@@ -1057,7 +1057,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             size=(dp(22 * layout_scale), dp(22 * layout_scale)),
             theme_text_color="Custom",
             text_color=icon_color,
-            user_font_size=f"{20 * icon_scale:.1f}sp",
+            icon_size=f"{20 * icon_scale:.1f}sp",
             disabled=True,
         )
         icon_wrap.add_widget(icon_button)
