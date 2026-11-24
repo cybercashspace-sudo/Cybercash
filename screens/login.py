@@ -64,6 +64,9 @@ class LoginScreen(ResponsiveScreen):
     def on_pre_enter(self, *_args):
         self._active = True
         self._login_generation += 1
+        app = MDApp.get_running_app()
+        availability_check = getattr(app, "is_biometric_available", None) if app else None
+        self.biometric_available = bool(availability_check()) if callable(availability_check) else False
         self.remember_me = True
         self.biometric_login_enabled = False
         self.password_visible = False

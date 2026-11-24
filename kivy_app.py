@@ -47,6 +47,7 @@ from api.client import FAST_TIMEOUT, api_client
 install_kivymd_font_style_compat()
 
 logger = get_logger("cybercash.app")
+BIOMETRIC_STRONG_AUTHENTICATOR = 0x000F
 
 
 def _install_snackbar_compat() -> None:
@@ -418,6 +419,23 @@ class CyberCashApp(MDApp):
         except Exception:
             return False
 
+    def is_biometric_available(self) -> bool:
+        """Return whether Android has an enrolled strong biometric for this device."""
+        if platform != "android":
+            return False
+        try:
+            from jnius import autoclass
+
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            BiometricManager = autoclass("androidx.biometric.BiometricManager")
+            availability = BiometricManager.from_(PythonActivity.mActivity).canAuthenticate(
+                BIOMETRIC_STRONG_AUTHENTICATOR
+            )
+            return int(availability) == 0  # BIOMETRIC_SUCCESS for BIOMETRIC_STRONG.
+        except Exception:
+            logger.debug("Could not check Android biometric availability", exc_info=True)
+            return False
+
     def _lock_app_to_login(self, message="Session Locked"):
         self._biometric_unlocked_for_session = False
         try:
@@ -525,10 +543,10 @@ class CyberCashApp(MDApp):
             BiometricManager = autoclass("androidx.biometric.BiometricManager")
             ContextCompat = autoclass("androidx.core.content.ContextCompat")
             activity = PythonActivity.mActivity
-            authenticators = 15  # BIOMETRIC_STRONG
+            authenticators = BIOMETRIC_STRONG_AUTHENTICATOR  # Secure fingerprint or face.
             availability = BiometricManager.from_(activity).canAuthenticate(authenticators)
             if int(availability) != 0:
-                finish(False, "No enrolled face or fingerprint is available. Sign in with your PIN.")
+                finish(False, "Set up a secure fingerprint or face unlock on this device, then sign in with your PIN.")
                 return False
             executor = ContextCompat.getMainExecutor(activity)
 
