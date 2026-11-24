@@ -107,7 +107,7 @@ KV = """
                             adaptive_height: True
 
                         MDLabel:
-                            text: "3. Tap 'I Have Sent Airtime' and wait for verification"
+                            text: "3. Tap Airtime Sent and wait for verification"
                             theme_text_color: "Custom"
                             text_color: TEXT_SUB
                             font_size: sp(11.5 * root.text_scale)
@@ -250,35 +250,39 @@ KV = """
                                     text: "Estimated cash payout"
                                     theme_text_color: "Custom"
                                     text_color: TEXT_SUB
-                                    font_size: sp(11.5 * root.text_scale)
+                                    font_size: sp(11 * root.text_scale)
                                     adaptive_height: True
 
                                 MDLabel:
                                     text: root.payout_estimate
                                     theme_text_color: "Custom"
                                     text_color: GOLD
-                                    font_size: sp(18 * root.text_scale)
+                                    font_size: sp(17 * root.text_scale)
                                     bold: True
+                                    halign: "center"
+                                    size_hint_y: None
+                                    adaptive_height: True
+                                    text_size: self.width, None
 
                                 MDLabel:
                                     text: "Platform fee: " + root.fee_estimate
                                     theme_text_color: "Custom"
                                     text_color: TEXT_SUB
-                                    font_size: sp(11.5 * root.text_scale)
+                                    font_size: sp(10.5 * root.text_scale)
                                     adaptive_height: True
 
                                 MDLabel:
                                     text: root.rate_hint
                                     theme_text_color: "Custom"
                                     text_color: TEXT_SUB
-                                    font_size: sp(11 * root.text_scale)
+                                    font_size: sp(10 * root.text_scale)
                                     adaptive_height: True
 
                                 MDLabel:
-                                    text: "Large amounts may require manual review before payout."
+                                    text: "Large amounts may need review."
                                     theme_text_color: "Custom"
                                     text_color: TEXT_SUB
-                                    font_size: sp(10.5 * root.text_scale)
+                                    font_size: sp(10 * root.text_scale)
                                     adaptive_height: True
 
                         MDGridLayout:
@@ -289,7 +293,7 @@ KV = """
                             spacing: dp(10 * root.layout_scale)
 
                             MDFillRoundFlatIconButton:
-                                text: "Generate Merchant Number"
+                                text: "Generate Number"
                                 icon: "phone-forward"
                                 md_bg_color: GOLD_SOFT
                                 text_color: BG
@@ -297,7 +301,7 @@ KV = """
                                 on_release: root.generate_merchant_number()
 
                             MDFillRoundFlatIconButton:
-                                text: "I Have Sent Airtime"
+                                text: "Airtime Sent"
                                 icon: "check-circle-outline"
                                 md_bg_color: SURFACE_SOFT
                                 text_color: TEXT_MAIN
@@ -396,10 +400,10 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     payout_rate = NumericProperty(DEFAULT_PAYOUT_RATE)
     payout_estimate = StringProperty("GHS 0.00")
     fee_estimate = StringProperty("GHS 0.00")
-    rate_hint = StringProperty("Rate: 80% payout (GHS 100 -> GHS 80)")
-    merchant_number = StringProperty("Tap Generate to get a merchant number.")
+    rate_hint = StringProperty("Payout rate: 80%")
+    merchant_number = StringProperty("Tap Generate Number to get a merchant number.")
     transfer_instructions = StringProperty(
-        "Tap Generate Merchant Number, send airtime, then tap 'I Have Sent Airtime'."
+        "Tap Generate Number, send the airtime, then tap Airtime Sent."
     )
     flow_hint = StringProperty(
         "Flow: 1) Generate merchant number 2) Send airtime 3) We verify receipt 4) MoMo payout sent."
@@ -423,9 +427,9 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     def _reset_submission_state(self) -> None:
         self.sale_id = ""
         self._set_sale_status(None)
-        self.merchant_number = "Tap Generate to get a merchant number."
+        self.merchant_number = "Tap Generate Number to get a merchant number."
         self.transfer_instructions = (
-            "Tap Generate Merchant Number, send airtime, then tap 'I Have Sent Airtime'."
+            "Tap Generate Number, send the airtime, then tap Airtime Sent."
         )
         self._set_feedback("", "info")
 
@@ -486,9 +490,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
 
     def _update_rate_hint(self) -> None:
         rate = float(self.payout_rate or DEFAULT_PAYOUT_RATE)
-        sample_amount = 100.0
-        sample_payout = sample_amount * rate
-        self.rate_hint = f"Rate: {rate * 100:.0f}% payout (GHS {sample_amount:.0f} -> GHS {sample_payout:.0f})"
+        self.rate_hint = f"Payout rate: {rate * 100:.0f}%"
 
     def _set_sale_status(self, status: str | None) -> None:
         self.sale_status = str(status or "").strip()
@@ -643,7 +645,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
                     f"We will verify the transfer and pay out about {self.payout_estimate} to your MoMo."
                 )
                 self._set_feedback(
-                    "Merchant number generated. Transfer the airtime and tap 'I Have Sent Airtime'.",
+                    "Merchant number generated. Send the airtime, then tap Airtime Sent.",
                     "success",
                 )
                 return
