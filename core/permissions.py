@@ -59,7 +59,6 @@ class PermissionManager:
 
     def request_biometrics(self) -> bool:
         permissions = [
-            getattr(Permission, "USE_BIOMETRIC", "android.permission.USE_BIOMETRIC"),
             getattr(Permission, "USE_FINGERPRINT", "android.permission.USE_FINGERPRINT"),
         ]
         return self.request(permissions)

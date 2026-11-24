@@ -154,7 +154,7 @@ KV = """
 
                 SettingsItem:
                     text: "Security"
-                    secondary: "PIN, Biometrics & Privacy"
+                    secondary: "PIN, Fingerprint & Privacy"
                     icon: "shield-lock-outline"
                     on_release: root.open_section("Security")
 
@@ -374,7 +374,7 @@ class SettingsScreen(ActionScreen):
         content.add_widget(
             MDLabel(
                 text=(
-                    "Your device protects biometric sign-in. Enable it from the login screen. "
+                    "Use your enrolled fingerprint for quick sign-in. Enable it from the login screen. "
                     "Reset your PIN using an email verification code."
                 ),
                 theme_text_color="Secondary",

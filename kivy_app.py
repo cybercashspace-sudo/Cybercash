@@ -47,7 +47,6 @@ from api.client import FAST_TIMEOUT, api_client
 install_kivymd_font_style_compat()
 
 logger = get_logger("cybercash.app")
-BIOMETRIC_STRONG_AUTHENTICATOR = 0x000F
 
 
 def _install_snackbar_compat() -> None:
@@ -420,38 +419,35 @@ class CyberCashApp(MDApp):
             return False
 
     def is_biometric_available(self) -> bool:
-        """Return whether Android has an enrolled strong biometric for this device."""
+        """Return whether Android has an enrolled fingerprint for this device."""
         if platform != "android":
             return False
         try:
-            from jnius import autoclass
+            from jnius import autoclass, cast
 
             PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            BiometricManager = autoclass("androidx.biometric.BiometricManager")
-            availability = BiometricManager.from_(PythonActivity.mActivity).canAuthenticate(
-                BIOMETRIC_STRONG_AUTHENTICATOR
+            Context = autoclass("android.content.Context")
+            activity = PythonActivity.mActivity
+            # BiometricPrompt is modality-agnostic on modern Android; this API only scans fingerprints.
+            fingerprint_manager = cast(
+                "android.hardware.fingerprint.FingerprintManager",
+                activity.getSystemService(Context.FINGERPRINT_SERVICE),
             )
-            return int(availability) == 0  # BIOMETRIC_SUCCESS for BIOMETRIC_STRONG.
+            return bool(
+                fingerprint_manager is not None
+                and fingerprint_manager.isHardwareDetected()
+                and fingerprint_manager.hasEnrolledFingerprints()
+            )
         except Exception:
-            logger.debug("Could not check Android biometric availability", exc_info=True)
+            logger.debug("Could not check Android fingerprint availability", exc_info=True)
             return False
 
     def _lock_app_to_login(self, message="Session Locked"):
         self._biometric_unlocked_for_session = False
-        try:
-            remembered = get_remember_me()
-            if remembered.get("momo"):
-                session.set_remember_me(
-                    remembered.get("momo", ""),
-                    first_name=remembered.get("first_name", ""),
-                    biometric_enabled=False,
-                )
-        except Exception:
-            logging.exception("Could not disable biometric unlock after a failed prompt")
         self.reset_session_state(clear_wallet_state=False)
         self.go_to_screen("login")
         if message:
-            show_app_snackbar("Biometric unlock was cancelled or unavailable. Sign in with your PIN; you can enable it again after login.")
+            show_app_snackbar("Sign in with your PIN to continue. Fingerprint sign-in remains available for next time.")
 
     def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
         self.stop_background_services()
@@ -492,20 +488,20 @@ class CyberCashApp(MDApp):
             pass
 
     def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None):
-        """Require the Android system biometric prompt for an existing session."""
+        """Require Android fingerprint authentication for an existing session."""
         if getattr(self, "_biometric_prompt_active", False):
             return False
         if not self.access_token or not session.authenticated():
             if on_failure:
-                on_failure("Sign in with your PIN before using biometric unlock.")
+                on_failure("Sign in with your PIN before using fingerprint unlock.")
             return False
         if not self._biometric_opted_in():
             if on_failure:
-                on_failure("Biometric unlock is not enabled for this device.")
+                on_failure("Fingerprint unlock is not enabled for this device.")
             return False
         if platform != "android":
             if on_failure:
-                on_failure("Biometric unlock is available in the Android app.")
+                on_failure("Fingerprint unlock is available in the Android app.")
             return False
 
         self._biometric_prompt_active = True
@@ -513,6 +509,7 @@ class CyberCashApp(MDApp):
         request_id = int(getattr(self, "_biometric_request_id", 0)) + 1
         self._biometric_request_id = request_id
         settled = {"value": False}
+        fingerprint_dialog = {"popup": None, "status_label": None}
 
         def finish(success, message=""):
             if settled["value"]:
@@ -525,62 +522,119 @@ class CyberCashApp(MDApp):
                 self._biometric_prompt_active = False
                 self._biometric_prompt = None
                 self._biometric_callback = None
+                self._biometric_dialog = None
+                popup = fingerprint_dialog.get("popup")
+                if popup is not None:
+                    popup.dismiss()
                 if success:
                     self._biometric_unlocked_for_session = True
                     if on_success:
                         on_success()
                 elif on_failure:
-                    on_failure(str(message or "Biometric check was not completed."))
+                    on_failure(str(message or "Fingerprint check was not completed."))
 
             Clock.schedule_once(apply_result, 0)
 
         try:
-            from jnius import autoclass, PythonJavaClass, java_method
+            from jnius import autoclass, cast, PythonJavaClass, java_method
+            from kivy.metrics import dp
+            from kivy.uix.popup import Popup
+            from kivymd.uix.boxlayout import MDBoxLayout
+            from kivymd.uix.button import MDRaisedButton
+            from kivymd.uix.label import MDLabel
 
             PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            BiometricPrompt = autoclass("androidx.biometric.BiometricPrompt")
-            PromptInfo = autoclass("androidx.biometric.BiometricPrompt$PromptInfo")
-            BiometricManager = autoclass("androidx.biometric.BiometricManager")
-            ContextCompat = autoclass("androidx.core.content.ContextCompat")
+            Context = autoclass("android.content.Context")
+            CancellationSignal = autoclass("android.os.CancellationSignal")
             activity = PythonActivity.mActivity
-            authenticators = BIOMETRIC_STRONG_AUTHENTICATOR  # Secure fingerprint or face.
-            availability = BiometricManager.from_(activity).canAuthenticate(authenticators)
-            if int(availability) != 0:
-                finish(False, "Set up a secure fingerprint or face unlock on this device, then sign in with your PIN.")
+            fingerprint_manager = cast(
+                "android.hardware.fingerprint.FingerprintManager",
+                activity.getSystemService(Context.FINGERPRINT_SERVICE),
+            )
+            if (
+                fingerprint_manager is None
+                or not fingerprint_manager.isHardwareDetected()
+                or not fingerprint_manager.hasEnrolledFingerprints()
+            ):
+                finish(False, "Set up a fingerprint on this device, then sign in with your PIN.")
                 return False
-            executor = ContextCompat.getMainExecutor(activity)
 
-            class BiometricCallback(PythonJavaClass):
-                __javainterfaces__ = ["androidx/biometric/BiometricPrompt$AuthenticationCallback"]
+            class FingerprintCallback(PythonJavaClass):
+                __javainterfaces__ = ["android/hardware/fingerprint/FingerprintManager$AuthenticationCallback"]
                 __javacontext__ = "app"
 
-                @java_method("(Landroidx/biometric/BiometricPrompt$AuthenticationResult;)V")
+                @java_method("(Landroid/hardware/fingerprint/FingerprintManager$AuthenticationResult;)V")
                 def onAuthenticationSucceeded(self, _result):
                     finish(True)
 
                 @java_method("(ILjava/lang/CharSequence;)V")
                 def onAuthenticationError(self, _error_code, error_text):
-                    finish(False, str(error_text or "Biometric check was not completed."))
+                    finish(False, str(error_text or "Fingerprint check was not completed."))
 
                 @java_method("()V")
                 def onAuthenticationFailed(self):
-                    # A failed sample leaves the system sheet open for another try.
-                    return
+                    # Keep scanning and give the user a simple retry hint.
+                    status_label = fingerprint_dialog.get("status_label")
+                    if status_label is not None:
+                        Clock.schedule_once(
+                            lambda _dt: setattr(
+                                status_label,
+                                "text",
+                                "Fingerprint not recognized. Touch the sensor and try again.",
+                            ),
+                            0,
+                        )
 
-            callback = BiometricCallback()
-            prompt = BiometricPrompt(activity, executor, callback)
-            builder = PromptInfo.Builder()
-            builder.setTitle("CYBER CASH Secure Access")
-            builder.setSubtitle(str(reason or "Unlock your session"))
-            builder.setNegativeButtonText("Use PIN later")
-            builder.setAllowedAuthenticators(authenticators)
+            callback = FingerprintCallback()
+            cancellation = CancellationSignal()
+            prompt_content = MDBoxLayout(
+                orientation="vertical",
+                spacing=dp(16),
+                padding=dp(18),
+            )
+            status_label = MDLabel(
+                text=f"{str(reason or 'Unlock your account')}\nTouch the fingerprint sensor to continue.",
+                halign="center",
+                valign="middle",
+                adaptive_height=True,
+            )
+            prompt_content.add_widget(status_label)
+
+            def cancel_fingerprint(*_args):
+                try:
+                    cancellation.cancel()
+                except Exception:
+                    pass
+                finish(False, "Fingerprint sign-in cancelled. Enter your PIN to continue.")
+
+            cancel_button = MDRaisedButton(
+                text="Use PIN",
+                size_hint_x=1,
+                on_release=cancel_fingerprint,
+            )
+            prompt_content.add_widget(cancel_button)
+            popup = Popup(
+                title="Fingerprint sign-in",
+                content=prompt_content,
+                size_hint=(0.88, None),
+                height=dp(220),
+                auto_dismiss=False,
+            )
+            fingerprint_dialog["popup"] = popup
+            fingerprint_dialog["status_label"] = status_label
+            self._biometric_dialog = popup
+            popup.open()
             self._biometric_callback = callback
-            self._biometric_prompt = prompt
-            activity.runOnUiThread(lambda: prompt.authenticate(builder.build()))
+            self._biometric_prompt = cancellation
+            activity.runOnUiThread(
+                lambda: fingerprint_manager.authenticate(
+                    None, cancellation, 0, callback, None
+                )
+            )
             return True
         except Exception:
-            logging.exception("Android biometric prompt could not be started")
-            finish(False, "Biometric unlock is unavailable right now. Sign in with your PIN.")
+            logging.exception("Android fingerprint prompt could not be started")
+            finish(False, "Fingerprint unlock is unavailable right now. Sign in with your PIN.")
             return False
 
     def _open_authenticated_start_screen(self, *_args) -> None:
@@ -900,6 +954,7 @@ class CyberCashApp(MDApp):
         self._biometric_prompt_active = False
         self._biometric_prompt = None
         self._biometric_callback = None
+        self._biometric_dialog = None
         self._biometric_request_id = 0
         self._biometric_unlocked_for_session = False
         self._admin_dashboard_entry_authorized = False

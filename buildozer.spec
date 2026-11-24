@@ -15,13 +15,12 @@ p4a.url = https://github.com/kivy/python-for-android.git
 p4a.branch = v2024.01.21
 orientation = portrait
 fullscreen = 0
-android.permissions = INTERNET,ACCESS_NETWORK_STATE,VIBRATE,USE_BIOMETRIC,USE_FINGERPRINT
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,VIBRATE,USE_FINGERPRINT
 android.api = 34
 android.minapi = 24
 android.ndk = 25b
 android.archs = arm64-v8a, armeabi-v7a
 android.enable_androidx = True
-android.gradle_dependencies = androidx.biometric:biometric:1.1.0
 android.accept_sdk_license = True
 android.logcat_filters = *:S python:D
 

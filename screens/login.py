@@ -480,10 +480,10 @@ class LoginScreen(ResponsiveScreen):
     def biometric_login(self):
         app = MDApp.get_running_app()
         if not self.biometric_available:
-            self.show_message("Biometric unlock is available in the Android app.")
+            self.show_message("Fingerprint sign-in is available in the Android app.")
             return
         if not self.biometric_login_enabled:
-            self.show_message("Sign in with your PIN and enable biometric unlock for this device.")
+            self.show_message("Sign in with your PIN and enable fingerprint sign-in for this device.")
             return
         if app is not None:
             app.request_biometric_auth(
