@@ -4,8 +4,13 @@ import threading
 
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, StringProperty
 from kivymd.app import MDApp
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.button import MDRaisedButton
+from kivymd.uix.label import MDLabel
+from kivymd.uix.selectioncontrol import MDSwitch
 
 from api.auth import logout
 from api.client import api_client
@@ -264,25 +269,79 @@ class SettingsScreen(ActionScreen):
             navigate(self.manager, screen_name, fallback="settings", transition_style="slide_left")
 
     def open_security_dialog(self):
-        """Special handling for Security to include Privacy Mode toggle."""
+        """Show safe, working privacy and PIN recovery controls."""
         app = MDApp.get_running_app()
-        content = MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=dp(15), padding=dp(20))
-        
-        # Re-using the Privacy Mode logic from before
-        row = MDBoxLayout(size_hint_y=None, height=dp(42))
-        row.add_widget(MDLabel(text="Privacy Mode (Task Switcher)", theme_text_color="Primary"))
-        
-        from kivymd.uix.selectioncontrol import MDSwitch
-        switch = MDSwitch(active=app.privacy_mode)
-        def _on_toggle(instance, value):
-            app.privacy_mode = value
-        switch.bind(active=_on_toggle)
-        row.add_widget(switch)
-        
-        content.add_widget(row)
-        content.add_widget(MDLabel(text="Change PIN and Biometrics settings can be accessed here.", theme_text_color="Secondary", font_size=sp(12)))
+        content = MDBoxLayout(
+            orientation="vertical",
+            adaptive_height=True,
+            spacing=dp(14),
+            padding=dp(18),
+        )
 
-        show_custom_dialog(self, title="Security Settings", content_cls=content)
+        privacy_row = MDBoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(48),
+            spacing=dp(12),
+        )
+        privacy_label = MDLabel(
+            text="Hide app preview in recent apps",
+            theme_text_color="Primary",
+            adaptive_height=True,
+        )
+        privacy_switch = MDSwitch(
+            active=bool(getattr(app, "privacy_mode", True)) if app else True,
+            size_hint=(None, None),
+            size=(dp(48), dp(32)),
+        )
+
+        def _save_privacy_mode(_instance, enabled):
+            if app is not None:
+                try:
+                    app.privacy_mode = bool(enabled)
+                except Exception:
+                    privacy_switch.unbind(active=_save_privacy_mode)
+                    privacy_switch.active = not bool(enabled)
+                    privacy_switch.bind(active=_save_privacy_mode)
+                    self._show_popup(
+                        "Privacy setting unavailable",
+                        "We couldn't update this setting. Please try again.",
+                    )
+
+        privacy_switch.bind(active=_save_privacy_mode)
+        privacy_row.add_widget(privacy_label)
+        privacy_row.add_widget(privacy_switch)
+        content.add_widget(privacy_row)
+        content.add_widget(
+            MDLabel(
+                text=(
+                    "Your device protects biometric sign-in. Enable it from the login screen. "
+                    "Reset your PIN using an email verification code."
+                ),
+                theme_text_color="Secondary",
+                font_size=sp(13),
+                adaptive_height=True,
+                text_size=(dp(300), None),
+            )
+        )
+        content.add_widget(
+            MDRaisedButton(
+                text="Reset transaction PIN",
+                size_hint_x=1,
+                on_release=lambda *_args: self.open_pin_reset(),
+            )
+        )
+
+        show_custom_dialog(self, title="Security", content_cls=content)
+
+    def open_pin_reset(self) -> None:
+        dialog = getattr(self, "_active_dialog", None)
+        if dialog is not None:
+            try:
+                dialog.dismiss()
+            except Exception:
+                pass
+        self._go_to_screen("reset_pin")
 
     def load_settings(self) -> None:
         if getattr(self, "_loading_settings", False):

@@ -60,10 +60,6 @@ Builder.load_string(
                             theme_text_color: "Custom"
                             text_color: theme.TEXT_PRIMARY
 
-                        MDLabel:
-                            text: "Identity, wallet, and account summary"
-                            theme_text_color: "Hint"
-
                     Widget:
 
                     AppButton:
@@ -71,8 +67,8 @@ Builder.load_string(
                         text: "Refresh"
                         variant: "secondary"
                         size_hint_x: None
-                        width: dp(140)
-                        height: dp(46)
+                        width: dp(104 * root.layout_scale)
+                        height: dp(44 * root.layout_scale)
                         on_release: root.refresh_profile()
 
                 RefreshIndicator:
@@ -89,8 +85,9 @@ Builder.load_string(
                     text: root.feedback_text
                     theme_text_color: "Custom"
                     text_color: root.feedback_color
-                    font_size: "12sp"
-                    shorten: True
+                    font_size: sp(12 * root.text_scale)
+                    adaptive_height: True
+                    text_size: self.width, None
 
                 GlassCard:
                     id: hero_card
@@ -102,31 +99,30 @@ Builder.load_string(
                     FitImage:
                         source: root.avatar_source
                         size_hint: None, None
-                        size: dp(88), dp(88)
-                        radius: [dp(44)]
+                        size: dp(68 * root.layout_scale), dp(68 * root.layout_scale)
+                        radius: [dp(34 * root.layout_scale)]
 
                     MDBoxLayout:
                         orientation: "vertical"
                         adaptive_height: True
-                        spacing: dp(4)
+                        spacing: dp(4 * root.layout_scale)
 
                         MDLabel:
                             text: root.display_name
-                            font_size: "22sp"
+                            font_size: sp(20 * root.text_scale)
                             bold: True
                             theme_text_color: "Custom"
                             text_color: theme.TEXT_PRIMARY
-
-                        MDLabel:
-                            text: root.email_text
-                            theme_text_color: "Hint"
-                            font_size: "13sp"
+                            adaptive_height: True
+                            text_size: self.width, None
 
                         MDLabel:
                             text: root.account_status_text
                             theme_text_color: "Custom"
                             text_color: theme.PRIMARY_LIGHT
-                            font_size: "12sp"
+                            font_size: sp(12 * root.text_scale)
+                            adaptive_height: True
+                            text_size: self.width, None
 
                 GlassCard:
                     orientation: "vertical"
@@ -136,14 +132,17 @@ Builder.load_string(
 
                     MDLabel:
                         text: "Account Email"
-                        font_size: "18sp"
+                        font_size: sp(16 * root.text_scale)
                         bold: True
                         theme_text_color: "Custom"
                         text_color: theme.TEXT_PRIMARY
+                        adaptive_height: True
 
                     MDLabel:
                         text: root.email_text
                         theme_text_color: "Hint"
+                        adaptive_height: True
+                        text_size: self.width, None
 
                     MDTextField:
                         id: email_change_input
@@ -179,7 +178,7 @@ Builder.load_string(
                         on_release: root.verify_email_change()
 
                 MDGridLayout:
-                    cols: 2
+                    cols: 1 if root.compact_mode else 2
                     adaptive_height: True
                     spacing: dp(12)
 
@@ -196,10 +195,12 @@ Builder.load_string(
 
                         MDLabel:
                             text: root.wallet_balance_text
-                            font_size: "22sp"
+                            font_size: sp(20 * root.text_scale)
                             bold: True
                             theme_text_color: "Custom"
                             text_color: theme.PRIMARY_LIGHT
+                            adaptive_height: True
+                            text_size: self.width, None
 
                     GlassCard:
                         orientation: "vertical"
@@ -214,56 +215,70 @@ Builder.load_string(
 
                         MDLabel:
                             text: root.notification_count_text
-                            font_size: "22sp"
+                            font_size: sp(16 * root.text_scale)
                             bold: True
                             theme_text_color: "Custom"
                             text_color: theme.TEXT_PRIMARY
+                            adaptive_height: True
+                            text_size: self.width, None
 
                 GlassCard:
                     id: details_card
                     orientation: "vertical"
                     adaptive_height: True
                     padding: dp(16)
-                    spacing: dp(10)
+                    spacing: dp(8 * root.layout_scale)
 
                     MDLabel:
                         text: "Account Details"
-                        font_size: "18sp"
+                        font_size: sp(16 * root.text_scale)
                         bold: True
                         theme_text_color: "Custom"
                         text_color: theme.TEXT_PRIMARY
-
-                    MDBoxLayout:
-                        orientation: "vertical"
                         adaptive_height: True
-                        spacing: dp(8)
 
-                        MDLabel:
-                            text: "Phone"
-                            theme_text_color: "Hint"
-                            font_size: "12sp"
-                        MDLabel:
-                            text: root.phone_text
-                            theme_text_color: "Custom"
-                            text_color: theme.TEXT_PRIMARY
+                    MDGridLayout:
+                        cols: 1 if root.compact_mode else 2
+                        adaptive_height: True
+                        spacing: dp(12 * root.layout_scale)
 
-                        MDLabel:
-                            text: "Role"
-                            theme_text_color: "Hint"
-                            font_size: "12sp"
-                        MDLabel:
-                            text: root.role_text
-                            theme_text_color: "Custom"
-                            text_color: theme.TEXT_PRIMARY
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(2 * root.layout_scale)
 
-                        MDLabel:
-                            text: "Last Sync"
-                            theme_text_color: "Hint"
-                            font_size: "12sp"
-                        MDLabel:
-                            text: root.last_sync_text
-                            theme_text_color: "Custom"
-                            text_color: theme.TEXT_PRIMARY
+                            MDLabel:
+                                text: "Phone"
+                                theme_text_color: "Hint"
+                                font_size: sp(11 * root.text_scale)
+                                adaptive_height: True
+
+                            MDLabel:
+                                text: root.phone_text
+                                theme_text_color: "Custom"
+                                text_color: theme.TEXT_PRIMARY
+                                font_size: sp(13 * root.text_scale)
+                                adaptive_height: True
+                                text_size: self.width, None
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(2 * root.layout_scale)
+
+                            MDLabel:
+                                text: "Role"
+                                theme_text_color: "Hint"
+                                font_size: sp(11 * root.text_scale)
+                                adaptive_height: True
+
+                            MDLabel:
+                                text: root.role_text
+                                theme_text_color: "Custom"
+                                text_color: theme.TEXT_PRIMARY
+                                font_size: sp(13 * root.text_scale)
+                                adaptive_height: True
+                                text_size: self.width, None
 
                 MDBoxLayout:
                     size_hint_y: None
@@ -276,7 +291,7 @@ Builder.load_string(
                         on_release: root.go_back()
 
                     AppButton:
-                        text: "Notifications"
+                        text: "Alerts" if root.compact_mode else "Notifications"
                         variant: "secondary"
                         on_release: root.open_notifications()
 
@@ -298,9 +313,8 @@ class ProfileScreen(RefreshableScreenMixin, ActionScreen):
     role_text = StringProperty("User")
     account_status_text = StringProperty("Account ready")
     wallet_balance_text = StringProperty("GH₵ 0.00")
-    notification_count_text = StringProperty("0 unread notifications")
+    notification_count_text = StringProperty("0 unread")
     avatar_source = StringProperty("assets/profile.png")
-    last_sync_text = StringProperty("Not synced yet")
 
     def on_pre_enter(self):
         self.sync_from_state()
@@ -319,7 +333,6 @@ class ProfileScreen(RefreshableScreenMixin, ActionScreen):
         state = getattr(app, "app_state", None)
         user = getattr(state, "user", None) or {}
         wallet = getattr(state, "wallet", None) or {}
-        notifications = getattr(state, "notifications", []) or []
         unread = int(getattr(state, "unread_notifications", 0) or 0)
 
         self.display_name = str(
@@ -348,11 +361,8 @@ class ProfileScreen(RefreshableScreenMixin, ActionScreen):
         self.wallet_balance_text = self._format_currency(
             wallet.get("balance") if isinstance(wallet, dict) else getattr(wallet, "balance", 0)
         )
-        self.notification_count_text = f"{unread} unread notifications"
+        self.notification_count_text = f"{unread} unread"
         self.avatar_source = str(user.get("avatar") or user.get("photo_url") or "assets/profile.png")
-        self.last_sync_text = "Synced from dashboard cache"
-        if notifications:
-            self.last_sync_text = f"{len(notifications)} notifications loaded"
 
     def refresh_profile(self):
         if self.loading:
