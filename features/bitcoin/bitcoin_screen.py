@@ -5,6 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.bitcoin.bitcoin_controller import BitcoinController
@@ -13,7 +14,7 @@ from features.bitcoin.bitcoin_controller import BitcoinController
 Builder.load_file(str(Path(__file__).with_name("bitcoin_screen.kv")))
 
 
-class BitcoinScreen(MDScreen):
+class BitcoinScreen(PullToRefreshMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = BitcoinController()

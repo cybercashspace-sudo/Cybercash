@@ -46,7 +46,11 @@ KV = """
                 text_color: app.gold
                 on_release: root.go_back()
 
-        ScrollView:
+        PullRefreshScrollView:
+            root_layout: app.root
+            refresh_callback: root.pull_to_refresh
+            spinner_color: app.gold
+            circle_color: app.ui_background
             do_scroll_x: False
             bar_width: 0
 

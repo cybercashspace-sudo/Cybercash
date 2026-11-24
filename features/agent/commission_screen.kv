@@ -25,7 +25,11 @@
                 text_color: 0, 0, 0, 1
                 on_release: root.withdraw_commission()
 
-        ScrollView:
+        PullRefreshScrollView:
+            root_layout: app.root
+            refresh_callback: root.pull_to_refresh
+            spinner_color: app.gold
+            circle_color: app.ui_background
             MDBoxLayout:
                 orientation: "vertical"
                 adaptive_height: True

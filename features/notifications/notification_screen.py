@@ -8,6 +8,7 @@ from kivy.properties import BooleanProperty, ListProperty, StringProperty
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.auth.animations import AuthAnimations
@@ -19,7 +20,7 @@ from core.refresh_mixin import RefreshableScreenMixin
 Builder.load_file(str(Path(__file__).with_name("notification_screen.kv")))
 
 
-class NotificationScreen(RefreshableScreenMixin, MDScreen):
+class NotificationScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
     loading = BooleanProperty(False)
     has_notifications = BooleanProperty(False)
     show_empty_state = BooleanProperty(False)

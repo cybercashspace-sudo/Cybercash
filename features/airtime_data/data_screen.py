@@ -5,6 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.data_controller import DataController
@@ -16,7 +17,7 @@ from features.airtime_data.request_guard import RequestGuardMixin
 Builder.load_file(str(Path(__file__).with_name("data_screen.kv")))
 
 
-class DataScreen(RequestGuardMixin, MDScreen):
+class DataScreen(PullToRefreshMixin, RequestGuardMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = DataController()

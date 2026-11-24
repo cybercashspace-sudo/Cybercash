@@ -4,6 +4,7 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.agent.agent_controller import AgentController
@@ -12,7 +13,7 @@ from features.agent.agent_controller import AgentController
 Builder.load_file(str(Path(__file__).with_name("agent_kyc.kv")))
 
 
-class AgentKycScreen(MDScreen):
+class AgentKycScreen(PullToRefreshMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = AgentController()

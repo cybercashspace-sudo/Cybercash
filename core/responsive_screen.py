@@ -8,9 +8,10 @@ from kivy.uix.scrollview import ScrollView
 from kivymd.uix.screen import MDScreen
 
 from core.bottom_nav import BottomNavBar  # noqa: F401
+from core.pull_refresh import PullToRefreshMixin
 
 
-class ResponsiveScreen(MDScreen):
+class ResponsiveScreen(PullToRefreshMixin, MDScreen):
     """Adds a responsive max-width content container for ScrollView screens."""
 
     content_max_width = NumericProperty(460.0)

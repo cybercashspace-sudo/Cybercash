@@ -65,7 +65,11 @@ KV = """
                 theme_text_color: "Custom"
                 text_color: TEXT_SUB
 
-        ScrollView:
+        PullRefreshScrollView:
+            root_layout: app.root
+            refresh_callback: root.pull_to_refresh
+            spinner_color: app.gold
+            circle_color: app.ui_background
             do_scroll_x: False
             bar_width: 0
 

@@ -8,6 +8,7 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.auth.animations import AuthAnimations
@@ -18,7 +19,7 @@ from core.refresh_mixin import RefreshableScreenMixin
 Builder.load_file(str(Path(__file__).with_name("transaction_screen.kv")))
 
 
-class TransactionScreen(RefreshableScreenMixin, MDScreen):
+class TransactionScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
     page = NumericProperty(1)
     page_size = NumericProperty(20)
     loading = BooleanProperty(False)

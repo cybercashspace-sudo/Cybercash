@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import threading
 import time
@@ -24,6 +25,7 @@ from core.bottom_nav import BottomNavBar
 from core.event_bus import AppEvents
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
+from core.pull_refresh import PullToRefreshMixin
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from components.app_snackbar import show_app_snackbar
 
@@ -92,7 +94,11 @@ KV = """
                 size: self.width - dp(20), self.height - dp(20)
                 radius: [dp(38)]
 
-        ScrollView:
+        PullRefreshScrollView:
+            root_layout: app.root
+            refresh_callback: root.pull_to_refresh
+            spinner_color: app.gold
+            circle_color: app.ui_background
             do_scroll_x: False
             bar_width: 0
 
@@ -680,7 +686,7 @@ KV = """
 """
 
 
-class DashboardScreen(MDScreen):
+class DashboardScreen(PullToRefreshMixin, MDScreen):
     layout_scale = NumericProperty(1.0)
     text_scale = NumericProperty(1.0)
     icon_scale = NumericProperty(1.0)
@@ -702,6 +708,8 @@ class DashboardScreen(MDScreen):
         self._refresh_event = None
         self._is_loading = False
         self._load_sequence = 0
+        self._session_fingerprint = ""
+        self._recent_activity_rows = []
         self._last_warning_popup = ""
         self._more_actions_dialog = None
         self._agent_verify_sequence = 0
@@ -732,6 +740,16 @@ class DashboardScreen(MDScreen):
         return ""
 
     def on_pre_enter(self):
+        app = MDApp.get_running_app()
+        token = str(getattr(app, "access_token", "") or "").strip()
+        fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest() if token else ""
+        if fingerprint != self._session_fingerprint:
+            # Never carry one account's private wallet data into another session.
+            self.wallet_balance = 0.0
+            self.balance_loaded = False
+            self._recent_activity_rows = []
+            self._render_recent_activity([])
+            self._session_fingerprint = fingerprint
         self._refresh_responsive_metrics()
         self.is_admin_user = self._has_admin_access()
         self._refresh_notification_badge()
@@ -748,7 +766,8 @@ class DashboardScreen(MDScreen):
             for event_name in (AppEvents.NOTIFICATIONS_UPDATED, AppEvents.NOTIFICATION_RECEIVED, "NotificationCreated"):
                 self._notification_event_bus.subscribe(event_name, self._schedule_notification_badge_refresh)
         if not self._refresh_event:
-            self._refresh_event = Clock.schedule_interval(lambda _dt: self.load_dashboard_data(), 25)
+            # Wallet/transaction events refresh immediately; this is only a fallback poll.
+            self._refresh_event = Clock.schedule_interval(lambda _dt: self.load_dashboard_data(), 60)
 
     def on_leave(self):
         if self._event_bus is not None:
@@ -766,10 +785,6 @@ class DashboardScreen(MDScreen):
             self._realtime_refresh_trigger.cancel()
         self._agent_verify_sequence += 1
         self._load_sequence += 1
-        self._is_loading = False
-        self.balance_loaded = False
-        self.wallet_balance = 0.0
-        self._update_balance_display()
         self._close_more_actions_dialog()
 
     def _schedule_realtime_refresh(self, _payload=None):
@@ -1129,25 +1144,19 @@ class DashboardScreen(MDScreen):
         wallet_data = {}
         wallet_loaded = False
         tx_rows = []
+        tx_loaded = False
         greeting_name = ""
         error_text = ""
         is_agent_valid = False
         agent_status = ""
-        user_is_agent = False
-
-        try:
-            me_result = api_client.get("/auth/me", headers=headers, timeout=(4, 8))
-            me_payload = me_result.get("data", {})
-            if me_result.get("ok") and isinstance(me_payload, dict):
-                first_name = str(me_payload.get("first_name", "") or "").strip()
-                if not first_name:
-                    full_name = str(me_payload.get("full_name", "") or "").strip()
-                    if full_name:
-                        first_name = full_name.split()[0]
-                greeting_name = first_name
-                user_is_agent = bool(me_payload.get("is_agent", False))
-        except Exception:
-            greeting_name = ""
+        app = MDApp.get_running_app()
+        user = getattr(getattr(app, "app_state", None), "user", {}) or {}
+        full_name = str(
+            user.get("first_name") or user.get("full_name") or user.get("name")
+            or getattr(app, "user_name", "") or ""
+        ).strip()
+        greeting_name = full_name.split()[0] if full_name else ""
+        user_is_agent = bool(getattr(app, "is_agent_active", False))
 
         try:
             agent_result = api_client.get("/agents/me", headers=headers, timeout=(4, 8))
@@ -1188,6 +1197,7 @@ class DashboardScreen(MDScreen):
             tx_payload = tx_result.get("data", [])
             if tx_result.get("ok") and isinstance(tx_payload, list):
                 tx_rows = tx_payload
+                tx_loaded = True
             elif not error_text:
                 raw_detail = self._extract_detail(tx_payload) or "Unable to load activity."
                 error_text = self._friendly_sync_message(raw_detail, "Unable to load activity right now.")
@@ -1200,6 +1210,7 @@ class DashboardScreen(MDScreen):
                 wallet_data=wallet_data,
                 wallet_loaded=wallet_loaded,
                 tx_rows=tx_rows,
+                tx_loaded=tx_loaded,
                 error_text=error_text,
                 greeting_name=greeting_name,
                 is_agent_valid=is_agent_valid,
@@ -1214,12 +1225,18 @@ class DashboardScreen(MDScreen):
         wallet_loaded: bool,
         tx_rows: list[dict],
         error_text: str,
+        tx_loaded: bool = False,
         greeting_name: str = "",
         is_agent_valid: bool = False,
         agent_status: str = "",
         sequence: int = 0,
     ):
-        if sequence != self._load_sequence or not self.parent:
+        if sequence != self._load_sequence:
+            self._is_loading = False
+            if self.manager and self.manager.current == self.name:
+                Clock.schedule_once(lambda _dt: self.load_dashboard_data(), 0)
+            return
+        if not self.parent:
             return
         self._is_loading = False
         self.is_agent_valid = bool(is_agent_valid)
@@ -1235,20 +1252,25 @@ class DashboardScreen(MDScreen):
             except (TypeError, ValueError, OverflowError):
                 wallet_loaded = False
                 error_text = "Unable to read your wallet balance. Please try again."
-        self.balance_loaded = bool(wallet_loaded)
         if wallet_loaded:
             self.wallet_balance = balance
+            self.balance_loaded = True
             self._update_balance_display()
             self.dashboard_status = "Updated just now"
         else:
             self._update_balance_display()
-            self.dashboard_status = error_text or "Wallet balance is temporarily unavailable."
+            self.dashboard_status = (
+                "Couldn’t refresh. Showing your last synced balance."
+                if self.balance_loaded
+                else error_text or "Wallet balance is temporarily unavailable."
+            )
 
-        if tx_rows:
-            self._render_recent_activity(tx_rows)
+        if tx_loaded:
+            self._recent_activity_rows = list(tx_rows or [])
+            self._render_recent_activity(self._recent_activity_rows)
         else:
-            self._render_recent_activity([])
-            if error_text:
+            self._render_recent_activity(self._recent_activity_rows)
+            if error_text and not self.balance_loaded:
                 self.dashboard_status = error_text
 
     def load_dashboard_data(self):
@@ -1262,7 +1284,9 @@ class DashboardScreen(MDScreen):
             self._set_greeting("" if pending_momo.isdigit() else pending_momo)
 
         if not token:
+            self.wallet_balance = 0.0
             self.balance_loaded = False
+            self._recent_activity_rows = []
             self._update_balance_display()
             self.dashboard_status = "Sign in to view your wallet balance."
             self._render_recent_activity([])
