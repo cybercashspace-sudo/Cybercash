@@ -3,8 +3,9 @@ uvicorn[standard]
 
 # Database
 
-sqlalchemy
+sqlalchemy[asyncio]
 psycopg2-binary
+psycopg[binary]
 asyncpg
 alembic
 aiosqlite
@@ -14,6 +15,7 @@ aiosqlite
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt
+google-auth
 Werkzeug # Added for password hashing
 
 # Email system
@@ -38,6 +40,13 @@ websocket-client
 redis
 twilio
 pywebview
+
+# Kivy desktop runtime
+
+kivy
+kivymd==1.2.0
+Pillow
+charset-normalizer
 
 # Testing
 
