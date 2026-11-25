@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from threading import Lock
 from typing import Callable
 
 from kivy.utils import platform
+
+logger = logging.getLogger(__name__)
 
 
 class FingerprintAuthenticator:
@@ -15,6 +18,7 @@ class FingerprintAuthenticator:
         self._manager = None
         self._cancellation = None
         self._callback = None
+        self._runnable = None
         self._activity = None
         self._on_success: Callable[[], None] | None = None
         self._on_error: Callable[[str], None] | None = None
@@ -99,21 +103,43 @@ class FingerprintAuthenticator:
                 def onAuthenticationFailed(self):
                     owner._notify_failed()
 
+            class AuthenticateRunnable(PythonJavaClass):
+                __javainterfaces__ = ["java/lang/Runnable"]
+                __javacontext__ = "app"
+
+                @java_method("()V")
+                def run(self):
+                    try:
+                        manager.authenticate(None, cancellation, 0, callback, None)
+                    except Exception as exc:
+                        logger.warning(
+                            "Android fingerprint request failed (error_type=%s)",
+                            type(exc).__name__,
+                        )
+                        owner._complete(
+                            success=False,
+                            message="Fingerprint unlock is unavailable right now. Sign in with your PIN.",
+                        )
+
             cancellation = autoclass("android.os.CancellationSignal")()
             callback = AuthenticationCallback()
+            runnable = AuthenticateRunnable()
             self._activity = activity
             self._manager = manager
             self._cancellation = cancellation
             self._callback = callback
+            self._runnable = runnable
             self._on_success = on_success
             self._on_error = on_error
             self._on_failed = on_failed
 
-            activity.runOnUiThread(
-                lambda: manager.authenticate(None, cancellation, 0, callback, None)
-            )
+            activity.runOnUiThread(runnable)
             return True
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Android fingerprint prompt could not be started (error_type=%s)",
+                type(exc).__name__,
+            )
             self._complete(
                 success=False,
                 message="Fingerprint unlock is unavailable right now. Sign in with your PIN.",
@@ -134,6 +160,7 @@ class FingerprintAuthenticator:
         self._manager = None
         self._cancellation = None
         self._callback = None
+        self._runnable = None
         self._activity = None
         self._on_success = None
         self._on_error = None

@@ -490,6 +490,7 @@ class InvestmentScreen(ActionScreen):
                     return
                 authenticate(
                     reason="Confirm investment",
+                    require_opt_in=False,
                     on_success=lambda: self._submit_investment(amount, duration, confirmed_pin, True),
                     on_failure=lambda detail: self._investment_auth_failed(detail),
                 )
@@ -701,6 +702,7 @@ class InvestmentScreen(ActionScreen):
                 return
             authenticate(
                 reason="Confirm investment payout",
+                require_opt_in=False,
                 on_success=lambda: self._submit_payout(investment_id, pin, True),
                 on_failure=lambda detail: self._investment_auth_failed(detail),
             )

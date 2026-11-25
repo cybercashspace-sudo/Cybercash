@@ -472,15 +472,17 @@ class CyberCashApp(MDApp):
         except Exception:
             pass
 
-    def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None):
+    def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None, *, require_opt_in=True):
         """Require Android fingerprint authentication for an existing session."""
         if getattr(self, "_biometric_prompt_active", False):
+            if on_failure:
+                on_failure("Fingerprint check is already in progress. Please wait.")
             return False
         if not self.access_token or not session.authenticated():
             if on_failure:
                 on_failure("Sign in with your PIN before using fingerprint unlock.")
             return False
-        if not self._biometric_opted_in():
+        if require_opt_in and not self._biometric_opted_in():
             if on_failure:
                 on_failure("Fingerprint unlock is not enabled for this device.")
             return False
