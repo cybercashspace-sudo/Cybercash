@@ -7,6 +7,7 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.properties import BooleanProperty, ColorProperty, DictProperty, NumericProperty, StringProperty
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.screenmanager import Screen
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton
@@ -19,14 +20,13 @@ from core.navigation import navigate
 
 
 class BottomNavBar(MDCard):
-    active_target = StringProperty("home")
+    active_target = StringProperty("")
     selected_target = StringProperty("")
     nav_variant = StringProperty("default")
     layout_scale = NumericProperty(1.0)
     text_scale = NumericProperty(1.0)
     icon_scale = NumericProperty(1.0)
     badge_counts = DictProperty({})
-    remember_selection = BooleanProperty(True)
     animate_selection = BooleanProperty(True)
     bar_color = ColorProperty([0.12, 0.14, 0.18, 0.95])
     active_color = ColorProperty([0.94, 0.79, 0.46, 1.0])
@@ -78,9 +78,11 @@ class BottomNavBar(MDCard):
         self.elevation = 1
         self._item_widgets: dict[str, MDCard] = {}
         self._rebuild_event = None
+        self._screen_manager = None
+        self._host_screen = None
         self.bind(
             active_target=self._on_active_target_changed,
-            nav_variant=self._schedule_rebuild,
+            nav_variant=self._on_nav_variant_changed,
             layout_scale=self._schedule_rebuild,
             text_scale=self._schedule_rebuild,
             icon_scale=self._schedule_rebuild,
@@ -89,8 +91,13 @@ class BottomNavBar(MDCard):
             inactive_color=self._schedule_rebuild,
             badge_counts=self._schedule_rebuild,
         )
-        Clock.schedule_once(self._restore_selection, 0)
         Clock.schedule_once(self._rebuild, 0)
+
+    def on_parent(self, _instance, parent):
+        if parent is None:
+            self._unbind_screen_manager()
+            return
+        Clock.schedule_once(self._bind_screen_manager, 0)
 
     def _schedule_rebuild(self, *_args):
         event = getattr(self, "_rebuild_event", None)
@@ -100,6 +107,10 @@ class BottomNavBar(MDCard):
             except Exception:
                 pass
         self._rebuild_event = Clock.schedule_once(self._rebuild, 0)
+
+    def _on_nav_variant_changed(self, *_args) -> None:
+        self._schedule_rebuild()
+        self._sync_selection_to_current_screen()
 
     def _items(self) -> list[dict]:
         return list(self._variants.get(self.nav_variant, self._variants["default"]))
@@ -121,40 +132,92 @@ class BottomNavBar(MDCard):
         badge.visible = True
         return badge
 
-    def _persist_selection(self, target: str) -> None:
-        if not self.remember_selection:
-            return
-        app = MDApp.get_running_app()
-        app_state = getattr(app, "app_state", None) if app else None
-        if app_state is None:
-            return
-        try:
-            setattr(app_state, "bottom_nav_target", str(target or ""))
-        except Exception:
-            pass
+    def _find_host_screen(self):
+        parent = self.parent
+        while parent is not None:
+            if isinstance(parent, Screen):
+                return parent
+            parent = getattr(parent, "parent", None)
+        return None
 
-    def _restore_selection(self, *_args) -> None:
-        if not self.remember_selection:
+    def _unbind_screen_manager(self) -> None:
+        manager = self._screen_manager
+        if manager is not None:
+            try:
+                manager.unbind(current=self._on_screen_manager_current)
+            except Exception:
+                pass
+        host_screen = self._host_screen
+        if host_screen is not None:
+            try:
+                host_screen.unbind(manager=self._on_host_screen_manager_changed)
+            except Exception:
+                pass
+        self._screen_manager = None
+        self._host_screen = None
+
+    def _on_host_screen_manager_changed(self, *_args) -> None:
+        self._bind_screen_manager()
+
+    def _bind_screen_manager(self, *_args) -> None:
+        host_screen = self._find_host_screen()
+        if host_screen is not self._host_screen:
+            self._unbind_screen_manager()
+            if host_screen is not None:
+                self._host_screen = host_screen
+                host_screen.bind(manager=self._on_host_screen_manager_changed)
+        manager = getattr(host_screen, "manager", None) if host_screen is not None else None
+        if manager is None:
+            if self._screen_manager is not None:
+                try:
+                    self._screen_manager.unbind(current=self._on_screen_manager_current)
+                except Exception:
+                    pass
+                self._screen_manager = None
             return
-        app = MDApp.get_running_app()
-        app_state = getattr(app, "app_state", None) if app else None
-        if app_state is None:
+        if manager is not self._screen_manager:
+            if self._screen_manager is not None:
+                try:
+                    self._screen_manager.unbind(current=self._on_screen_manager_current)
+                except Exception:
+                    pass
+            self._screen_manager = manager
+            manager.bind(current=self._on_screen_manager_current)
+        self._sync_selection_to_current_screen()
+
+    def _on_screen_manager_current(self, *_args) -> None:
+        self._sync_selection_to_current_screen()
+
+    def _sync_selection_to_current_screen(self) -> None:
+        manager = self._screen_manager
+        host_screen = self._host_screen
+        if manager is None or host_screen is None:
             return
-        target = str(getattr(app_state, "bottom_nav_target", "") or "").strip()
-        if target:
-            self.selected_target = target
+        if str(getattr(manager, "current", "") or "") != str(getattr(host_screen, "name", "") or ""):
+            return
+
+        visible_targets = {str(item.get("target", "")) for item in self._items()}
+        route = str(getattr(manager, "current", "") or "").strip()
+        configured = str(self.active_target or "").strip()
+        if route in visible_targets:
+            target = route
+        elif configured in visible_targets:
+            target = configured
+        else:
+            target = ""
+        if self.active_target != target:
             self.active_target = target
+        elif self.selected_target != target:
+            self.selected_target = target
 
     def _on_active_target_changed(self, *_args):
         self.selected_target = str(self.active_target or "")
-        self._persist_selection(self.active_target)
         self._schedule_rebuild()
 
     def _navigate(self, target: str) -> None:
         target = str(target or "").strip()
-        if not target or target == str(self.active_target or ""):
+        if not target:
             return
-        tap_feedback()
         app = MDApp.get_running_app()
         manager = getattr(app, "root", None)
         if manager is None:
@@ -162,8 +225,9 @@ class BottomNavBar(MDCard):
 
         current = str(getattr(manager, "current", "") or "").strip()
         if current == target:
-            self.active_target = target
+            self._sync_selection_to_current_screen()
             return
+        tap_feedback()
 
         if app is not None and hasattr(app, "go_to_screen"):
             try:
@@ -172,7 +236,7 @@ class BottomNavBar(MDCard):
                     fallback=str(getattr(manager, "current", "home") or "home"),
                     transition_style="fade",
                 ):
-                    self.active_target = target
+                    self._sync_selection_to_current_screen()
                     return
             except Exception:
                 pass
@@ -186,7 +250,7 @@ class BottomNavBar(MDCard):
                 fallback=str(getattr(manager, "current", "home") or "home"),
                 transition_style="fade",
             ):
-                self.active_target = target
+                self._sync_selection_to_current_screen()
 
     def _animate_active_item(self):
         if not self.animate_selection:

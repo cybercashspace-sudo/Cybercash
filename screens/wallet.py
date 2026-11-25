@@ -798,7 +798,7 @@ KV = """
                     height: dp((8 if root.screen_mode == "all" else 0) * root.layout_scale)
 
         BottomNavBar:
-            nav_variant: "default"
+            nav_variant: "dashboard"
             active_target: "wallet"
             layout_scale: root.layout_scale
             text_scale: root.text_scale
