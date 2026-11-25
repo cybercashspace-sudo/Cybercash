@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from backend.database import AsyncSessionLocal, get_db
-from backend.models import Agent, User, Wallet, Transaction
+from backend.models import Agent, User, Wallet, Transaction, UserNotification
 from backend.dependencies.auth import get_current_user
 from backend.core.security import ALGORITHM, SECRET_KEY
 from jose import JWTError, jwt
@@ -435,6 +435,28 @@ async def transfer_funds(
         db.add(recipient_transaction)
         await db.flush()
 
+        transfer_reference = f"TRX-{int(sender_transaction.id)}"
+        db.add_all(
+            [
+                UserNotification(
+                    user_id=current_user.id,
+                    notification_type="transfer_sent",
+                    title="Transfer sent",
+                    message=f"Your transfer of {request.currency.upper()} {requested_amount:.2f} was sent successfully. Reference: {transfer_reference}.",
+                    transaction_id=sender_transaction.id,
+                    dedupe_key=f"transaction:{sender_transaction.id}:user:{current_user.id}:success",
+                ),
+                UserNotification(
+                    user_id=recipient_user.id,
+                    notification_type="transfer_received",
+                    title="Transfer received",
+                    message=f"You received {request.currency.upper()} {requested_amount:.2f}. Reference: {transfer_reference}.",
+                    transaction_id=recipient_transaction.id,
+                    dedupe_key=f"transaction:{recipient_transaction.id}:user:{recipient_user.id}:success",
+                ),
+            ]
+        )
+
         sender_identifier = current_user.momo_number or current_user.phone_number or f"user:{current_user.id}"
         recipient_identifier = recipient_user.momo_number or recipient_user.phone_number or f"user:{recipient_user.id}"
 
@@ -455,6 +477,32 @@ async def transfer_funds(
         )
 
         await db.commit()
+
+        # Email delivery is best-effort and must not delay or invalidate the
+        # committed transfer. The in-app notices above are already durable.
+        notification_service = NotificationService()
+        await asyncio.gather(
+            notification_service.send_transaction_notification(
+                current_user,
+                "transfer",
+                requested_amount,
+                currency=request.currency,
+                subject="Transfer sent",
+                direction="send",
+                idempotency_key=f"transaction:{sender_transaction.id}:user:{current_user.id}:success",
+            ),
+            notification_service.send_transaction_notification(
+                recipient_user,
+                "transfer",
+                requested_amount,
+                currency=request.currency,
+                subject="Transfer received",
+                direction="receive",
+                idempotency_key=f"transaction:{recipient_transaction.id}:user:{recipient_user.id}:success",
+            ),
+            return_exceptions=True,
+        )
+
         await loan_service.run_loan_maintenance_for_user(
             db=db,
             user_id=recipient_user.id,
@@ -509,26 +557,6 @@ async def transfer_funds(
         await db.commit()
         await db.refresh(sender_wallet)
 
-        await NotificationService().send_transaction_notification(
-            current_user,
-            "transfer",
-            requested_amount,
-            currency=request.currency,
-            subject="Transfer sent",
-            direction="send",
-            idempotency_key=f"transaction:{sender_transaction.id}:user:{current_user.id}:success",
-        )
-        await NotificationService().send_transaction_notification(
-            recipient_user,
-            "transfer",
-            requested_amount,
-            currency=request.currency,
-            subject="Transfer received",
-            direction="receive",
-            idempotency_key=f"transaction:{recipient_transaction.id}:user:{recipient_user.id}:success",
-        )
-
-        transfer_reference = f"TRX-{int(sender_transaction.id)}"
         resolved_recipient_number = recipient_user.momo_number or recipient_user.phone_number or recipient_wallet_id
         return {
             "id": sender_wallet.id,

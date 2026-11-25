@@ -30,6 +30,7 @@ from backend.routes import (
     settings_routes,
     data_orders,
     otp,
+    notifications,
 )
 
 # ==========================================
@@ -369,6 +370,7 @@ app.include_router(sms.router)
 app.include_router(payouts.router)
 app.include_router(settings_routes.router)
 app.include_router(otp.router)
+app.include_router(notifications.router)
 
 # ==========================================
 # ADMIN DASHBOARD ENDPOINT

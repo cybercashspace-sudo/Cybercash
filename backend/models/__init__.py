@@ -21,3 +21,4 @@ from .airtime_cash import AirtimeCashSale, AirtimeCashSmsLog
 from .data_order import DataOrder
 from .settings import UserSettings, PlatformSettings
 from .audit_log import AuditLog
+from .notification import UserNotification
