@@ -1,4 +1,5 @@
 from datetime import datetime
+import math
 import threading
 import time
 import webbrowser
@@ -344,43 +345,43 @@ KV = """
 
                                     MDRaisedButton:
                                         text: "1"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "1" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "1" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(1)
                                     MDRaisedButton:
                                         text: "5"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "5" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "5" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(5)
                                     MDRaisedButton:
                                         text: "10"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "10" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "10" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(10)
                                     MDRaisedButton:
                                         text: "20"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "20" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "20" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(20)
                                     MDRaisedButton:
                                         text: "50"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "50" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "50" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(50)
                                     MDRaisedButton:
                                         text: "100"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_deposit_quick_amount == "100" else SURFACE_SOFT
+                                        text_color: BG if root.selected_deposit_quick_amount == "100" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_deposit_amount(100)
@@ -574,29 +575,29 @@ KV = """
 
                                     MDRaisedButton:
                                         text: "10"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_withdraw_quick_amount == "10" else SURFACE_SOFT
+                                        text_color: BG if root.selected_withdraw_quick_amount == "10" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_withdraw_amount(10)
                                     MDRaisedButton:
                                         text: "20"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_withdraw_quick_amount == "20" else SURFACE_SOFT
+                                        text_color: BG if root.selected_withdraw_quick_amount == "20" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_withdraw_amount(20)
                                     MDRaisedButton:
                                         text: "50"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_withdraw_quick_amount == "50" else SURFACE_SOFT
+                                        text_color: BG if root.selected_withdraw_quick_amount == "50" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_withdraw_amount(50)
                                     MDRaisedButton:
                                         text: "100"
-                                        md_bg_color: SURFACE_SOFT
-                                        text_color: TEXT_MAIN
+                                        md_bg_color: GOLD_SOFT if root.selected_withdraw_quick_amount == "100" else SURFACE_SOFT
+                                        text_color: BG if root.selected_withdraw_quick_amount == "100" else TEXT_MAIN
                                         size_hint_y: None
                                         height: dp(42 * root.layout_scale)
                                         on_release: root.set_withdraw_amount(100)
@@ -811,6 +812,9 @@ KV = """
 
 
 class WalletScreen(ActionScreen):
+    DEPOSIT_QUICK_AMOUNTS = (1, 5, 10, 20, 50, 100)
+    WITHDRAW_QUICK_AMOUNTS = (10, 20, 50, 100)
+
     screen_mode = StringProperty("all")
     page_title = StringProperty("Wallet")
     page_subtitle = StringProperty("Manage wallet funding and withdrawals from one place.")
@@ -830,6 +834,8 @@ class WalletScreen(ActionScreen):
         "Confirmation is automatic. If it delays, tap Check Status and keep your reference."
     )
     withdraw_fee_preview = StringProperty("Enter an amount from GHS 1.00. We will show the fee and total debit.")
+    selected_deposit_quick_amount = StringProperty("")
+    selected_withdraw_quick_amount = StringProperty("")
     recent_activity_left = StringProperty("No activity\nyet")
     recent_activity_amount = StringProperty("")
     recent_activity_amount_color = ColorProperty([0.74, 0.76, 0.80, 1])
@@ -1027,6 +1033,9 @@ class WalletScreen(ActionScreen):
 
     def update_withdraw_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)
+        self.selected_withdraw_quick_amount = (
+            str(int(amount)) if amount in self.WITHDRAW_QUICK_AMOUNTS else ""
+        )
         if amount < MIN_WITHDRAW_TO_AGENT_GHS:
             self.withdraw_fee_preview = "Enter an amount from GHS 1.00. A 1% fee is added to the total debit."
             return
@@ -1047,6 +1056,8 @@ class WalletScreen(ActionScreen):
             value = float(amount)
         except Exception:
             return
+        if not math.isfinite(value) or value not in self.WITHDRAW_QUICK_AMOUNTS:
+            return
         if abs(value - int(value)) < 1e-9:
             field.text = str(int(value))
         else:
@@ -1055,6 +1066,9 @@ class WalletScreen(ActionScreen):
 
     def update_deposit_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)
+        self.selected_deposit_quick_amount = (
+            str(int(amount)) if amount in self.DEPOSIT_QUICK_AMOUNTS else ""
+        )
         if amount < MIN_PAYSTACK_DEPOSIT_GHS:
             self.deposit_ready = False
             self.deposit_button_text = "Pay with Paystack"
@@ -1072,6 +1086,8 @@ class WalletScreen(ActionScreen):
         try:
             value = float(amount)
         except Exception:
+            return
+        if not math.isfinite(value) or value not in self.DEPOSIT_QUICK_AMOUNTS:
             return
         if abs(value - int(value)) < 1e-9:
             field.text = str(int(value))
