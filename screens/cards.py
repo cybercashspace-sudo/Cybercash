@@ -54,7 +54,7 @@ KV = """
             right_action_items: [["refresh", lambda x: root.refresh_data()]]
 
         PullRefreshScrollView:
-            root_layout: app.root
+            root_layout: root
             refresh_callback: root.pull_to_refresh
             spinner_color: app.gold
             circle_color: app.ui_background

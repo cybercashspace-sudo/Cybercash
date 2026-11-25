@@ -67,7 +67,7 @@ KV = """
                 text_color: TEXT_SUB
 
         PullRefreshScrollView:
-            root_layout: app.root
+            root_layout: root
             refresh_callback: root.pull_to_refresh
             spinner_color: app.gold
             circle_color: app.ui_background

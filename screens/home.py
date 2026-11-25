@@ -470,7 +470,7 @@ KV = """
 
         MDScrollViewRefreshLayout:
             id: refresh_layout
-            root_layout: app.root
+            root_layout: root
             refresh_callback: root.refresh_dashboard
             spinner_color: app.gold
             circle_color: app.ui_background
