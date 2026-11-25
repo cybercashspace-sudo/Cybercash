@@ -7,6 +7,7 @@ from backend.models import User, Wallet, Transaction, JournalEntry, LedgerEntry
 from backend.core.config import settings
 from backend.core.transaction_types import TransactionType
 from backend.services.paystack_service import PaystackService
+from backend.services.notification import NotificationService
 from unittest.mock import patch, AsyncMock
 import pytest
 import httpx
@@ -37,6 +38,16 @@ def auth_override_paystack():
     app.dependency_overrides[get_current_user] = override_get_current_user_paystack
     yield
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture(autouse=True)
+def mock_paystack_email_notifications():
+    with patch.object(
+        NotificationService,
+        "send_transaction_notification",
+        new=AsyncMock(return_value={"status": "queued", "provider": "resend"}),
+    ) as send_notification:
+        yield send_notification
 
 
 @pytest.fixture(scope="module")
@@ -142,7 +153,8 @@ def test_initiate_paystack_payment_auth_failure_maps_to_gateway_error(client: Te
 
     response = client.post("/paystack/initiate", json={"amount": 100.0})
     assert response.status_code == 502
-    assert "Paystack authentication failed" in response.json()["detail"]
+    assert "Unable to start Paystack checkout" in response.json()["detail"]
+    assert "authentication failed" not in response.json()["detail"].lower()
 
 
 def test_paystack_secret_key_normalization_strips_bearer_prefix():
@@ -378,7 +390,11 @@ def test_paystack_webhook_charge_success(test_db: Session, client: TestClient):
     assert completed_transaction.status == "completed"
 
 
-def test_paystack_deposit_idempotent_after_verify_then_webhook(test_db: Session, client: TestClient):
+def test_paystack_deposit_idempotent_after_verify_then_webhook(
+    test_db: Session,
+    client: TestClient,
+    mock_paystack_email_notifications: AsyncMock,
+):
     user = test_db.query(User).filter(User.email == "paystack_test@example.com").first()
     wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
 
@@ -412,6 +428,10 @@ def test_paystack_deposit_idempotent_after_verify_then_webhook(test_db: Session,
 
     assert verify_response.status_code == 200
     assert verify_response.json()["status"] == "success"
+    mock_paystack_email_notifications.assert_awaited_once()
+    assert mock_paystack_email_notifications.await_args.kwargs["subject"] == "Deposit successful"
+    assert mock_paystack_email_notifications.await_args.kwargs["idempotency_key"].startswith("transaction:")
+    assert mock_paystack_email_notifications.await_args.kwargs["reference"] == "idem_ref"
 
     test_db.expire_all()
     updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()
@@ -439,6 +459,7 @@ def test_paystack_deposit_idempotent_after_verify_then_webhook(test_db: Session,
 
     assert webhook_response.status_code == 200
     assert "already completed" in webhook_response.json()["message"].lower()
+    mock_paystack_email_notifications.assert_awaited_once()
 
     test_db.expire_all()
     updated_wallet = test_db.query(Wallet).filter(Wallet.user_id == user.id).first()

@@ -85,6 +85,8 @@ class NotificationService:
         currency: str = "GHS",
         subject: str = "Transaction update",
         direction: str | None = None,
+        idempotency_key: str | None = None,
+        reference: str | None = None,
     ) -> dict:
         amount_value = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
         label = _humanize_transaction_type(transaction_type, direction=direction)
@@ -102,7 +104,14 @@ class NotificationService:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
         if label in {"deposit", "withdrawal", "wallet top up"}:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
-        return await self.send_to_user(user, message, subject=subject)
+        if reference and label == "deposit":
+            message = f"{message} Reference: {reference}."
+        return await self.send_to_user(
+            user,
+            message,
+            subject=subject,
+            idempotency_key=idempotency_key,
+        )
 
     async def send_to_user_id(
         self,

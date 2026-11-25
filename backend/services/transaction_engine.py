@@ -10,6 +10,7 @@ from backend.core.transaction_types import TransactionType, normalize_transactio
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.commission_service import record_commission
 from backend.services.agent_startup_loan import get_withdrawable_agent_float
+from backend.services.notification import NotificationService
 from backend.core.config import settings
 from utils.network import normalize_ghana_number
 import logging
@@ -164,7 +165,7 @@ class TransactionEngine:
             await self._run_post_commit_hooks(transaction, metadata)
             
             # 7. Real-Time Notification
-            await self._send_notification(user_id, f"Transaction {normalized_type} of {amount} completed.")
+            await self._send_notification(transaction)
             
             return transaction
 
@@ -255,7 +256,7 @@ class TransactionEngine:
             await self._run_post_commit_hooks(transaction, metadata)
             
             # 7. Notification
-            await self._send_notification(transaction.user_id, f"Transaction {transaction.type} of {transaction.amount} confirmed.")
+            await self._send_notification(transaction)
             
             return transaction
         except Exception as e:
@@ -885,12 +886,52 @@ class TransactionEngine:
 
         self.db.add(wallet)
 
-    async def _send_notification(self, user_id: int, message: str):
-        """
-        Placeholder for Real-Time Notification System (Firebase/Socket.io/SMS).
-        """
-        # In a real app, this would trigger an async task to send Push/SMS
-        logger.info(f"NOTIFICATION to User {user_id}: {message}")
+    async def _send_notification(self, transaction: Transaction) -> None:
+        """Send one idempotent email after the transaction is committed."""
+        try:
+            user_result = await self.db.execute(
+                select(User).filter(User.id == transaction.user_id)
+            )
+            user = user_result.scalars().first()
+            if not user:
+                logger.warning(
+                    "Transaction email skipped: user not found (transaction_id=%s)",
+                    transaction.id,
+                )
+                return
+
+            transaction_type = normalize_transaction_type(transaction.type)
+            subject = (
+                "Deposit successful"
+                if transaction_type == TransactionType.FUNDING
+                else "Transaction successful"
+            )
+            reference = str(
+                transaction.provider_reference or f"TRX-{transaction.id}"
+            ).strip()
+            result = await NotificationService().send_transaction_notification(
+                user,
+                str(transaction.type),
+                transaction.amount,
+                currency=transaction.currency or "GHS",
+                subject=subject,
+                idempotency_key=f"transaction:{transaction.id}:success",
+                reference=reference,
+            )
+            if result.get("status") != "queued":
+                logger.warning(
+                    "Transaction email was not queued (transaction_id=%s, provider=%s)",
+                    transaction.id,
+                    result.get("provider", "email"),
+                )
+        except Exception as exc:
+            # A committed wallet transaction must not be rolled back or reported
+            # as failed because a notification provider is temporarily down.
+            logger.warning(
+                "Transaction email failed (transaction_id=%s, error_type=%s)",
+                transaction.id,
+                type(exc).__name__,
+            )
 
 # Dependency Injection Helper
 async def get_transaction_engine(
