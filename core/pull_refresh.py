@@ -48,6 +48,7 @@ class PullToRefreshMixin:
         "loan": ("load_dashboard", {}),
         "repayments": ("load_repayments", {}),
         "repayment": ("load_repayments", {}),
+        "loan_repayments": ("load_repayments", {}),
         "profile": ("refresh_profile", {}),
         "settings": ("load_settings", {}),
         "cards": ("refresh_data", {}),
