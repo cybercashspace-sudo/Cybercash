@@ -14,19 +14,11 @@ MIN_ESCROW_DEAL_GHS = 20.0
 ESCROW_CREATE_FEE_GHS = 5.0
 ESCROW_RELEASE_FEE_GHS = 5.0
 
-DEFAULT_ESCROW_SUBTITLE = (
-    "Protect buyer and seller payments. Funds stay locked until you confirm release."
-)
-DEFAULT_ESCROW_SUMMARY = (
-    "No escrow deals yet. Create your first protected deal below and refresh to track its status."
-)
-DEFAULT_LATEST_DEAL_TITLE = "No recent escrow deal selected"
-DEFAULT_LATEST_DEAL_SUBTITLE = (
-    "Your latest deal summary will appear here after you create or refresh deals."
-)
-DEFAULT_ESCROW_FEEDBACK = (
-    "Use escrow when you want to hold funds safely until delivery, service, or inspection is complete."
-)
+DEFAULT_ESCROW_SUBTITLE = "Hold funds securely until a deal is complete."
+DEFAULT_ESCROW_SUMMARY = "No escrow deals yet."
+DEFAULT_LATEST_DEAL_TITLE = "No recent deal"
+DEFAULT_LATEST_DEAL_SUBTITLE = ""
+DEFAULT_ESCROW_FEEDBACK = ""
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -83,13 +75,6 @@ KV = """
                         text_color: GOLD
                         on_release: root.go_back()
 
-                MDLabel:
-                    text: root.page_subtitle
-                    theme_text_color: "Custom"
-                    text_color: TEXT_SUB
-                    font_size: sp(12.5 * root.text_scale)
-                    adaptive_height: True
-
                 MDCard:
                     radius: [dp(22 * root.layout_scale)]
                     md_bg_color: GREEN_CARD
@@ -103,7 +88,7 @@ KV = """
                         spacing: dp(4 * root.layout_scale)
 
                         MDLabel:
-                            text: "Funds currently protected in escrow"
+                            text: "Protected balance"
                             theme_text_color: "Custom"
                             text_color: TEXT_MAIN
 
@@ -139,38 +124,6 @@ KV = """
                     MDBoxLayout:
                         orientation: "vertical"
                         adaptive_height: True
-                        spacing: dp(8 * root.layout_scale)
-
-                        MDLabel:
-                            text: "Escrow overview"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-
-                        MDLabel:
-                            text: root.escrow_summary
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(12.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.latest_deal_subtitle
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
-
-                MDCard:
-                    radius: [dp(20 * root.layout_scale)]
-                    md_bg_color: SURFACE
-                    elevation: 0
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
                         spacing: dp(9 * root.layout_scale)
 
                         MDLabel:
@@ -180,7 +133,7 @@ KV = """
                             text_color: GOLD
 
                         MDLabel:
-                            text: root.fee_note_text
+                            text: "GHS 5.00 creation fee; GHS 5.00 release fee."
                             theme_text_color: "Custom"
                             text_color: TEXT_SUB
                             font_size: sp(12 * root.text_scale)
@@ -191,44 +144,16 @@ KV = """
                             hint_text: "Recipient MoMo number"
                             mode: "rectangle"
 
-                        MDLabel:
-                            text: "Use the verified Ghana MoMo number of the person who should receive the escrow funds."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
                         MDTextField:
                             id: escrow_amount
                             hint_text: "Escrow amount in GHS"
                             mode: "rectangle"
                             input_filter: "float"
 
-                        MDLabel:
-                            text: "Minimum protected deal amount is GHS 20.00."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
                         MDTextField:
                             id: escrow_description
                             hint_text: "Deal note or delivery summary"
                             mode: "rectangle"
-
-                        MDLabel:
-                            text: "Example: iPhone 13 delivery after inspection."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.release_note_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
 
                         MDFillRoundFlatIconButton:
                             text: "Create Escrow Deal"
@@ -252,30 +177,16 @@ KV = """
                         spacing: dp(9 * root.layout_scale)
 
                         MDLabel:
-                            text: "Review or release a deal"
+                            text: "Release a deal"
                             bold: True
                             theme_text_color: "Custom"
                             text_color: GOLD
-
-                        MDLabel:
-                            text: "Refresh your escrow history, then enter a deal ID when you are ready to release funds."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
 
                         MDTextField:
                             id: release_deal_id
                             hint_text: "Deal ID to release"
                             mode: "rectangle"
                             input_filter: "int"
-
-                        MDLabel:
-                            text: "We auto-fill the latest deal ID after you refresh or create a new deal when available."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDGridLayout:
                             cols: 1 if root.compact_mode else 2
@@ -285,7 +196,7 @@ KV = """
                             height: self.minimum_height
 
                             MDFillRoundFlatIconButton:
-                                text: "Refresh My Deals"
+                                text: "Refresh"
                                 icon: "refresh"
                                 md_bg_color: SURFACE_SOFT
                                 text_color: TEXT_MAIN
@@ -301,12 +212,6 @@ KV = """
                                 size_hint_y: None
                                 height: dp(48 * root.layout_scale)
                                 on_release: root.release_escrow()
-
-                MDLabel:
-                    text: root.feedback_text
-                    theme_text_color: "Custom"
-                    text_color: root.feedback_color
-                    adaptive_height: True
 
                 Widget:
                     size_hint_y: None
@@ -371,7 +276,7 @@ class EscrowScreen(ActionScreen):
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
             return dt.strftime("%d %b %Y")
         except Exception:
-            return value
+            return "Date unavailable"
 
     def _reset_dashboard_copy(self) -> None:
         self.held_balance_display = "GHS 0.00"
@@ -408,7 +313,9 @@ class EscrowScreen(ActionScreen):
             return "This escrow deal is under dispute and cannot be released right now."
         if "deal not found" in normalized:
             return "We could not find that escrow deal. Refresh your list and try again."
-        return message or "Unable to process the escrow request right now."
+        if "valid 10-digit" in normalized:
+            return "Enter a valid 10-digit verified Ghana MoMo number."
+        return "We couldn't complete that escrow request. Check your details and try again."
 
     def _apply_deal_snapshot(self, deals: list[dict]) -> None:
         deals = [deal for deal in deals if isinstance(deal, dict)]
@@ -438,22 +345,11 @@ class EscrowScreen(ActionScreen):
         latest_id = self._parse_int(latest.get("deal_id"))
         latest_status = str(latest.get("status", "active") or "active").strip().title()
         latest_amount = safe_float(latest.get("amount"))
-        latest_net = safe_float(latest.get("receiver_net_amount"))
-        latest_recipient = str(latest.get("recipient_wallet_id") or "N/A")
-        latest_description = str(latest.get("description") or "").strip() or "Protected payment"
         latest_date = self._format_date_label(latest.get("created_at"))
 
-        self.latest_deal_title = f"Latest deal #{latest_id if latest_id > 0 else '-'} • {latest_status}"
-        self.latest_deal_subtitle = (
-            f"{latest_description}. Recipient: {latest_recipient}. "
-            f"Deal value: {self._format_money(latest_amount)}. "
-            f"Recipient net on release: {self._format_money(latest_net)}. "
-            f"Created: {latest_date}."
-        )
-        self.escrow_summary = (
-            f"You have {len(deals)} escrow deal(s) on record. "
-            f"Funds currently protected in active deals: {self._format_money(held_total)}."
-        )
+        self.latest_deal_title = f"Latest #{latest_id if latest_id > 0 else '-'} · {latest_status}"
+        self.latest_deal_subtitle = f"{self._format_money(latest_amount)} · {latest_date}"
+        self.escrow_summary = f"{len(deals)} deal(s) · {self._format_money(held_total)} protected"
         if latest_id > 0:
             self.ids.release_deal_id.text = str(latest_id)
 
@@ -516,20 +412,20 @@ class EscrowScreen(ActionScreen):
         self._show_popup("Escrow Creation Failed", friendly)
 
     def load_deals(self, notify_popup: bool = True):
-        self._set_feedback("Refreshing escrow dashboard...", "info")
         ok, payload = self._request("GET", "/transactions/escrow/deals")
         if ok and isinstance(payload, list):
             deals = [deal for deal in payload if isinstance(deal, dict)]
             self._apply_deal_snapshot(deals)
-            if not deals:
-                self._set_feedback("No escrow deals found yet.", "warning")
-                return
-            self._set_feedback("Escrow dashboard updated.", "success")
+            if notify_popup:
+                message = (
+                    f"{len(deals)} deal(s) found. {self._format_money(sum(safe_float(item.get('amount')) for item in deals if str(item.get('status', 'active')).lower() != 'released'))} currently protected."
+                    if deals else "No escrow deals found yet."
+                )
+                self._show_popup("Escrow Updated", message)
             return
 
         detail = self._extract_detail(payload) or "Unable to load escrow deals."
         friendly = self._friendly_escrow_error(detail)
-        self._set_feedback(friendly, "error")
         if notify_popup:
             self._show_popup("Escrow Sync Error", friendly)
 

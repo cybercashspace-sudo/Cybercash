@@ -58,7 +58,7 @@ class PullToRefreshMixin:
         "virtual_card": ("refresh_data", {}),
         "btc": ("load_btc_data", {"notify": False}),
         "data_bundle": ("load_catalog", {}),
-        "escrow": ("load_deals", {"notify_popup": False}),
+        "escrow": ("load_deals", {"notify_popup": True}),
         "p2p_transfer": ("load_wallet", {"notify": False}),
         "investments": ("load_wallet_balance", {"notify": False}),
         "loans": ("refresh_loans", {"silent": False}),

@@ -273,7 +273,9 @@ class BottomNavBar(MDCard):
         text_scale = float(self.text_scale or 1.0)
         icon_scale = float(self.icon_scale or 1.0)
 
-        is_dashboard = self.nav_variant == "dashboard"
+        # Keep the Dashboard's icon-over-label layout consistent on every screen.
+        # Variants still control each role/flow's destinations and labels.
+        is_dashboard = True
         self.height = dp((112 if is_dashboard else 92) * layout_scale)
         self.radius = [dp(56 * layout_scale)] if is_dashboard else [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
         self.padding = [dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)] if is_dashboard else [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
