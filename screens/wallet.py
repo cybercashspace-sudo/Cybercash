@@ -1027,7 +1027,8 @@ class WalletScreen(ActionScreen):
     @staticmethod
     def _parse_amount(raw_amount: str) -> float:
         try:
-            return float(str(raw_amount or "").strip())
+            amount = float(str(raw_amount or "").strip())
+            return amount if math.isfinite(amount) else 0.0
         except Exception:
             return 0.0
 
@@ -1062,7 +1063,6 @@ class WalletScreen(ActionScreen):
             field.text = str(int(value))
         else:
             field.text = f"{value:.2f}"
-        self.update_withdraw_preview(field.text)
 
     def update_deposit_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)
@@ -1093,7 +1093,6 @@ class WalletScreen(ActionScreen):
             field.text = str(int(value))
         else:
             field.text = f"{value:.2f}"
-        self.update_deposit_preview(field.text)
 
     @staticmethod
     def _deposit_amount_text(amount: float) -> str:

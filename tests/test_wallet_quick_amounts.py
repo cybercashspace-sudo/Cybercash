@@ -1,21 +1,35 @@
-from types import SimpleNamespace
-
 from screens.wallet import KV, WalletScreen
+
+
+class _TextField:
+    def __init__(self, on_text=None):
+        self._text = ""
+        self._on_text = on_text
+
+    @property
+    def text(self):
+        return self._text
+
+    @text.setter
+    def text(self, value):
+        self._text = str(value)
+        if self._on_text:
+            self._on_text(self._text)
 
 
 class _QuickAmountHarness:
     DEPOSIT_QUICK_AMOUNTS = WalletScreen.DEPOSIT_QUICK_AMOUNTS
     WITHDRAW_QUICK_AMOUNTS = WalletScreen.WITHDRAW_QUICK_AMOUNTS
     MIN_PAYSTACK_DEPOSIT_GHS = 1.0
-    ids = {
-        "deposit_amount": SimpleNamespace(text=""),
-        "transfer_amount": SimpleNamespace(text=""),
-    }
     _parse_amount = staticmethod(WalletScreen._parse_amount)
     update_deposit_preview = WalletScreen.update_deposit_preview
     update_withdraw_preview = WalletScreen.update_withdraw_preview
 
     def __init__(self):
+        self.ids = {
+            "deposit_amount": _TextField(self.update_deposit_preview),
+            "transfer_amount": _TextField(self.update_withdraw_preview),
+        }
         self.deposit_ready = False
         self.deposit_button_text = "Pay with Paystack"
         self.deposit_preview = ""
@@ -55,6 +69,30 @@ def test_manual_amount_edit_clears_quick_amount_highlight():
 
     assert screen.selected_deposit_quick_amount == ""
     assert "GHS 10.50" in screen.deposit_preview
+
+
+def test_manual_withdraw_amount_edit_updates_preview_and_clears_selection():
+    screen = _QuickAmountHarness()
+    WalletScreen.set_withdraw_amount(screen, 20)
+
+    screen.ids["transfer_amount"].text = "20.50"
+
+    assert screen.selected_withdraw_quick_amount == ""
+    assert "Total debit: GHS 20.71" in screen.withdraw_fee_preview
+
+
+def test_invalid_quick_amounts_do_not_change_fields_or_previews():
+    screen = _QuickAmountHarness()
+    WalletScreen.set_deposit_amount(screen, 10)
+    before_preview = screen.deposit_preview
+
+    WalletScreen.set_deposit_amount(screen, float("nan"))
+    WalletScreen.set_withdraw_amount(screen, 999)
+
+    assert screen.ids["deposit_amount"].text == "10"
+    assert screen.deposit_preview == before_preview
+    assert screen.ids["transfer_amount"].text == ""
+    assert WalletScreen._parse_amount("nan") == 0.0
 
 
 def test_quick_amount_buttons_bind_selection_highlighting():
