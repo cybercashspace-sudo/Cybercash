@@ -42,6 +42,7 @@ class PullToRefreshMixin:
         "notifications": ("refresh_notifications", {}),
         "agent_dashboard": ("load_dashboard", {}),
         "agent_transactions": ("load_transactions", {}),
+        "agent_commissions": ("load_commission", {}),
         "agent_commission": ("load_commission", {}),
         "commission": ("load_commission", {}),
         "loan_screen": ("load_dashboard", {}),

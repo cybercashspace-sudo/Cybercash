@@ -20,11 +20,15 @@ class AgentDashboard(PullToRefreshMixin, MDScreen):
         super().__init__(**kwargs)
         self.controller = AgentController()
         self._agent = {}
+        self.loading = False
 
     def on_enter(self):
         self.load_dashboard()
 
     def load_dashboard(self):
+        if self.loading:
+            return
+        self.loading = True
         Thread(target=self._load_worker, daemon=True).start()
 
     def _load_worker(self):
@@ -32,13 +36,26 @@ class AgentDashboard(PullToRefreshMixin, MDScreen):
             data = self.controller.load_dashboard()
         except Exception as exc:
             message = str(exc) or "Unable to load agent dashboard."
-            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
+            Clock.schedule_once(lambda dt, error=message: self._finish_dashboard_error(error))
             return
-        Clock.schedule_once(lambda dt: self.update_ui(data))
+        Clock.schedule_once(lambda dt: self._apply_dashboard_result(data))
+
+    def _apply_dashboard_result(self, data):
+        try:
+            self.update_ui(data)
+        except Exception:
+            self._finish_dashboard_error("Unable to display agent dashboard. Please refresh again.")
 
     def update_ui(self, data):
+        if not isinstance(data, dict):
+            self._finish_dashboard_error("Agent dashboard data could not be read. Please refresh again.")
+            return
         self._agent = data.get("agent") or {}
+        if not isinstance(self._agent, dict):
+            self._agent = {}
         commissions = data.get("commissions") or {}
+        if not isinstance(commissions, dict):
+            commissions = {}
 
         if "agent_status" in self.ids:
             self.ids.agent_status.text = self._agent.get("status", "Pending")
@@ -59,7 +76,16 @@ class AgentDashboard(PullToRefreshMixin, MDScreen):
         if "commission_total" in self.ids:
             self.ids.commission_total.text = commissions.get("total_text", "GH₵ 0.00")
         if "transaction_list" in self.ids:
-            self.ids.transaction_list.data = data.get("transactions", [])
+            rows = data.get("transactions", [])
+            self.ids.transaction_list.data = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+        self.loading = False
+        self._finish_pull_refresh()
+
+    def _finish_dashboard_error(self, message: str) -> None:
+        self.loading = False
+        self.show_message(message)
+        self._finish_pull_refresh()
 
     def sell_airtime(self):
         self._go_to_screen("airtime")

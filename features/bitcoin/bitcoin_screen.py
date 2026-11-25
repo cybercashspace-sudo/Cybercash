@@ -21,6 +21,8 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
         self._price_event = None
         self._current_wallet = {}
         self._current_price = 0.0
+        self.loading = False
+        self._price_loading = False
 
     @staticmethod
     def _wallet_balance_value(wallet) -> float:
@@ -47,6 +49,9 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
             self._price_event = None
 
     def load_dashboard(self):
+        if self.loading:
+            return
+        self.loading = True
         Thread(target=self._load_dashboard_worker, daemon=True).start()
 
     def _load_dashboard_worker(self):
@@ -54,24 +59,44 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
             data = self.controller.load_dashboard()
         except Exception as exc:
             message = str(exc) or "Unable to load Bitcoin wallet."
-            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
+            Clock.schedule_once(lambda dt, error=message: self._finish_dashboard_error(error))
             return
 
-        Clock.schedule_once(lambda dt: self.update_ui(data))
+        Clock.schedule_once(lambda dt: self._apply_dashboard_data(data))
 
     def refresh_price(self, *_):
+        if self._price_loading:
+            return
+        self._price_loading = True
         Thread(target=self._refresh_price_worker, daemon=True).start()
 
     def _refresh_price_worker(self):
         try:
             payload = self.controller.refresh_price()
         except Exception:
+            self._price_loading = False
             return
-        Clock.schedule_once(lambda dt: self.update_price(payload))
+        Clock.schedule_once(lambda dt: self._apply_price_data(payload))
+
+    def _apply_dashboard_data(self, data):
+        try:
+            if not isinstance(data, dict):
+                raise ValueError("Bitcoin wallet data could not be read.")
+            self.update_ui(data)
+        except Exception:
+            self._finish_dashboard_error("Unable to display Bitcoin wallet. Please refresh again.")
+
+    def _finish_dashboard_error(self, message):
+        self.loading = False
+        self.show_message(message)
+        self._finish_pull_refresh()
 
     def update_ui(self, data):
         self._current_wallet = data.get("wallet")
-        self._current_price = float(data.get("price") or 0.0)
+        try:
+            self._current_price = float(data.get("price") or 0.0)
+        except (TypeError, ValueError):
+            self._current_price = 0.0
 
         if "wallet_balance" in self.ids:
             self.ids.wallet_balance.text = data.get("wallet_balance_text", "₿ 0.000000")
@@ -84,10 +109,26 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
         if "wallet_status" in self.ids:
             self.ids.wallet_status.text = data.get("wallet_status", "Active")
         if "transaction_list" in self.ids:
-            self.ids.transaction_list.data = data.get("transactions", [])
+            rows = data.get("transactions", [])
+            self.ids.transaction_list.data = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+        self.loading = False
+        self._finish_pull_refresh()
+
+    def _apply_price_data(self, payload):
+        try:
+            self.update_price(payload)
+        except Exception:
+            self.show_message("Bitcoin price could not be updated. Please try again.")
+        finally:
+            self._price_loading = False
 
     def update_price(self, payload):
-        self._current_price = float(payload.get("price") or 0.0)
+        if not isinstance(payload, dict):
+            return
+        try:
+            self._current_price = float(payload.get("price") or 0.0)
+        except (TypeError, ValueError):
+            self._current_price = 0.0
         if "btc_price" in self.ids:
             self.ids.btc_price.text = payload.get("price_text", "$0.00")
 
