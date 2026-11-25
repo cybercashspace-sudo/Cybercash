@@ -20,8 +20,10 @@ def test_escrow_screen_uses_compact_copy_and_popup_feedback():
     assert 'nav_variant: "default"' in KV
 
 
-def test_all_bottom_navigation_variants_use_dashboard_geometry():
+def test_all_bottom_navigation_variants_use_compact_escrow_geometry():
     source = Path("core/bottom_nav.py").read_text(encoding="utf-8")
 
-    assert "# Keep the Dashboard's icon-over-label layout consistent on every screen." in source
-    assert "is_dashboard = True" in source
+    assert "# Match the compact APK Escrow navigation on every screen." in source
+    assert "self.height = dp(92 * layout_scale)" in source
+    assert "self.radius = [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]" in source
+    assert '"special": True' not in source

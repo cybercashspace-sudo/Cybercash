@@ -54,8 +54,8 @@ class PullToRefreshMixin:
         "loan_repayments": ("load_repayments", {}),
         "profile": ("refresh_profile", {}),
         "settings": ("load_settings", {}),
-        "cards": ("refresh_data", {}),
-        "virtual_card": ("refresh_data", {}),
+        "cards": ("refresh_data", {"notify_popup": True}),
+        "virtual_card": ("refresh_data", {"notify_popup": True}),
         "btc": ("load_btc_data", {"notify": False}),
         "data_bundle": ("load_catalog", {}),
         "escrow": ("load_deals", {"notify_popup": True}),
@@ -157,6 +157,8 @@ class PullToRefreshMixin:
                 "loading", "_is_loading", "_loading", "_loading_settings",
                 "_busy", "_refreshing", "_refresh_in_progress", "is_loading",
                 "loan_refresh_busy", "loan_submit_busy", "repayment_busy",
+                "card_refresh_busy",
+                "escrow_busy",
             )
         )
 

@@ -17,6 +17,7 @@ from core.bottom_nav import BottomNavBar
 from core.kivymd_compat import resolve_kivymd_top_app_bar
 from core.popup_manager import show_confirm_dialog, show_message_dialog
 from core.screen_actions import ActionScreen
+from utils.formatter import safe_float
 
 MDTopAppBar = resolve_kivymd_top_app_bar()
 
@@ -51,7 +52,7 @@ KV = """
             md_bg_color: BG
             specific_text_color: GOLD
             left_action_items: [["arrow-left", lambda x: root.go_back()]]
-            right_action_items: [["refresh", lambda x: root.refresh_data()]]
+            right_action_items: [["refresh", lambda x: root.refresh_data(notify_popup=True)]]
 
         PullRefreshScrollView:
             root_layout: root
@@ -161,6 +162,16 @@ KV = """
                                 font_size: sp(12 * root.text_scale)
                                 halign: "right"
 
+                MDRaisedButton:
+                    text: "Request a Virtual Card"
+                    opacity: 1 if not root.card_id else 0
+                    disabled: bool(root.card_id) or root.card_request_busy
+                    size_hint_y: None
+                    height: dp(48 * root.layout_scale) if not root.card_id else 0
+                    md_bg_color: GOLD_SOFT
+                    text_color: BG
+                    on_release: root.request_card()
+
                 GridLayout:
                     cols: 2
                     size_hint_y: None
@@ -175,7 +186,7 @@ KV = """
                         elevation: 0
                         on_release: root.toggle_details()
                         opacity: 1
-                        disabled: not bool(root.card_id)
+                        disabled: not bool(root.card_id) or root.card_action_busy
 
                         MDBoxLayout:
                             padding: dp(12)
@@ -225,7 +236,7 @@ KV = """
                         md_bg_color: SURFACE
                         elevation: 0
                         on_release: root.toggle_freeze()
-                        disabled: not bool(root.card_id)
+                        disabled: not bool(root.card_id) or root.card_action_busy
 
                         MDBoxLayout:
                             padding: dp(12)
@@ -250,7 +261,7 @@ KV = """
                         md_bg_color: SURFACE
                         elevation: 0
                         on_release: root.replace_card_flow()
-                        disabled: not bool(root.card_id)
+                        disabled: not bool(root.card_id) or root.card_action_busy
 
                         MDBoxLayout:
                             padding: dp(12)
@@ -412,7 +423,7 @@ KV = """
                             input_filter: "float"
                             size_hint_y: None
                             height: dp(72 * root.layout_scale)
-                            disabled: root.processing or root.is_frozen or not bool(root.card_id)
+                            disabled: root.processing or root.card_action_busy or root.is_frozen or not bool(root.card_id)
 
                         AppButton:
                             id: load_card_button
@@ -422,7 +433,7 @@ KV = """
                             size_hint_y: None
                             height: dp(52 * root.layout_scale)
                             variant: "primary"
-                            disabled: root.processing or root.is_frozen or not bool(root.card_id)
+                            disabled: root.processing or root.card_action_busy or root.is_frozen or not bool(root.card_id)
                             on_release: root.submit_load()
 
                         MDLabel:
@@ -462,21 +473,13 @@ KV = """
                                 icon: "refresh"
                                 theme_text_color: "Custom"
                                 text_color: GOLD
-                                on_release: root.load_card_transactions()
+                                on_release: root.refresh_data(notify_popup=True)
 
                         MDBoxLayout:
                             id: transaction_list
                             orientation: "vertical"
                             adaptive_height: True
                             spacing: dp(10 * root.layout_scale)
-
-                MDLabel:
-                    text: root.feedback_text
-                    theme_text_color: "Custom"
-                    text_color: root.feedback_color
-                    font_size: sp(12 * root.text_scale)
-                    size_hint_y: None
-                    height: self.texture_size[1] if self.text else 0
 
         BottomNavBar:
             nav_variant: "default"
@@ -506,11 +509,114 @@ class VirtualCardScreen(ActionScreen):
     is_frozen = BooleanProperty(False)
     card_loaded = BooleanProperty(False)
     processing = BooleanProperty(False)
+    card_refresh_busy = BooleanProperty(False)
+    card_request_busy = BooleanProperty(False)
+    card_action_busy = BooleanProperty(False)
     card_id = NumericProperty(0)
 
     _raw_number = ""
     _raw_cvv = ""
     _wallet_balance_val = 0.0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._card_refresh_generation = 0
+        self._clipboard_clear_event = None
+        self._copied_card_number = ""
+
+    @staticmethod
+    def _friendly_card_error(payload, fallback: str) -> str:
+        message = ActionScreen._extract_detail(payload)
+        lowered = str(message or "").lower()
+        unsafe = (
+            "traceback", "exception", "sql", "select ", "insert ", "update ",
+            "postgres", "sqlite", "database", "internal server", "stack trace",
+            "authorization:", "bearer ", "token", "password", "secret", "api key",
+            " at line ", "file \"", "connectionpool", "http://", "https://",
+        )
+        if not message or any(marker in lowered for marker in unsafe):
+            return fallback
+        return " ".join(str(message).split())[:240].rstrip() or fallback
+
+    def request_card(self):
+        if self.card_id or self.card_request_busy:
+            return
+        show_confirm_dialog(
+            self,
+            title="Request Virtual Card",
+            message=(
+                "Request a rechargeable virtual card. The configured card issuance fee will be charged "
+                "to your primary wallet. Continue only if you have enough available balance."
+            ),
+            confirm_label="Request Card",
+            cancel_label="Not Now",
+            on_confirm=self._request_card_worker,
+        )
+
+    def _request_card_worker(self):
+        if self.card_request_busy:
+            return
+        self.card_request_busy = True
+
+        def worker():
+            try:
+                result = self._request(
+                    "POST",
+                    "/virtualcards/request",
+                    payload={"currency": "USD", "type": "rechargeable", "spending_limit": 0},
+                )
+            except Exception:
+                result = (False, {"detail": "Unable to request your virtual card."})
+            Clock.schedule_once(lambda _dt: self._finish_card_request(result), 0)
+
+        try:
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception:
+            self.card_request_busy = False
+            self._show_popup("Card Request Failed", "We couldn't start your request. Please try again.")
+
+    def _finish_card_request(self, result):
+        self.card_request_busy = False
+        ok, payload = result
+        if ok:
+            self.card_loaded = False
+            self._show_popup("Card Requested", "Your virtual card is ready. Refreshing your card details now.")
+            self.refresh_data(notify_popup=False)
+            return
+        detail = self._friendly_card_error(
+            payload,
+            "We couldn't request a virtual card. Check your wallet balance and try again.",
+        )
+        self._show_popup("Card Request Failed", detail)
+
+    def _request_card_action(self, method, path, payload, *, error_title, fallback, on_success):
+        if self.card_action_busy:
+            return
+        self.card_action_busy = True
+
+        def worker():
+            try:
+                result = self._request(method, path, payload=payload)
+            except Exception:
+                result = (False, {"detail": fallback})
+            Clock.schedule_once(
+                lambda _dt: self._finish_card_action(result, error_title, fallback, on_success),
+                0,
+            )
+
+        try:
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception:
+            self.card_action_busy = False
+            self._show_popup(error_title, fallback)
+
+    def _finish_card_action(self, result, error_title, fallback, on_success):
+        self.card_action_busy = False
+        ok, payload = result
+        if ok:
+            on_success(payload)
+            return
+        self._show_popup(error_title, self._friendly_card_error(payload, fallback))
 
     @staticmethod
     def _normalize_status(status_value) -> str:
@@ -542,10 +648,14 @@ class VirtualCardScreen(ActionScreen):
         if not isinstance(payload, list) or not payload:
             return None
 
-        for record in payload:
+        records = [record for record in payload if isinstance(record, dict)]
+        if not records:
+            return None
+
+        for record in records:
             if self._normalize_status(record.get("status")) in {"active", "blocked"}:
                 return record
-        return payload[0]
+        return records[0]
 
     def _apply_empty_card_state(self):
         self.card_id = 0
@@ -572,12 +682,15 @@ class VirtualCardScreen(ActionScreen):
 
     def _apply_card_payload(self, payload: dict):
         app = MDApp.get_running_app()
-        self.card_id = int(payload.get("id") or 0)
+        try:
+            self.card_id = int(payload.get("id") or 0)
+        except (TypeError, ValueError):
+            self.card_id = 0
         self._raw_number = str(payload.get("card_number") or "")
         self._raw_cvv = str(payload.get("cvv") or payload.get("cvv_plaintext") or payload.get("cvv_value") or "")
         self.card_currency = str(payload.get("currency") or "USD")
-        self.cardholder = str(payload.get("card_holder") or getattr(app, "user_name", "") or "Cyber Cash User")
-        self.expiry = str(payload.get("expiry_date") or payload.get("expiry") or "--/--")
+        self.cardholder = str(payload.get("card_holder") or getattr(app, "user_name", "") or "Cyber Cash User")[:32]
+        self.expiry = str(payload.get("expiry_date") or payload.get("expiry") or "--/--")[:12]
 
         status = self._normalize_status(payload.get("status"))
         self.is_frozen = status == "blocked"
@@ -590,77 +703,116 @@ class VirtualCardScreen(ActionScreen):
         else:
             self.card_status = "Unknown"
 
-        balance = float(payload.get("balance") or 0.0)
+        balance = safe_float(payload.get("balance"))
         self.card_balance_display = f"{self.card_currency} {balance:,.2f}"
         self._sync_sensitive_fields()
 
     def on_pre_enter(self):
         if not self.card_loaded:
-            self.refresh_data()
-            self.card_loaded = True
+            self.refresh_data(notify_popup=False)
 
-    def refresh_data(self):
-        self._set_feedback("Syncing card data...", "info")
-        self.load_card_data()
-        self.load_wallet()
-        self.verify_wallet_integrity()
-        self.load_card_transactions()
+    def refresh_data(self, notify_popup: bool = False):
+        if self.card_refresh_busy:
+            return False
+        self.card_refresh_busy = True
+        self._card_refresh_generation += 1
+        generation = self._card_refresh_generation
+        try:
+            threading.Thread(
+                target=self._refresh_card_worker,
+                args=(generation, bool(notify_popup)),
+                daemon=True,
+            ).start()
+        except Exception:
+            self.card_refresh_busy = False
+            self._show_popup("Card Update", "We couldn't refresh your card right now. Please try again.")
+            return False
+        return True
 
-    def load_card_data(self):
-        ok, payload = self._request("GET", "/virtualcards/me")
-        card = self._select_card_record(payload) if ok else None
-        if card:
-            self._apply_card_payload(card)
-            self._set_feedback("Virtual card synced.", "success")
-            return
-
-        self._apply_empty_card_state()
-        self._set_feedback("No virtual card found for this account.", "warning")
-
-    def load_wallet(self):
-        ok, payload = self._request("GET", "/wallet/me")
-        if ok and isinstance(payload, dict):
-            self.wallet_currency = str(payload.get("currency") or "GHS")
-            self._wallet_balance_val = float(payload.get("balance") or 0.0)
-            self.wallet_balance_display = f"{self.wallet_currency} {self._wallet_balance_val:,.2f}"
-            return
-
-        self.wallet_balance_display = f"{self.wallet_currency} 0.00"
-
-    def verify_wallet_integrity(self):
-        ok, payload = self._request("GET", "/wallet/verify")
-        if not ok or not isinstance(payload, dict):
-            self.wallet_status = "Wallet verification unavailable"
-            return
-
-        status = str(payload.get("status") or "").lower()
-        wallet_balance = float(payload.get("wallet_balance") or self._wallet_balance_val or 0.0)
-        ledger_balance = float(payload.get("ledger_balance") or wallet_balance)
-        difference = float(payload.get("difference") or (wallet_balance - ledger_balance))
-
-        if status == "verified":
-            self.wallet_status = "Wallet verified against the ledger"
-            self._wallet_balance_val = wallet_balance
-        elif status == "mismatch":
-            self.wallet_status = f"Ledger mismatch: {difference:+.2f}"
-            self._set_feedback(
-                f"Wallet mismatch detected. Ledger balance is {self.wallet_currency} {ledger_balance:,.2f}.",
-                "warning",
+    def _refresh_card_worker(self, generation: int, notify_popup: bool) -> None:
+        try:
+            card_result = self._request("GET", "/virtualcards/me")
+            wallet_result = self._request("GET", "/wallet/me")
+            verify_result = self._request("GET", "/wallet/verify")
+            card = self._select_card_record(card_result[1]) if card_result[0] else None
+            card_id = safe_float(card.get("id")) if isinstance(card, dict) else 0
+            card_id = int(card_id) if card_id > 0 else 0
+            transactions_result = (
+                self._request("GET", f"/virtualcards/{card_id}/transactions")
+                if card_id > 0 else (True, [])
             )
+        except Exception:
+            card_result = wallet_result = verify_result = transactions_result = (
+                False, {"detail": "Unable to refresh card details."}
+            )
+        Clock.schedule_once(
+            lambda _dt: self._finish_card_refresh(
+                generation, card_result, wallet_result, verify_result, transactions_result,
+                notify_popup,
+            ),
+            0,
+        )
+
+    def _finish_card_refresh(self, generation, card_result, wallet_result, verify_result, transactions_result, notify_popup):
+        if generation != self._card_refresh_generation:
+            return
+        self.card_refresh_busy = False
+        errors = []
+
+        card_ok, card_payload = card_result
+        self.card_loaded = bool(card_ok)
+        if card_ok:
+            card = self._select_card_record(card_payload)
+            if isinstance(card, dict):
+                self._apply_card_payload(card)
+            else:
+                self._apply_empty_card_state()
         else:
-            self.wallet_status = str(payload.get("error") or "Wallet verification unavailable")
+            errors.append("Card details could not be loaded.")
 
-    def load_card_transactions(self):
-        if not self.card_id:
+        wallet_ok, wallet_payload = wallet_result
+        if wallet_ok and isinstance(wallet_payload, dict):
+            self.wallet_currency = str(wallet_payload.get("currency") or "GHS")
+            self._wallet_balance_val = safe_float(wallet_payload.get("balance"))
+            self.wallet_balance_display = f"{self.wallet_currency} {self._wallet_balance_val:,.2f}"
+        else:
+            errors.append("Wallet balance could not be refreshed.")
+
+        verify_ok, verify_payload = verify_result
+        if verify_ok and isinstance(verify_payload, dict):
+            status = str(verify_payload.get("status") or "").lower()
+            if status == "verified":
+                self.wallet_status = "Wallet verified"
+                self._wallet_balance_val = safe_float(
+                    verify_payload.get("wallet_balance"), self._wallet_balance_val
+                )
+                self.wallet_balance_display = f"{self.wallet_currency} {self._wallet_balance_val:,.2f}"
+            elif status == "mismatch":
+                self.wallet_status = "Wallet verification needs attention"
+                errors.append("Wallet balance verification needs attention. Contact support if it continues.")
+            else:
+                self.wallet_status = "Wallet verification unavailable"
+                errors.append("Wallet verification could not be completed.")
+        else:
+            self.wallet_status = "Wallet verification unavailable"
+            errors.append("Wallet verification could not be completed.")
+
+        transaction_ok, transaction_payload = transactions_result
+        if transaction_ok and isinstance(transaction_payload, list):
+            self._render_transactions(transaction_payload)
+        else:
             self._render_transactions([])
-            return
+            errors.append("Recent card activity could not be loaded.")
 
-        ok, payload = self._request("GET", f"/virtualcards/{int(self.card_id)}/transactions")
-        if ok and isinstance(payload, list):
-            self._render_transactions(payload)
+        self._finish_pull_refresh()
+        if not notify_popup:
             return
-
-        self._render_transactions([])
+        if errors:
+            self._show_popup("Card Update", "\n".join(dict.fromkeys(errors)))
+        elif not isinstance(self._select_card_record(card_payload), dict):
+            self._show_popup("Card Updated", "Wallet details are up to date. No virtual card is linked to this account yet.")
+        else:
+            self._show_popup("Card Updated", "Your card and wallet details are up to date.")
 
     def _format_transaction_amount(self, tx_type: str, amount: float, currency: str) -> tuple[str, list[float]]:
         normalized = str(tx_type or "").strip().upper()
@@ -690,7 +842,7 @@ class VirtualCardScreen(ActionScreen):
             )
             return
 
-        for item in items[:10]:
+        for item in [item for item in items if isinstance(item, dict)][:10]:
             metadata = self._parse_metadata(item.get("metadata_json"))
             tx_type = str(item.get("type") or "").strip()
             title = str(
@@ -701,7 +853,7 @@ class VirtualCardScreen(ActionScreen):
             subtitle = str(item.get("timestamp") or "").replace("T", " ")
             amount_text, amount_color = self._format_transaction_amount(
                 tx_type,
-                float(item.get("amount") or 0.0),
+                safe_float(item.get("amount")),
                 str(item.get("currency") or self.card_currency or "USD"),
             )
 
@@ -748,51 +900,82 @@ class VirtualCardScreen(ActionScreen):
     def toggle_details(self):
         self.details_visible = not self.details_visible
         self._sync_sensitive_fields()
-        if self.details_visible:
-            if self._raw_cvv:
-                self.show_cvv_popup()
-            else:
-                self._set_feedback("Card number revealed. CVV stays hidden by design.", "info")
 
     def show_cvv_popup(self):
-        if self._raw_cvv:
-            message = f"Your Card CVV is: [b]{self._raw_cvv}[/b]\n\nKeep it private and only use it where you trust the merchant."
-        else:
-            message = "CVV is securely stored and cannot be re-shown from this screen."
-
         show_message_dialog(
             self,
-            title="Security Reveal",
-            message=message,
+            title="Card Security",
+            message="Card details are visible on this screen. Hide them before handing your phone to someone else.",
             close_label="I Understand",
         )
+
+    def on_leave(self, *_args):
+        self._card_refresh_generation += 1
+        self.card_refresh_busy = False
+        self.details_visible = False
+        self._raw_number = ""
+        self._raw_cvv = ""
+        self.card_loaded = False
+        self.card_number_display = "**** **** **** ****"
+        self.cvv = "***"
+        self._clear_copied_card_number()
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def copy_card_number(self):
         if self._raw_number:
             Clipboard.copy(self._raw_number)
-            self._set_feedback("Card number copied to clipboard", "success")
+            self._copied_card_number = self._raw_number
+            event = self._clipboard_clear_event
+            if event is not None:
+                event.cancel()
+            self._clipboard_clear_event = Clock.schedule_once(self._clear_copied_card_number, 30)
+            self._show_popup("Card Number Copied", "Your card number was copied. Keep it private and clear your clipboard when finished.")
         else:
-            self._set_feedback("No card number available to copy", "warning")
+            self._show_popup("Card Unavailable", "Load your card details before copying the card number.")
+
+    def _clear_copied_card_number(self, *_args):
+        event = self._clipboard_clear_event
+        self._clipboard_clear_event = None
+        if event is not None:
+            try:
+                event.cancel()
+            except Exception:
+                pass
+        copied = self._copied_card_number
+        self._copied_card_number = ""
+        if not copied:
+            return
+        try:
+            if Clipboard.paste() == copied:
+                Clipboard.copy("")
+        except Exception:
+            pass
 
     def download_statement(self):
         if not self.card_id:
-            self._set_feedback("Load a card before downloading a statement.", "warning")
+            self._show_popup("Card Unavailable", "Load a card before downloading a statement.")
             return
 
-        self._set_feedback("Fetching statement URL...", "info")
-        ok, payload = self._request("GET", f"/virtualcards/{int(self.card_id)}/statement")
-        if ok and isinstance(payload, dict) and payload.get("url"):
+        def open_statement(payload):
+            if not isinstance(payload, dict) or not payload.get("url"):
+                self._show_popup("Statement Unavailable", "We couldn't prepare your statement. Please try again later.")
+                return
             import webbrowser
-
             webbrowser.open(payload["url"])
-            self._set_feedback("Statement opened in browser", "success")
-            return
+            self._show_popup("Statement Ready", "Your card statement was opened in your browser.")
 
-        self._set_feedback("Statement service is currently unavailable.", "warning")
+        self._request_card_action(
+            "GET", f"/virtualcards/{int(self.card_id)}/statement", None,
+            error_title="Statement Unavailable",
+            fallback="We couldn't prepare your statement. Please try again later.",
+            on_success=open_statement,
+        )
 
     def replace_card_flow(self):
         if not self.card_id:
-            self._set_feedback("Load a card before requesting a reissue.", "warning")
+            self._show_popup("Card Unavailable", "Load a card before requesting a replacement.")
             return
 
         show_confirm_dialog(
@@ -805,65 +988,63 @@ class VirtualCardScreen(ActionScreen):
 
     def _perform_replace(self):
         if not self.card_id:
-            self._set_feedback("No card available to replace.", "warning")
+            self._show_popup("Card Unavailable", "No card is available to replace.")
             return
 
-        self._set_feedback("Processing card replacement...", "info")
-        ok, payload = self._request("POST", f"/virtualcards/{int(self.card_id)}/replace")
-        if ok:
-            self._set_feedback("Card replaced successfully", "success")
+        def finish_replace(_payload):
+            self._show_popup("Card Replaced", "Your virtual card was replaced successfully. Your balance remains on the card.")
             self.refresh_data()
-            return
 
-        detail = self._extract_detail(payload) or "Failed to replace card"
-        self._set_feedback(detail, "error")
+        self._request_card_action(
+            "POST", f"/virtualcards/{int(self.card_id)}/replace", None,
+            error_title="Card Replacement Failed",
+            fallback="We couldn't replace your card. Please try again.",
+            on_success=finish_replace,
+        )
 
     def toggle_freeze(self):
         if not self.card_id:
-            self._set_feedback("Load a card before freezing it.", "warning")
+            self._show_popup("Card Unavailable", "Load a card before changing its status.")
             return
 
         new_state = not self.is_frozen
         status_value = "blocked" if new_state else "active"
-        self._set_feedback(f"Updating card to {status_value}...", "info")
-
-        ok, payload = self._request(
-            "PATCH",
-            f"/virtualcards/{int(self.card_id)}/status",
-            payload={"status": status_value},
-        )
-        if ok:
+        def finish_status(payload):
             returned_status = self._normalize_status((payload or {}).get("status") if isinstance(payload, dict) else status_value)
             self.is_frozen = returned_status == "blocked"
             self.card_status = "Frozen" if self.is_frozen else "Active"
-            self._set_feedback(f"Card is now {self.card_status}", "success")
-            return
+            self._show_popup("Card Updated", f"Your card is now {self.card_status.lower()}.")
 
-        self._set_feedback(self._extract_detail(payload) or "Failed to update card status", "error")
+        self._request_card_action(
+            "PATCH", f"/virtualcards/{int(self.card_id)}/status", {"status": status_value},
+            error_title="Card Update Failed",
+            fallback="We couldn't update your card. Please try again.",
+            on_success=finish_status,
+        )
 
     def submit_load(self):
         if self.processing:
             return
         if not self.card_id:
-            self._set_feedback("Load a card before adding funds.", "warning")
+            self._show_popup("Card Unavailable", "Load a card before adding funds.")
             return
         if self.is_frozen:
-            self._set_feedback("Unfreeze the card before loading funds.", "warning")
+            self._show_popup("Card Frozen", "Unfreeze your card before adding funds.")
             return
 
         raw_amt = self.ids.load_amount.text
         try:
             amount = float(raw_amt)
         except ValueError:
-            self._set_feedback("Please enter a valid amount", "error")
+            self._show_popup("Check Amount", "Enter a valid amount in Ghana cedis.")
             return
 
         if amount <= 0:
-            self._set_feedback("Amount must be greater than zero", "error")
+            self._show_popup("Check Amount", "Enter an amount greater than zero.")
             return
 
         if amount > self._wallet_balance_val:
-            self._set_feedback("Insufficient wallet balance", "error")
+            self._show_popup("Insufficient Balance", "Your wallet balance is too low for this card load.")
             return
 
         self._set_processing(True)
@@ -882,14 +1063,13 @@ class VirtualCardScreen(ActionScreen):
     def _on_load_complete(self, ok, payload):
         self._set_processing(False)
         if ok:
-            self._set_feedback("Card loaded successfully!", "success")
             self.ids.load_amount.text = ""
             self.refresh_data()
             show_message_dialog(self, title="Success", message="Your virtual card has been credited.")
             return
 
-        detail = self._extract_detail(payload) or "Failed to load card"
-        self._set_feedback(detail, "error")
+        detail = self._friendly_card_error(payload, "We couldn't add funds to your card. Please try again.")
+        self._show_popup("Card Load Failed", detail)
 
     def _set_processing(self, value: bool) -> None:
         self.processing = bool(value)

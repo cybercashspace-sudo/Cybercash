@@ -14,6 +14,8 @@ from core.pull_refresh import PullToRefreshMixin
 class ResponsiveScreen(PullToRefreshMixin, MDScreen):
     """Adds a responsive max-width content container for ScrollView screens."""
 
+    _SWIPE_BACK_KEY = "_cybercash_screen_swipe_start"
+
     content_max_width = NumericProperty(460.0)
     content_max_width_tablet = NumericProperty(620.0)
     content_max_width_desktop = NumericProperty(720.0)
@@ -97,6 +99,29 @@ class ResponsiveScreen(PullToRefreshMixin, MDScreen):
         if manager is None:
             return False
         return getattr(manager, "current_screen", None) is self
+
+    def on_touch_down(self, touch):
+        if self._is_screen_active() and touch.x <= self.x + dp(24):
+            touch.ud[self._SWIPE_BACK_KEY] = (self, touch.x, touch.y)
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        origin = touch.ud.get(self._SWIPE_BACK_KEY)
+        if origin and origin[0] is self:
+            dx = touch.x - origin[1]
+            dy = touch.y - origin[2]
+            if dx >= dp(82) and dx > abs(dy) * 1.4:
+                touch.ud.pop(self._SWIPE_BACK_KEY, None)
+                if self._is_screen_active():
+                    back = getattr(self, "go_back", None)
+                    if callable(back):
+                        back()
+                        return True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        touch.ud.pop(self._SWIPE_BACK_KEY, None)
+        return super().on_touch_up(touch)
 
     def _on_window_resize(self, *_args):
         if not self._is_screen_active():

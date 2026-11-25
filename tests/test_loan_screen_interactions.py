@@ -71,6 +71,11 @@ def test_loan_screen_uses_compact_balance_and_repayment_without_old_cards():
     assert "root.feedback_text" not in KV
 
 
+def test_loan_period_highlight_binds_directly_to_selected_property():
+    for days in (1, 7, 14, 30, 60, 90):
+        assert f"root.selected_duration == {days}" in KV
+
+
 def test_refresh_errors_are_popup_only_and_sanitized():
     class PopupHarness:
         _loan_refresh_show_popup = False

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from threading import Thread
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import StringProperty
+from kivy.properties import BooleanProperty, StringProperty
 
 from core.screen_actions import ActionScreen
 from utils.network import normalize_ghana_number
@@ -162,6 +163,7 @@ KV = """
                             text_color: BG
                             size_hint_y: None
                             height: dp(50 * root.layout_scale)
+                            disabled: root.escrow_busy
                             on_release: root.create_escrow()
 
                 MDCard:
@@ -202,6 +204,7 @@ KV = """
                                 text_color: TEXT_MAIN
                                 size_hint_y: None
                                 height: dp(48 * root.layout_scale)
+                                disabled: root.escrow_busy
                                 on_release: root.load_deals()
 
                             MDFillRoundFlatIconButton:
@@ -211,6 +214,7 @@ KV = """
                                 text_color: BG
                                 size_hint_y: None
                                 height: dp(48 * root.layout_scale)
+                                disabled: root.escrow_busy
                                 on_release: root.release_escrow()
 
                 Widget:
@@ -230,6 +234,7 @@ KV = """
 
 
 class EscrowScreen(ActionScreen):
+    escrow_busy = BooleanProperty(False)
     page_title = StringProperty("Escrow Dashboard")
     page_subtitle = StringProperty(DEFAULT_ESCROW_SUBTITLE)
     held_balance_display = StringProperty("GHS 0.00")
@@ -265,7 +270,7 @@ class EscrowScreen(ActionScreen):
 
     @staticmethod
     def _format_money(amount: float) -> str:
-        return f"GHS {float(amount or 0.0):,.2f}"
+        return f"GHS {safe_float(amount):,.2f}"
 
     @staticmethod
     def _format_date_label(raw_value: str | None) -> str:
@@ -277,6 +282,36 @@ class EscrowScreen(ActionScreen):
             return dt.strftime("%d %b %Y")
         except Exception:
             return "Date unavailable"
+
+    def _request_escrow_async(self, method, path, *, payload=None, on_complete):
+        if self.escrow_busy:
+            return False
+        self.escrow_busy = True
+
+        def worker():
+            try:
+                result = self._request(method, path, payload=payload)
+            except Exception:
+                result = (False, {"detail": "Unable to complete the escrow request."})
+            Clock.schedule_once(lambda _dt: self._finish_escrow_request(result, on_complete), 0)
+
+        try:
+            Thread(target=worker, daemon=True).start()
+        except Exception:
+            self.escrow_busy = False
+            self._show_popup("Escrow Unavailable", "We couldn't start that request. Please try again.")
+            self._finish_pull_refresh()
+            return False
+        return True
+
+    def _finish_escrow_request(self, result, on_complete):
+        self.escrow_busy = False
+        try:
+            on_complete(result)
+        except Exception:
+            self._show_popup("Escrow Update", "We couldn't display the latest escrow update. Please refresh and try again.")
+        finally:
+            self._finish_pull_refresh()
 
     def _reset_dashboard_copy(self) -> None:
         self.held_balance_display = "GHS 0.00"
@@ -379,7 +414,7 @@ class EscrowScreen(ActionScreen):
             "info",
         )
 
-        ok, payload = self._request(
+        return self._request_escrow_async(
             "POST",
             "/transactions/escrow/create",
             payload={
@@ -387,9 +422,15 @@ class EscrowScreen(ActionScreen):
                 "amount": amount,
                 "description": description or None,
             },
+            on_complete=lambda result: self._finish_create_escrow(
+                result, amount, create_fee, receiver_net
+            ),
         )
+
+    def _finish_create_escrow(self, result, amount, create_fee, receiver_net):
+        ok, payload = result
         if ok and isinstance(payload, dict):
-            deal_id = int(payload.get("id", 0) or 0)
+            deal_id = self._parse_int(payload.get("id", 0))
             message = (
                 f"Escrow deal created successfully.\n"
                 f"Amount protected: {self._format_money(amount)}\n"
@@ -412,7 +453,14 @@ class EscrowScreen(ActionScreen):
         self._show_popup("Escrow Creation Failed", friendly)
 
     def load_deals(self, notify_popup: bool = True):
-        ok, payload = self._request("GET", "/transactions/escrow/deals")
+        return self._request_escrow_async(
+            "GET",
+            "/transactions/escrow/deals",
+            on_complete=lambda result: self._finish_load_deals(result, notify_popup),
+        )
+
+    def _finish_load_deals(self, result, notify_popup: bool):
+        ok, payload = result
         if ok and isinstance(payload, list):
             deals = [deal for deal in payload if isinstance(deal, dict)]
             self._apply_deal_snapshot(deals)
@@ -437,9 +485,16 @@ class EscrowScreen(ActionScreen):
             return
 
         self._set_feedback("Releasing escrow funds...", "info")
-        ok, payload = self._request("POST", f"/transactions/escrow/{deal_id}/release")
+        return self._request_escrow_async(
+            "POST",
+            f"/transactions/escrow/{deal_id}/release",
+            on_complete=lambda result: self._finish_release_escrow(result, deal_id),
+        )
+
+    def _finish_release_escrow(self, result, deal_id):
+        ok, payload = result
         if ok and isinstance(payload, dict):
-            release_id = int(payload.get("id", 0) or 0)
+            release_id = self._parse_int(payload.get("id", 0))
             message = (
                 f"Escrow deal #{deal_id} released successfully.\n"
                 f"Recipient release fee charged: {self._format_money(ESCROW_RELEASE_FEE_GHS)}"

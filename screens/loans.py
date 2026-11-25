@@ -185,8 +185,8 @@ KV = """
                                 opacity: 1 if root.period_available(1) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(1) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(1)
-                                text_color: root.period_button_text_color(1)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 1 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 1 else TEXT_MAIN
                                 on_release: root.set_duration(1)
 
                             MDRaisedButton:
@@ -195,8 +195,8 @@ KV = """
                                 opacity: 1 if root.period_available(7) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(7) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(7)
-                                text_color: root.period_button_text_color(7)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 7 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 7 else TEXT_MAIN
                                 on_release: root.set_duration(7)
 
                             MDRaisedButton:
@@ -205,8 +205,8 @@ KV = """
                                 opacity: 1 if root.period_available(14) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(14) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(14)
-                                text_color: root.period_button_text_color(14)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 14 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 14 else TEXT_MAIN
                                 on_release: root.set_duration(14)
 
                             MDRaisedButton:
@@ -215,8 +215,8 @@ KV = """
                                 opacity: 1 if root.period_available(30) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(30) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(30)
-                                text_color: root.period_button_text_color(30)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 30 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 30 else TEXT_MAIN
                                 on_release: root.set_duration(30)
 
                             MDRaisedButton:
@@ -225,8 +225,8 @@ KV = """
                                 opacity: 1 if root.period_available(60) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(60) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(60)
-                                text_color: root.period_button_text_color(60)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 60 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 60 else TEXT_MAIN
                                 on_release: root.set_duration(60)
 
                             MDRaisedButton:
@@ -235,8 +235,8 @@ KV = """
                                 opacity: 1 if root.period_available(90) else 0
                                 height: dp(42 * root.layout_scale) if root.period_available(90) else 0
                                 size_hint_y: None
-                                md_bg_color: root.period_button_bg(90)
-                                text_color: root.period_button_text_color(90)
+                                md_bg_color: GOLD_SOFT if root.selected_duration == 90 else SURFACE_SOFT
+                                text_color: BG if root.selected_duration == 90 else TEXT_MAIN
                                 on_release: root.set_duration(90)
 
                         MDLabel:

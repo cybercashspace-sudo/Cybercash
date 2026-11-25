@@ -3,7 +3,6 @@ from __future__ import annotations
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivy.graphics import Color, RoundedRectangle
 from kivy.properties import BooleanProperty, ColorProperty, DictProperty, NumericProperty, StringProperty
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
@@ -42,7 +41,7 @@ class BottomNavBar(MDCard):
         "dashboard": [
             {"target": "home", "icon": "home", "label": "Home"},
             {"target": "wallet", "icon": "wallet-outline", "label": "Wallet"},
-            {"target": "pay_bills", "icon": "qrcode-scan", "label": "Scan & Pay", "special": True},
+            {"target": "pay_bills", "icon": "qrcode-scan", "label": "Scan & Pay"},
             {"target": "virtual_card", "icon": "credit-card-outline", "label": "Cards"},
             {"target": "settings", "icon": "account-circle-outline", "label": "Profile"},
         ],
@@ -273,17 +272,16 @@ class BottomNavBar(MDCard):
         text_scale = float(self.text_scale or 1.0)
         icon_scale = float(self.icon_scale or 1.0)
 
-        # Keep the Dashboard's icon-over-label layout consistent on every screen.
-        # Variants still control each role/flow's destinations and labels.
-        is_dashboard = True
-        self.height = dp((112 if is_dashboard else 92) * layout_scale)
-        self.radius = [dp(56 * layout_scale)] if is_dashboard else [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
-        self.padding = [dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)] if is_dashboard else [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
+        # Match the compact APK Escrow navigation on every screen. Each variant
+        # still keeps its own destinations, labels, and active route.
+        self.height = dp(92 * layout_scale)
+        self.radius = [dp(26 * layout_scale), dp(26 * layout_scale), 0, 0]
+        self.padding = [dp(8 * layout_scale), dp(10 * layout_scale), dp(8 * layout_scale), dp(8 * layout_scale)]
         self.md_bg_color = list(self.bar_color)
         self.line_color = [0.52, 0.52, 0.56, 0.34]
 
         items = self._items()
-        icon_slot_height = dp((72 if is_dashboard else 48) * layout_scale)
+        icon_slot_height = dp(48 * layout_scale)
         grid = GridLayout(cols=max(1, len(items)), rows=1, spacing=0, size_hint=(1, 1))
 
         def build_item(item: dict) -> MDBoxLayout:
@@ -296,125 +294,55 @@ class BottomNavBar(MDCard):
                 spacing=dp(2 * layout_scale),
                 padding=0,
             )
-            if is_dashboard:
-                background_color = Color(0.22, 0.18, 0.08, 0.94 if is_active else 0)
-                with container.canvas.before:
-                    background_color
-                    background_shape = RoundedRectangle(
-                        pos=container.pos,
-                        size=container.size,
-                        radius=[dp(30 * layout_scale)],
-                    )
+            icon_wrap = MDCard(
+                size_hint=(None, None),
+                size=(dp(46 * layout_scale), dp(46 * layout_scale)),
+                radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
+                md_bg_color=self.active_color if is_active else [0.18, 0.18, 0.20, 0.92],
+                line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
+                elevation=0,
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+                on_release=lambda _btn, item_target=target: self._navigate(item_target),
+            )
+            icon_button = MDIconButton(
+                icon=item["icon"],
+                icon_size=f"{25 * icon_scale:.1f}sp",
+                theme_text_color="Custom",
+                text_color=[0.08, 0.08, 0.08, 1] if is_active else text_color,
+                disabled=True,
+            )
+            icon_wrap.add_widget(icon_button)
 
-                def update_background(widget, _value, shape=background_shape):
-                    shape.pos = widget.pos
-                    shape.size = widget.size
+            def center_icon(card, *_args, button=icon_button):
+                button.pos = (
+                    card.center_x - button.width / 2,
+                    card.center_y - button.height / 2,
+                )
 
-                container.bind(pos=update_background, size=update_background)
-
-            if item.get("special"):
-                icon_wrap = MDCard(
-                    size_hint=(None, None),
-                    size=(dp(92 * layout_scale), dp(92 * layout_scale)),
-                    radius=[dp(46 * layout_scale)],
-                    md_bg_color=[0.05, 0.05, 0.06, 0.98],
-                    line_color=self.active_color if is_active else [0.40, 0.40, 0.42, 0.55],
-                    elevation=0,
-                    pos_hint={"center_x": 0.5, "center_y": 0.5},
-                    on_release=lambda _btn, item_target=target: self._navigate(item_target),
-                )
-                art = FloatLayout()
-                art.add_widget(
-                    MDCard(
-                        size_hint=(None, None),
-                        size=(dp(68 * layout_scale), dp(68 * layout_scale)),
-                        radius=[dp(34 * layout_scale)],
-                        md_bg_color=[0.08, 0.08, 0.09, 0.98],
-                        line_color=[0.95, 0.74, 0.12, 0.88],
-                        elevation=0,
-                        pos_hint={"center_x": 0.5, "center_y": 0.58},
-                    )
-                )
-                art.add_widget(
-                    MDLabel(
-                        text=item["label"],
-                        size_hint=(1, None),
-                        height=dp(18 * layout_scale),
-                        pos_hint={"x": 0, "y": 0},
-                        halign="center",
-                        valign="middle",
-                        theme_text_color="Custom",
-                        text_color=text_color,
-                        font_size=f"{10.5 * text_scale:.1f}sp",
-                        shorten=True,
-                        shorten_from="right",
-                    )
-                )
-                art.add_widget(
-                    MDIconButton(
-                        icon=item["icon"],
-                        icon_size=f"{32 * icon_scale:.1f}sp",
-                        pos_hint={"center_x": 0.5, "center_y": 0.58},
-                        theme_text_color="Custom",
-                        text_color=self.active_color,
-                        disabled=True,
-                    )
-                )
-                badge = self._build_badge(target, layout_scale)
-                if badge is not None:
-                    art.add_widget(badge)
-                icon_wrap.add_widget(art)
-            else:
-                icon_wrap = MDCard(
-                    size_hint=(None, None),
-                    size=(dp(46 * layout_scale), dp(46 * layout_scale)),
-                    radius=[dp(14 * layout_scale)] if target == "home" else [dp(23 * layout_scale)],
-                    md_bg_color=([0, 0, 0, 0] if is_dashboard else self.active_color if is_active else [0.18, 0.18, 0.20, 0.92]),
-                    line_color=[0, 0, 0, 0] if is_dashboard else ([0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06]),
-                    elevation=0,
-                    pos_hint={"center_x": 0.5, "center_y": 0.5},
-                    on_release=lambda _btn, item_target=target: self._navigate(item_target),
-                )
-                icon_button = MDIconButton(
-                    icon=item["icon"],
-                    icon_size=f"{(30 if is_dashboard else 25) * icon_scale:.1f}sp",
-                    theme_text_color="Custom",
-                    text_color=text_color if is_dashboard else ([0.08, 0.08, 0.08, 1] if is_active else text_color),
-                    disabled=True,
-                )
-                icon_wrap.add_widget(icon_button)
-
-                def center_icon(card, *_args, button=icon_button):
-                    button.pos = (
-                        card.center_x - button.width / 2,
-                        card.center_y - button.height / 2,
-                    )
-
-                icon_wrap.bind(pos=center_icon, size=center_icon)
-                center_icon(icon_wrap)
-                badge = self._build_badge(target, layout_scale)
+            icon_wrap.bind(pos=center_icon, size=center_icon)
+            center_icon(icon_wrap)
+            badge = self._build_badge(target, layout_scale)
 
             icon_layer = FloatLayout(size_hint=(1, None), height=icon_slot_height)
             icon_layer.add_widget(icon_wrap)
-            if badge is not None and not item.get("special"):
+            if badge is not None:
                 icon_layer.add_widget(badge)
             container.add_widget(icon_layer)
-            if not item.get("special"):
-                container.add_widget(
-                    MDLabel(
-                        text=item["label"],
-                        size_hint=(1, None),
-                        height=dp(18 * layout_scale),
-                        halign="center",
-                        valign="middle",
-                        theme_text_color="Custom",
-                        text_color=text_color,
-                        font_size=f"{10.5 * text_scale:.1f}sp",
-                        shorten=True,
-                        shorten_from="right",
-                        text_size=(None, dp(18 * layout_scale)),
-                    )
+            container.add_widget(
+                MDLabel(
+                    text=item["label"],
+                    size_hint=(1, None),
+                    height=dp(18 * layout_scale),
+                    halign="center",
+                    valign="middle",
+                    theme_text_color="Custom",
+                    text_color=text_color,
+                    font_size=f"{10.5 * text_scale:.1f}sp",
+                    shorten=True,
+                    shorten_from="right",
+                    text_size=(None, dp(18 * layout_scale)),
                 )
+            )
             self._item_widgets[target] = icon_wrap
             return container
 

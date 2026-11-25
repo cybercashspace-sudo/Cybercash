@@ -151,8 +151,34 @@ def _resize_label_text(label: Label):
     )
 
 
+class SwipeDismissPopup(Popup):
+    """Allow a left-edge right-swipe to close a modal on touch devices."""
+
+    _swipe_key = "_cybercash_popup_swipe_start"
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos) and touch.x <= self.x + dp(36):
+            touch.ud[self._swipe_key] = (self, touch.x, touch.y)
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        origin = touch.ud.get(self._swipe_key)
+        if origin and origin[0] is self:
+            dx = touch.x - origin[1]
+            dy = touch.y - origin[2]
+            if dx >= dp(76) and dx > abs(dy) * 1.35:
+                touch.ud.pop(self._swipe_key, None)
+                self.dismiss()
+                return True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        touch.ud.pop(self._swipe_key, None)
+        return super().on_touch_up(touch)
+
+
 def _make_popup(title: str, content, *, auto_dismiss: bool = False, height: float = 320) -> Popup:
-    popup = Popup(
+    popup = SwipeDismissPopup(
         title=_friendly_title(title),
         content=content,
         auto_dismiss=bool(auto_dismiss),
@@ -216,10 +242,18 @@ def show_message_dialog(
     message_box.add_widget(message_label)
     scroll.add_widget(message_box)
 
-    def _on_close(*_args):
-        _dismiss_dialog(owner)
+    close_state = {"called": False}
+
+    def _resolve_close(*_args):
+        if close_state["called"]:
+            return
+        close_state["called"] = True
         if on_close:
             on_close()
+
+    def _on_close(*_args):
+        _dismiss_dialog(owner)
+        _resolve_close()
 
     actions = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(46), spacing=dp(10))
     actions.add_widget(
@@ -236,6 +270,7 @@ def show_message_dialog(
 
     popup = _make_popup(title, container, auto_dismiss=False, height=360)
     _bind_popup_lifecycle(owner, popup)
+    popup.bind(on_dismiss=_resolve_close)
     owner._active_dialog = popup
     popup.open()
 
@@ -270,12 +305,21 @@ def show_confirm_dialog(
     message_box.add_widget(message_label)
     scroll.add_widget(message_box)
 
-    def _on_cancel(*_args):
-        _dismiss_dialog(owner)
+    cancel_state = {"resolved": False}
+
+    def _resolve_cancel(*_args):
+        if cancel_state["resolved"]:
+            return
+        cancel_state["resolved"] = True
         if on_cancel:
             on_cancel()
 
+    def _on_cancel(*_args):
+        _dismiss_dialog(owner)
+        _resolve_cancel()
+
     def _on_confirm(*_args):
+        cancel_state["resolved"] = True
         _dismiss_dialog(owner)
         on_confirm()
 
@@ -295,6 +339,7 @@ def show_confirm_dialog(
 
     popup = _make_popup(title or "Confirm Action", container, auto_dismiss=False, height=360)
     _bind_popup_lifecycle(owner, popup)
+    popup.bind(on_dismiss=_resolve_cancel)
     owner._active_dialog = popup
     popup.open()
 
@@ -329,10 +374,18 @@ def show_custom_dialog(
     content_wrapper.add_widget(content_cls)
     content_holder.add_widget(content_wrapper)
 
-    def _on_close(*_args):
-        _dismiss_dialog(owner)
+    close_state = {"called": False}
+
+    def _resolve_close(*_args):
+        if close_state["called"]:
+            return
+        close_state["called"] = True
         if on_close:
             on_close()
+
+    def _on_close(*_args):
+        _dismiss_dialog(owner)
+        _resolve_close()
 
     actions = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(46), spacing=dp(10))
     actions.add_widget(
@@ -349,6 +402,7 @@ def show_custom_dialog(
 
     popup = _make_popup(title, container, auto_dismiss=bool(auto_dismiss), height=430)
     _bind_popup_lifecycle(owner, popup)
+    popup.bind(on_dismiss=_resolve_close)
     owner._active_dialog = popup
     popup.open()
     return popup
