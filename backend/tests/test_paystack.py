@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from backend.database import engine, async_engine
 from backend.main import app
 from backend.dependencies.auth import get_current_user
-from backend.models import User, Wallet, Transaction, JournalEntry, LedgerEntry, Agent
+from backend.models import User, Wallet, Transaction, JournalEntry, LedgerEntry, Agent, UserNotification
 from backend.core.config import settings
 from backend.core.transaction_types import TransactionType
 from backend.services.paystack_service import PaystackService
@@ -54,6 +54,7 @@ def setup_paystack_test_user_and_wallet(test_db: Session):
     original_paystack_secret = settings.PAYSTACK_SECRET_KEY
     settings.PAYSTACK_SECRET_KEY = "sk_test_webhook"
 
+    test_db.query(UserNotification).delete()
     test_db.query(Transaction).delete()
     test_db.query(Agent).delete()
     test_db.query(Wallet).delete()
@@ -177,6 +178,7 @@ def test_verify_paystack_payment_success(test_db: Session, client: TestClient):
         user_id=user.id,
         wallet_id=wallet.id,
         type=TransactionType.FUNDING,
+        entry_type="credit",
         amount=50.0,
         currency="GHS",
         status="pending",
@@ -214,6 +216,14 @@ def test_verify_paystack_payment_success(test_db: Session, client: TestClient):
 
     completed_transaction = test_db.query(Transaction).filter(Transaction.provider_reference == "verify_ref").first()
     assert completed_transaction.status == "completed"
+
+    deposit_notice = test_db.query(UserNotification).filter(
+        UserNotification.transaction_id == completed_transaction.id,
+        UserNotification.user_id == user.id,
+    ).one()
+    assert deposit_notice.title == "Deposit successful"
+    assert "GHS 50.00" in deposit_notice.message
+    assert deposit_notice.is_read is False
 
     journal = test_db.query(JournalEntry).filter(JournalEntry.transaction_id == completed_transaction.id).first()
     assert journal is not None

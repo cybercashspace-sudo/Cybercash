@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from backend.database import get_db
-from backend.models import Transaction, Wallet, User, Agent, Account, CryptoWallet, VirtualCard, Loan, RiskEvent
+from backend.models import Transaction, Wallet, User, Agent, Account, CryptoWallet, VirtualCard, Loan, RiskEvent, UserNotification
 from backend.core.transaction_types import TransactionType, normalize_transaction_type
 from backend.services.ledger_service import LedgerService, get_ledger_service
 from backend.services.commission_service import record_commission
@@ -70,6 +70,26 @@ def _resolve_entry_type(tx_type: str, metadata: Optional[Dict[str, Any]], user_i
         return "debit"
 
     return "debit"
+
+
+def _add_success_notification(db: AsyncSession, transaction: Transaction) -> None:
+    """Persist the in-app deposit notice atomically with its wallet credit."""
+    if normalize_transaction_type(transaction.type) != TransactionType.FUNDING:
+        return
+
+    amount = _money(transaction.amount)
+    currency = str(transaction.currency or "GHS").upper()
+    reference = str(transaction.provider_reference or f"TRX-{transaction.id}").strip()
+    db.add(
+        UserNotification(
+            user_id=transaction.user_id,
+            transaction_id=transaction.id,
+            notification_type="deposit",
+            title="Deposit successful",
+            message=f"Your deposit of {currency} {amount:.2f} was added to your wallet. Reference: {reference}.",
+            dedupe_key=f"transaction:{transaction.id}:user:{transaction.user_id}:success",
+        )
+    )
 
 class TransactionEngine:
     def __init__(self, db: AsyncSession, ledger_service: LedgerService):
@@ -196,6 +216,7 @@ class TransactionEngine:
 
             # 6. Status Update
             transaction.status = "completed"
+            _add_success_notification(self.db, transaction)
             await self.db.commit()
             await self.db.refresh(transaction)
             try:
@@ -311,6 +332,7 @@ class TransactionEngine:
 
             # 6. Status Update
             transaction.status = "completed"
+            _add_success_notification(self.db, transaction)
             await self.db.commit()
             await self.db.refresh(transaction)
             try:
