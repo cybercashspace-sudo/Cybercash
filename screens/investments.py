@@ -1,7 +1,9 @@
 import json
 import uuid
 from datetime import datetime
+from threading import Thread
 
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import StringProperty
 from kivymd.app import MDApp
@@ -220,6 +222,7 @@ KV = """
                             adaptive_height: True
 
                         MDRaisedButton:
+                            id: invest_button
                             text: "Invest Now"
                             md_bg_color: GOLD_SOFT
                             text_color: BG
@@ -323,6 +326,15 @@ class InvestmentScreen(ActionScreen):
         self.load_wallet_balance(notify=False)
         self.update_projection()
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Keep request state per screen instance so multiple navigation mounts
+        # cannot share locks or accidentally submit a second transaction.
+        self._investment_busy = False
+        self._payout_busy = False
+        self._wallet_load_in_progress = False
+        self._investment_history_load_in_progress = False
+
     def on_pre_leave(self, *_args):
         for field_name in ("investment_pin", "payout_pin"):
             field = self.ids.get(field_name)
@@ -377,7 +389,21 @@ class InvestmentScreen(ActionScreen):
         return selected
 
     def load_wallet_balance(self, notify: bool = True):
-        ok, payload = self._request("GET", "/wallet/me")
+        if self._wallet_load_in_progress:
+            return
+        self._wallet_load_in_progress = True
+        Thread(target=self._load_wallet_balance_worker, args=(bool(notify),), daemon=True).start()
+
+    def _load_wallet_balance_worker(self, notify: bool):
+        try:
+            result = self._request("GET", "/wallet/me")
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to load main balance."})
+        Clock.schedule_once(lambda _dt, response=result, should_notify=notify: self._finish_wallet_balance_load(response, should_notify), 0)
+
+    def _finish_wallet_balance_load(self, result, notify: bool):
+        self._wallet_load_in_progress = False
+        ok, payload = result
         if ok and isinstance(payload, dict):
             balance = float(payload.get("balance", 0.0) or 0.0)
             self.main_balance_display = f"GHS {balance:,.2f}"
@@ -507,12 +533,23 @@ class InvestmentScreen(ActionScreen):
             )
             return
         self._investment_busy = True
+        button = self.ids.get("invest_button")
+        if button is not None:
+            button.disabled = True
         if not self._pending_investment_request_id:
             self._pending_investment_request_id = uuid.uuid4().hex
             self._pending_investment_terms = terms
         self._set_feedback("Confirming PIN and creating your investment...", "info")
+        request_id = self._pending_investment_request_id
+        Thread(
+            target=self._create_investment_worker,
+            args=(float(amount), int(duration), str(pin), bool(biometric_verified), request_id),
+            daemon=True,
+        ).start()
+
+    def _create_investment_worker(self, amount, duration, pin, biometric_verified, request_id):
         try:
-            ok, payload = self._request(
+            result = self._request(
                 "POST",
                 "/transactions/investment/create",
                 payload={
@@ -520,14 +557,24 @@ class InvestmentScreen(ActionScreen):
                     "duration_days": duration,
                     "pin": pin,
                     "biometric_verified": bool(biometric_verified),
-                    "request_id": self._pending_investment_request_id,
+                    "request_id": request_id,
                 },
             )
-        finally:
-            if "investment_pin" in self.ids:
-                self.ids.investment_pin.text = ""
-            self._investment_busy = False
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to create investment."})
+        Clock.schedule_once(
+            lambda _dt, response=result, principal=amount, days=duration: self._finish_investment_request(response, principal, days),
+            0,
+        )
 
+    def _finish_investment_request(self, result, amount, duration):
+        self._investment_busy = False
+        button = self.ids.get("invest_button")
+        if button is not None:
+            button.disabled = False
+        if "investment_pin" in self.ids:
+            self.ids.investment_pin.text = ""
+        ok, payload = result
         if ok and isinstance(payload, dict):
             self._pending_investment_request_id = ""
             self._pending_investment_terms = None
@@ -572,8 +619,22 @@ class InvestmentScreen(ActionScreen):
         self._show_popup("Investment Failed", detail)
 
     def load_last_active_investment(self):
+        if self._investment_history_load_in_progress:
+            return
+        self._investment_history_load_in_progress = True
         self._set_feedback("Loading active investments...", "info")
-        ok, payload = self._request("GET", "/wallet/transactions/me", params={"limit": 100})
+        Thread(target=self._load_active_investment_worker, daemon=True).start()
+
+    def _load_active_investment_worker(self):
+        try:
+            result = self._request("GET", "/wallet/transactions/me", params={"limit": 100})
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to load investments."})
+        Clock.schedule_once(lambda _dt, response=result: self._finish_active_investment_load(response), 0)
+
+    def _finish_active_investment_load(self, result):
+        self._investment_history_load_in_progress = False
+        ok, payload = result
         if not ok or not isinstance(payload, list):
             detail = self._extract_detail(payload) or "Unable to load investments."
             self._set_feedback(detail, "error")
@@ -647,9 +708,19 @@ class InvestmentScreen(ActionScreen):
         self._submit_payout(investment_id, pin, False)
 
     def _submit_payout(self, investment_id, pin, biometric_verified):
+        # payout_investment locks this flow before optional fingerprint auth;
+        # keep that lock while the request runs so repeated taps cannot pay twice.
+        self._payout_busy = True
         self._set_feedback("Checking maturity and processing payout...", "info")
+        Thread(
+            target=self._payout_worker,
+            args=(int(investment_id), str(pin), bool(biometric_verified)),
+            daemon=True,
+        ).start()
+
+    def _payout_worker(self, investment_id, pin, biometric_verified):
         try:
-            ok, payload = self._request(
+            result = self._request(
                 "POST",
                 "/transactions/investment/payout",
                 payload={
@@ -658,10 +729,15 @@ class InvestmentScreen(ActionScreen):
                     "biometric_verified": bool(biometric_verified),
                 },
             )
-        finally:
-            if "payout_pin" in self.ids:
-                self.ids.payout_pin.text = ""
-            self._payout_busy = False
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to process payout."})
+        Clock.schedule_once(lambda _dt, response=result, inv_id=investment_id: self._finish_payout(response, inv_id), 0)
+
+    def _finish_payout(self, result, investment_id):
+        self._payout_busy = False
+        if "payout_pin" in self.ids:
+            self.ids.payout_pin.text = ""
+        ok, payload = result
         if ok and isinstance(payload, dict):
             tx_id = int(payload.get("id", 0) or 0)
             principal = float(payload.get("amount", 0.0) or 0.0)
