@@ -262,6 +262,7 @@ class TransactionEngine:
                     wallet_id=wallet.id,
                     agent_id=agent_id,
                     type=normalized_type,
+                    entry_type=entry_type,
                     amount=amount,
                     currency=wallet.currency or "GHS",
                     status="failed",
@@ -539,8 +540,8 @@ class TransactionEngine:
             if wallet.escrow_balance < amount:
                 raise ValueError("Insufficient escrow balance.")
 
-            release_fee = float(fee or 0.0)
-            if abs(release_fee - ESCROW_RELEASE_FEE_GHS) > 1e-9:
+            release_fee = _money(fee or 0.0)
+            if release_fee != ESCROW_RELEASE_FEE_GHS:
                 raise ValueError(f"Escrow release fee is fixed at GHS {ESCROW_RELEASE_FEE_GHS:.2f}.")
             if amount <= release_fee:
                 raise ValueError(
@@ -888,7 +889,6 @@ class TransactionEngine:
                 commission = _money(metadata.get("commission", 0.0))
                 if commission > 0:
                     agent.commission_balance = _money(Decimal(str(agent.commission_balance)) + commission)
-                agent.version += 1
         
         elif tx_type == TransactionType.AGENT_WITHDRAWAL:
             wallet.balance = _money(Decimal(str(wallet.balance)) - (amount + fee))
@@ -898,7 +898,6 @@ class TransactionEngine:
                 commission = _money(metadata.get("commission", 0.0))
                 if commission > 0:
                     agent.commission_balance = _money(Decimal(str(agent.commission_balance)) + commission)
-                agent.version += 1
 
         # --- WALLET ---
         elif tx_type == TransactionType.TRANSFER:

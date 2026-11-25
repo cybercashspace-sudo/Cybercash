@@ -153,6 +153,7 @@ def deterministic_external_services(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(BankService, "initiate_withdrawal", fake_bank_withdrawal, raising=True)
     monkeypatch.setattr(FlutterwaveService, "initiate_transfer", fake_flutterwave_transfer, raising=True)
     monkeypatch.setattr("backend.services.otp_service.send_email", fake_email, raising=True)
+    monkeypatch.setattr("backend.services.notification.send_email", fake_email, raising=True)
 
 
 @pytest.fixture(name="db_session")

@@ -99,6 +99,7 @@ class FxService:
             user_id=user.id,
             wallet_id=from_wallet.id, # Link to the wallet from which funds were deducted
             type="fx_exchange",
+            entry_type="debit",
             amount=-amount, # Negative for deduction from source
             currency=from_currency,
             status="completed",

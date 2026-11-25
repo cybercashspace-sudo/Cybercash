@@ -54,6 +54,7 @@ def setup_ledger_data(test_db: Session):
         user_id=user.id,
         wallet_id=wallet.id,
         type="deposit",
+        entry_type="credit",
         amount=100.0,
         currency="GHS",
         status="completed"

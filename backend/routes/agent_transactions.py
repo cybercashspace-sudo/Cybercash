@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, or_, select
 from typing import Optional, List
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 import json
 from pydantic import BaseModel
 
@@ -23,6 +24,76 @@ router = APIRouter(
     prefix="/agent-transactions",
     tags=["Agent Transactions"]
 )
+async def _repay_agent_loan_from_commission(
+    *,
+    db: AsyncSession,
+    agent: Agent,
+    customer_user_id: int,
+    commission_earned: Decimal,
+    currency: str,
+    transaction: Transaction,
+    transaction_engine: TransactionEngine,
+    source: str,
+) -> None:
+    """Apply the configured commission deduction after a successful transaction."""
+    if commission_earned <= 0:
+        return
+
+    result = await db.execute(
+        select(Loan)
+        .filter(
+            Loan.agent_id == agent.id,
+            Loan.status.in_(loan_service.OPEN_LOAN_STATUSES),
+            Loan.outstanding_balance > 0,
+        )
+        .with_for_update()
+    )
+    active_loan = result.scalars().first()
+    if not active_loan:
+        return
+
+    repayment = (
+        commission_earned * Decimal(str(settings.LOAN_REPAYMENT_PERCENTAGE))
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    repayment = min(repayment, Decimal(str(active_loan.outstanding_balance or 0)))
+    if repayment <= 0:
+        return
+
+    active_loan.outstanding_balance = Decimal(str(active_loan.outstanding_balance or 0)) - repayment
+    if active_loan.outstanding_balance <= 0:
+        active_loan.outstanding_balance = Decimal("0.00")
+        active_loan.status = "repaid"
+        active_loan.repayment_date = datetime.now(timezone.utc)
+    elif active_loan.repayment_due_date:
+        due_date = active_loan.repayment_due_date
+        if due_date.tzinfo is None:
+            due_date = due_date.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > due_date:
+            active_loan.status = "overdue"
+
+    agent.commission_balance = Decimal(str(agent.commission_balance or 0)) - repayment
+    db.add_all([active_loan, agent])
+    await loan_service.sync_wallet_loan_balance(db, agent.user_id, active_agent_id=agent.id)
+    await record_commission(
+        db,
+        agent_id=agent.id,
+        user_id=customer_user_id,
+        amount=-repayment,
+        currency=currency,
+        commission_type="LOAN_REPAYMENT_OFFSET",
+        status="offset",
+        transaction=transaction,
+        metadata={"source": source},
+    )
+    await transaction_engine.ledger_service.create_journal_entry(
+        description=f"Automatic loan repayment from commission (agent {agent.id})",
+        ledger_entries_data=[
+            {"account_name": "Commissions Payable (Liability)", "debit": repayment},
+            {"account_name": "Loan Principal (Asset)", "credit": repayment},
+        ],
+        transaction=transaction,
+    )
+    await db.commit()
 
 RECOVERABLE_AGENT_STATUSES = {"pending", "failed"}
 RECOVERABLE_AGENT_TYPES = {TransactionType.AGENT_DEPOSIT, TransactionType.AGENT_WITHDRAWAL}
@@ -185,6 +256,17 @@ async def agent_cash_deposit(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    await _repay_agent_loan_from_commission(
+        db=db,
+        agent=agent,
+        customer_user_id=customer_user_id,
+        commission_earned=Decimal(str(commission_earned)),
+        currency=request.currency,
+        transaction=transaction,
+        transaction_engine=transaction_engine,
+        source="agent_cash_deposit_auto_repayment",
+    )
+
     return transaction
 
 @router.post("/cash-withdrawal", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
@@ -205,36 +287,11 @@ async def agent_cash_withdrawal(
     )
 
     # 1. Calculate Commission
-    commission_earned = request.amount * agent.commission_rate
+    commission_earned = (
+        Decimal(str(request.amount)) * Decimal(str(agent.commission_rate or 0))
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     
-    # 2. Loan Repayment Logic (Shared)
-    result = await db.execute(select(Loan).filter(
-        Loan.agent_id == agent.id,
-        Loan.status.in_(loan_service.OPEN_LOAN_STATUSES),
-        Loan.outstanding_balance > 0
-    ))
-    active_loan = result.scalars().first()
-    
-    loan_repayment_amount = 0.0
-    if active_loan:
-        repayment_percentage = settings.LOAN_REPAYMENT_PERCENTAGE
-        loan_repayment_amount = min(commission_earned * repayment_percentage, active_loan.outstanding_balance)
-        
-        active_loan.outstanding_balance -= loan_repayment_amount
-        if active_loan.outstanding_balance <= 0:
-            active_loan.outstanding_balance = 0
-            active_loan.status = "repaid"
-            active_loan.repayment_date = datetime.now()
-        elif active_loan.repayment_due_date and datetime.now() > active_loan.repayment_due_date:
-            active_loan.status = "overdue"
-        db.add(active_loan)
-        await loan_service.sync_wallet_loan_balance(
-            db,
-            agent.user_id,
-            active_agent_id=agent.id,
-        )
-
-    # 3. Process Transaction
+    # Process the withdrawal first so failed withdrawals do not trigger repayment.
     # Withdrawal Fee logic:
     # Usually customer pays a fee.
     # e.g., Request 100. Fee 2. Wallet deducted 102. Agent gives 100.
@@ -248,7 +305,7 @@ async def agent_cash_withdrawal(
             amount=request.amount,
             agent_id=agent.id,
             metadata={
-                "commission": commission_earned,
+                "commission": float(commission_earned),
                 "fee": withdrawal_fee,
                 "pin_verified": True,
                 "customer_email": request.customer_email,
@@ -258,29 +315,16 @@ async def agent_cash_withdrawal(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    if loan_repayment_amount > 0:
-        agent.commission_balance -= loan_repayment_amount
-        db.add(agent)
-        await record_commission(
-            db,
-            agent_id=agent.id,
-            user_id=customer_user_id,
-            amount=-loan_repayment_amount,
-            currency=request.currency,
-            commission_type="LOAN_REPAYMENT_OFFSET",
-            status="offset",
-            transaction=transaction,
-            metadata={"source": "agent_cash_withdrawal_auto_repayment"},
-        )
-        
-        await transaction_engine.ledger_service.create_journal_entry(
-            description=f"Auto Loan Repayment from Commission (Agent {agent.id})",
-            ledger_entries_data=[
-                {"account_name": "Commissions Payable (Liability)", "debit": loan_repayment_amount},
-                {"account_name": "Loan Principal (Asset)", "credit": loan_repayment_amount}
-            ],
-            transaction=transaction
-        )
+    await _repay_agent_loan_from_commission(
+        db=db,
+        agent=agent,
+        customer_user_id=customer_user_id,
+        commission_earned=commission_earned,
+        currency=request.currency,
+        transaction=transaction,
+        transaction_engine=transaction_engine,
+        source="agent_cash_withdrawal_auto_repayment",
+    )
 
     return transaction
 

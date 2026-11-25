@@ -56,6 +56,8 @@ class LedgerService:
             {"name": "Commission Expense (Agent)", "type": "Expense", "description": "Commission expense on agent airtime/data sales."},
             {"name": "Revenue Payout (Expense)", "type": "Expense", "description": "Expense for admin-initiated revenue payouts."},
             {"name": "Investment Payout (Expense)", "type": "Expense", "description": "Payouts to customers from investment gains (if tracked as expense)."},
+            {"name": "Agent Airtime Cost of Sales", "type": "Expense", "description": "Provider cost of airtime sold through agent float."},
+            {"name": "Agent Data Bundle Cost of Sales", "type": "Expense", "description": "Provider cost of data bundles sold through agent float."},
 
             # Agent float asset
             {"name": "Cash (Agent Float)", "type": "Asset", "description": "Cash backing agent float balances."},

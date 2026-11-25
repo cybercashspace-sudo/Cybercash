@@ -28,6 +28,8 @@ from backend.services.paystack_fulfillment import (
     to_ghs_decimal,
 )
 from backend.services.settings_service import get_or_create_platform_settings
+from utils.network import detect_network, normalize_ghana_number
+from decimal import Decimal, ROUND_HALF_UP
 import json # Import json
 import uuid # Import uuid
 import os
@@ -103,7 +105,8 @@ async def create_agent_profile(
     if user_wallet.balance < registration_fee:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient wallet balance to pay registration fee")
 
-    user_wallet.balance -= registration_fee
+    registration_fee_amount = Decimal(str(registration_fee)).quantize(Decimal("0.01"))
+    user_wallet.balance = Decimal(str(user_wallet.balance or 0)) - registration_fee_amount
     db_agent = Agent(
         user_id=agent_data.user_id,
         status=agent_data.status,
@@ -118,7 +121,8 @@ async def create_agent_profile(
         wallet_id=user_wallet.id,
         agent_id=db_agent.id,
         type="agent_registration_fee",
-        amount=registration_fee,
+        entry_type="debit",
+        amount=registration_fee_amount,
         currency=user_wallet.currency,
         status="completed",
     )
@@ -128,8 +132,8 @@ async def create_agent_profile(
     await ledger_service.create_journal_entry(
         description=f"Agent registration fee for user {agent_data.user_id}",
         ledger_entries_data=[
-            {"account_name": "Customer Wallets (Liability)", "debit": registration_fee, "credit": 0.0},
-            {"account_name": "Revenue - Agent Fees", "debit": 0.0, "credit": registration_fee},
+            {"account_name": "Customer Wallets (Liability)", "debit": registration_fee_amount, "credit": 0.0},
+            {"account_name": "Revenue - Agent Fees", "debit": 0.0, "credit": registration_fee_amount},
         ],
         transaction=fee_txn,
     )
@@ -252,6 +256,7 @@ async def register_agent(
                 user_id=current_user.id,
                 wallet_id=wallet.id,
                 type=AGENT_REGISTRATION_TX_TYPE,
+                entry_type="credit",
                 amount=float(registration_fee_ghs),
                 currency="GHS", # Assuming GHS
                 status="pending",
@@ -463,9 +468,10 @@ async def agent_sell_airtime(
         network_provider = detect_network(phone_number)
     network_provider = network_provider.upper()
 
-    commission_rate = agent.commission_rate
-    commission_earned = airtime_request.amount * commission_rate
-    amount_to_deduct = airtime_request.amount
+    commission_rate = Decimal(str(agent.commission_rate or 0))
+    sale_amount = Decimal(str(airtime_request.amount)).quantize(Decimal("0.01"))
+    commission_earned = (sale_amount * commission_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    amount_to_deduct = sale_amount
     funding_source = "agent_float"
     if agent.float_balance >= amount_to_deduct:
         agent.float_balance -= amount_to_deduct
@@ -481,7 +487,7 @@ async def agent_sell_airtime(
 
     momo_response = await momo_service.initiate_airtime_payment(
         phone_number=phone_number,
-        amount=airtime_request.amount,
+        amount=float(sale_amount),
         currency=airtime_request.currency,
         network_provider=network_provider,
         user_id=current_user.id
@@ -508,7 +514,7 @@ async def agent_sell_airtime(
         metadata_json=json.dumps({
             "phone_number": phone_number,
             "network_provider": network_provider,
-            "commission_earned": commission_earned,
+            "commission_earned": float(commission_earned),
             "funding_source": funding_source,
         })
     )
@@ -520,7 +526,8 @@ async def agent_sell_airtime(
         wallet_id=user_wallet.id,
         agent_id=agent.id,
         type="agent_airtime_sale",
-        amount=airtime_request.amount,
+        entry_type="debit",
+        amount=sale_amount,
         currency=airtime_request.currency,
         commission_earned=commission_earned,
         status="completed",
@@ -529,7 +536,7 @@ async def agent_sell_airtime(
     db.add(db_transaction)
     await db.flush()
 
-    agent.commission_balance += commission_earned
+    agent.commission_balance = Decimal(str(agent.commission_balance or 0)) + commission_earned
     db.add(agent)
     await record_commission(
         db,
@@ -546,18 +553,28 @@ async def agent_sell_airtime(
         },
     )
 
+    sale_ledger_entries = (
+        [
+            {"account_name": "Cash (External Bank)", "debit": sale_amount, "credit": 0.0},
+            {"account_name": "Cash (Agent Float)", "debit": 0.0, "credit": sale_amount},
+            {"account_name": "Revenue - Airtime Sales", "debit": 0.0, "credit": sale_amount},
+            {"account_name": "Agent Airtime Cost of Sales", "debit": sale_amount, "credit": 0.0},
+        ]
+        if funding_source == "agent_float"
+        else [
+            {"account_name": "Customer Wallets (Liability)", "debit": sale_amount, "credit": 0.0},
+            {"account_name": "Revenue - Airtime Sales", "debit": 0.0, "credit": sale_amount},
+        ]
+    )
+    sale_ledger_entries.extend(
+        [
+            {"account_name": "Commission Expense (Agent)", "debit": commission_earned, "credit": 0.0},
+            {"account_name": "Accounts Payable (Agent Commission)", "debit": 0.0, "credit": commission_earned},
+        ]
+    )
     await ledger_service.create_journal_entry(
         description=f"Agent {agent.id} airtime sale to {airtime_request.phone_number}",
-        ledger_entries_data=[
-            {
-                "account_name": "Cash (Agent Float)" if funding_source == "agent_float" else "Customer Wallets (Liability)",
-                "debit": amount_to_deduct if funding_source == "wallet" else 0.0,
-                "credit": amount_to_deduct if funding_source == "agent_float" else 0.0,
-            },
-            {"account_name": "Revenue - Airtime Sales", "debit": 0.0, "credit": airtime_request.amount},
-            {"account_name": "Commission Expense (Agent)", "debit": commission_earned, "credit": 0.0},
-            {"account_name": "Accounts Payable (Agent Commission)", "debit": 0.0, "credit": commission_earned}
-        ],
+        ledger_entries_data=sale_ledger_entries,
         payment=db_payment,
         transaction=db_transaction
     )
@@ -595,9 +612,10 @@ async def agent_sell_data_bundle(
         network_provider = detect_network(phone_number)
     network_provider = network_provider.upper()
 
-    commission_rate = agent.commission_rate
-    commission_earned = data_bundle_request.amount * commission_rate
-    amount_to_deduct = data_bundle_request.amount
+    commission_rate = Decimal(str(agent.commission_rate or 0))
+    sale_amount = Decimal(str(data_bundle_request.amount)).quantize(Decimal("0.01"))
+    commission_earned = (sale_amount * commission_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    amount_to_deduct = sale_amount
     funding_source = "agent_float"
     if agent.float_balance >= amount_to_deduct:
         agent.float_balance -= amount_to_deduct
@@ -613,7 +631,7 @@ async def agent_sell_data_bundle(
 
     momo_response = await momo_service.initiate_data_bundle_payment(
         phone_number=phone_number,
-        amount=data_bundle_request.amount,
+        amount=float(sale_amount),
         currency=data_bundle_request.currency,
         network_provider=network_provider,
         user_id=current_user.id
@@ -640,7 +658,7 @@ async def agent_sell_data_bundle(
         metadata_json=json.dumps({
             "phone_number": phone_number,
             "network_provider": network_provider,
-            "commission_earned": commission_earned,
+            "commission_earned": float(commission_earned),
             "funding_source": funding_source,
         })
     )
@@ -652,7 +670,8 @@ async def agent_sell_data_bundle(
         wallet_id=user_wallet.id,
         agent_id=agent.id,
         type="agent_data_bundle_sale",
-        amount=data_bundle_request.amount,
+        entry_type="debit",
+        amount=sale_amount,
         currency=data_bundle_request.currency,
         commission_earned=commission_earned,
         status="completed",
@@ -661,7 +680,7 @@ async def agent_sell_data_bundle(
     db.add(db_transaction)
     await db.flush()
 
-    agent.commission_balance += commission_earned
+    agent.commission_balance = Decimal(str(agent.commission_balance or 0)) + commission_earned
     db.add(agent)
     await record_commission(
         db,
@@ -678,18 +697,28 @@ async def agent_sell_data_bundle(
         },
     )
 
+    sale_ledger_entries = (
+        [
+            {"account_name": "Cash (External Bank)", "debit": sale_amount, "credit": 0.0},
+            {"account_name": "Cash (Agent Float)", "debit": 0.0, "credit": sale_amount},
+            {"account_name": "Revenue - Data Bundle Sales", "debit": 0.0, "credit": sale_amount},
+            {"account_name": "Agent Data Bundle Cost of Sales", "debit": sale_amount, "credit": 0.0},
+        ]
+        if funding_source == "agent_float"
+        else [
+            {"account_name": "Customer Wallets (Liability)", "debit": sale_amount, "credit": 0.0},
+            {"account_name": "Revenue - Data Bundle Sales", "debit": 0.0, "credit": sale_amount},
+        ]
+    )
+    sale_ledger_entries.extend(
+        [
+            {"account_name": "Commission Expense (Agent)", "debit": commission_earned, "credit": 0.0},
+            {"account_name": "Accounts Payable (Agent Commission)", "debit": 0.0, "credit": commission_earned},
+        ]
+    )
     await ledger_service.create_journal_entry(
         description=f"Agent {agent.id} data bundle sale to {data_bundle_request.phone_number}",
-        ledger_entries_data=[
-            {
-                "account_name": "Cash (Agent Float)" if funding_source == "agent_float" else "Customer Wallets (Liability)",
-                "debit": amount_to_deduct if funding_source == "wallet" else 0.0,
-                "credit": amount_to_deduct if funding_source == "agent_float" else 0.0,
-            },
-            {"account_name": "Revenue - Data Bundle Sales", "debit": 0.0, "credit": data_bundle_request.amount},
-            {"account_name": "Commission Expense (Agent)", "debit": commission_earned, "credit": 0.0},
-            {"account_name": "Accounts Payable (Agent Commission)", "debit": 0.0, "credit": commission_earned}
-        ],
+        ledger_entries_data=sale_ledger_entries,
         payment=db_payment,
         transaction=db_transaction
     )

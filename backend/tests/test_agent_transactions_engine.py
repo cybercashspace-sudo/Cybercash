@@ -115,7 +115,7 @@ def test_agent_cash_deposit_with_topup_fee_credits_net_amount(client, db_session
 
     assert round(agent.float_balance, 2) == 990.5
     assert round(customer_wallet.balance, 2) == 59.5
-    assert round(agent.commission_balance, 2) == 0.2
+    assert round(float(agent.commission_balance), 2) == 0.2
 
 def test_agent_cash_withdrawal_flow(client, db_session):
     # 1. Setup Data
@@ -238,7 +238,7 @@ def test_agent_commission_loan_repayment(client, db_session):
     db_session.refresh(agent)
     db_session.refresh(loan)
     
-    assert agent.commission_balance == 8.0 # 10 - 2
+    assert float(agent.commission_balance) == 8.0 # 10 - 2
     assert loan.outstanding_balance == 48.0 # 50 - 2
 
 
@@ -261,6 +261,7 @@ def test_agent_startup_loan_float_is_non_withdrawable(client, db_session):
         wallet_id=agent_wallet.id,
         agent_id=agent.id,
         type="agent_startup_loan_credit",
+        entry_type="credit",
         amount=50.0,
         currency="GHS",
         status="completed",

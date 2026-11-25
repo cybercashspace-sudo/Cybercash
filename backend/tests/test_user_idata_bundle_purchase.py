@@ -47,7 +47,16 @@ def test_user_can_purchase_idata_bundle_via_bundles_route(client, db_session, mo
         assert bundle_package_id == 5
         return {"status": "success", "order_id": "IDATA_ORDER_ABC"}
 
+    async def _fake_wallet_balance() -> dict:
+        return {"balance": 1000.0}
+
     monkeypatch.setattr(bundles_route.idata_service, "place_order", _fake_place_order, raising=True)
+    monkeypatch.setattr(bundles_route.idata_service, "wallet_balance", _fake_wallet_balance, raising=True)
+
+    async def _fake_sync_idata_catalog(db, *, network: str) -> list:
+        return []
+
+    monkeypatch.setattr(bundles_route, "_sync_idata_catalog", _fake_sync_idata_catalog, raising=True)
 
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}

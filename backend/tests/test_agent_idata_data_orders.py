@@ -56,7 +56,11 @@ async def test_agent_can_purchase_idata_bundle(client, db_session, monkeypatch):
         assert bundle_package_id == 5
         return {"status": "success", "order_id": "IDATA_ORDER_123"}
 
+    async def _fake_wallet_balance() -> dict:
+        return {"balance": 1000.0}
+
     monkeypatch.setattr(data_orders_route.idata_service, "place_order", _fake_place_order, raising=True)
+    monkeypatch.setattr(data_orders_route.idata_service, "wallet_balance", _fake_wallet_balance, raising=True)
 
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
@@ -141,7 +145,11 @@ async def test_agent_idata_order_status_label_shows_ordered_when_provider_report
         assert bundle_package_id == 5
         return {"status": "ordered", "order_id": "IDATA_ORDER_456"}
 
+    async def _fake_wallet_balance() -> dict:
+        return {"balance": 1000.0}
+
     monkeypatch.setattr(data_orders_route.idata_service, "place_order", _fake_place_order, raising=True)
+    monkeypatch.setattr(data_orders_route.idata_service, "wallet_balance", _fake_wallet_balance, raising=True)
 
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}

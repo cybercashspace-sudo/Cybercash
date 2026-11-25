@@ -63,9 +63,9 @@ def setup_admin_test_data(test_db: Session):
     test_db.refresh(normal_user_wallet)
     test_db.refresh(admin_user_wallet)
 
-    transaction1 = Transaction(user_id=normal_user.id, wallet_id=normal_user_wallet.id, type="deposit", amount=100.0, currency="GHS", status="completed")
-    transaction2 = Transaction(user_id=normal_user.id, wallet_id=normal_user_wallet.id, type="transfer_send", amount=50.0, currency="GHS", status="completed")
-    transaction3 = Transaction(user_id=admin_user.id, wallet_id=admin_user_wallet.id, type="deposit", amount=500.0, currency="GHS", status="completed")
+    transaction1 = Transaction(user_id=normal_user.id, wallet_id=normal_user_wallet.id, type="deposit", entry_type="credit", amount=100.0, currency="GHS", status="completed")
+    transaction2 = Transaction(user_id=normal_user.id, wallet_id=normal_user_wallet.id, type="transfer_send", entry_type="debit", amount=50.0, currency="GHS", status="completed")
+    transaction3 = Transaction(user_id=admin_user.id, wallet_id=admin_user_wallet.id, type="deposit", entry_type="credit", amount=500.0, currency="GHS", status="completed")
     test_db.add_all([transaction1, transaction2, transaction3])
     test_db.commit()
     
@@ -147,7 +147,7 @@ def test_get_all_transactions_admin_forbidden(test_db: Session, as_normal_user):
 
 
 def test_suspended_admin_can_still_access_admin_endpoints(test_db: Session, admin_auth_headers):
-    admin_user = test_db.query(User).filter(User.id == 400).first()
+    admin_user = test_db.query(User).filter(User.email == "admin@example.com").first()
     assert admin_user is not None
     admin_user.status = "suspended"
     admin_user.is_active = False
@@ -156,7 +156,7 @@ def test_suspended_admin_can_still_access_admin_endpoints(test_db: Session, admi
     response = client.get("/admin/wallets", headers=admin_auth_headers)
     assert response.status_code == 200
     wallets_data = response.json()
-    assert len(wallets_data) == 2
+    assert len(wallets_data) == 3
 
 
 def test_admin_account_cannot_be_suspended(test_db: Session, admin_auth_headers):

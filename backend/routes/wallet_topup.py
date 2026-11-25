@@ -242,6 +242,7 @@ async def _credit_wallet_from_verified_payment(db: AsyncSession, *, reference: s
         user_id=int(user_id),
         wallet_id=wallet.id,
         type="wallet_topup",
+        entry_type="credit",
         amount=amount,
         currency="GHS",
         status="completed",

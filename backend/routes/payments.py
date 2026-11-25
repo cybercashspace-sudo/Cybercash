@@ -122,6 +122,7 @@ async def initiate_momo_bill_payment(
             user_id=current_user.id,
             wallet_id=user_wallet.id,
             type="bill_payment_initiate",
+            entry_type="debit",
             amount=bill_payment_request.amount,
             status="pending"
         )

@@ -15,7 +15,7 @@ def override_get_current_user_momo():
     )
 
 
-def test_momo_funding_initiate_creates_pending_payment_and_transaction(client, db_session):
+def test_momo_funding_initiate_reports_disabled_channel_without_creating_records(client, db_session):
     app.dependency_overrides[get_current_user] = override_get_current_user_momo
     try:
         user = User(
@@ -29,32 +29,15 @@ def test_momo_funding_initiate_creates_pending_payment_and_transaction(client, d
         db_session.add(user)
         db_session.commit()
 
-        with patch(
-            "backend.routes.payments.momo_service.initiate_deposit",
-            new=AsyncMock(
-                return_value={
-                    "status": "pending",
-                    "message": "Awaiting confirmation",
-                    "processor_transaction_id": "MOMO_DEP_REF_1",
-                }
-            ),
-        ):
-            response = client.post(
-                "/payments/momo/deposit/initiate",
-                json={"amount": 100.0, "currency": "GHS", "phone_number": "0240000000"},
-            )
+        response = client.post(
+            "/payments/momo/deposit/initiate",
+            json={"amount": 100.0, "currency": "GHS", "phone_number": "0240000000"},
+        )
 
-        assert response.status_code == 202
-        payment = db_session.query(Payment).filter(Payment.user_id == 300).first()
-        tx = db_session.query(Transaction).filter(Transaction.user_id == 300).first()
-        wallet = db_session.query(Wallet).filter(Wallet.user_id == 300).first()
-
-        assert payment is not None
-        assert payment.status == "awaiting_confirmation"
-        assert tx is not None
-        assert tx.status == "pending"
-        assert tx.type == "FUNDING"
-        assert wallet is not None
+        assert response.status_code == 403
+        assert "disabled" in response.json()["detail"].lower()
+        assert db_session.query(Payment).filter(Payment.user_id == 300).count() == 0
+        assert db_session.query(Transaction).filter(Transaction.user_id == 300).count() == 0
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
@@ -95,6 +78,7 @@ def test_momo_funding_callback_success_credits_wallet(client, db_session):
             user_id=300,
             wallet_id=wallet.id,
             type="FUNDING",
+            entry_type="credit",
             amount=75.0,
             currency="GHS",
             status="pending",

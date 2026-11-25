@@ -332,6 +332,7 @@ async def purchase_data_as_agent(
             wallet_id=user_wallet.id,
             agent_id=agent.id,
             type="agent_data_bundle_sale",
+            entry_type="debit",
             amount=amount_to_deduct,
             currency=str(bundle.currency or "GHS").upper(),
             commission_earned=commission_to_accrue,

@@ -75,6 +75,7 @@ async def grant_startup_loan_credit(
             wallet_id=wallet_id,
             agent_id=agent.id,
             type=STARTUP_LOAN_CREDIT_TX_TYPE,
+            entry_type="credit",
             amount=amount,
             currency=currency,
             status="completed",

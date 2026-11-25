@@ -1,5 +1,6 @@
 import json
 import uuid
+from decimal import Decimal
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -428,7 +429,7 @@ async def purchase_data_bundle(
             bundle = result.scalars().first()
         if not bundle:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bundle not found or inactive.")
-        amount = bundle.amount
+        amount = Decimal(str(bundle.amount)).quantize(Decimal("0.01"))
         provider = str(getattr(bundle, "provider", "") or "").strip().lower() or "momo"
 
         idata_network = ""
@@ -460,12 +461,13 @@ async def purchase_data_bundle(
         if wallet.balance < amount:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient wallet balance.")
 
-        wallet.balance -= amount
+        wallet.balance = Decimal(str(wallet.balance or 0)) - amount
 
         transaction = Transaction(
             user_id=current_user.id,
             wallet_id=wallet.id,
             type=TransactionType.DATA,
+            entry_type="debit",
             amount=amount,
             currency=bundle.currency,
             status="pending",
@@ -507,7 +509,7 @@ async def purchase_data_bundle(
                     bundle_package_id=int(idata_package_id),
                 )
             except IDataApiError as exc:
-                wallet.balance += amount
+                wallet.balance = Decimal(str(wallet.balance or 0)) + amount
                 db.add(wallet)
 
                 transaction.status = "failed"
@@ -541,7 +543,7 @@ async def purchase_data_bundle(
                 provider_ref = f"IDATA_{uuid.uuid4().hex}"
 
             if provider_status and provider_status not in {"success", "successful", "completed", "ok"}:
-                wallet.balance += amount
+                wallet.balance = Decimal(str(wallet.balance or 0)) + amount
                 db.add(wallet)
                 transaction.status = "failed"
                 transaction.provider_reference = provider_ref
@@ -569,7 +571,7 @@ async def purchase_data_bundle(
             # Call provider API (simulated MoMo fallback).
             provider_response = await momo_service.initiate_data_bundle_payment(
                 phone_number=phone,
-                amount=amount,
+                amount=float(amount),
                 currency=bundle.currency,
                 network_provider=bundle.network,
                 user_id=current_user.id,
@@ -615,7 +617,7 @@ async def purchase_data_bundle(
             return transaction
 
         # Provider failure -> refund wallet and persist failed transaction.
-        wallet.balance += amount
+        wallet.balance = Decimal(str(wallet.balance or 0)) + amount
         db.add(wallet)
         transaction.status = "failed"
         db.add(transaction)

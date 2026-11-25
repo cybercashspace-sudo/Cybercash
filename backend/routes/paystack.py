@@ -412,6 +412,7 @@ async def initiate_paystack_payment(
                 user_id=current_user.id,
                 wallet_id=wallet.id,
                 type=TransactionType.FUNDING,
+                entry_type="credit",
                 amount=float(amount_ghs),
                 currency="GHS", # Assuming GHS, adjust if dynamic
                 status="pending",

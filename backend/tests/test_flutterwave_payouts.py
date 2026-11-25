@@ -188,6 +188,7 @@ def test_flutterwave_webhook_success_marks_payout_completed(client, db_session):
     transaction = Transaction(
         user_id=user.id,
         wallet_id=wallet.id,
+        entry_type="debit",
         amount=40.0,
         currency="GHS",
         type="MOBILE_MONEY",
