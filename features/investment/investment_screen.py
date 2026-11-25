@@ -5,6 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from core.pull_refresh import PullToRefreshMixin
 from components.app_snackbar import show_app_snackbar
 
 from features.investment.investment_controller import InvestmentController
@@ -13,7 +14,7 @@ from features.investment.investment_controller import InvestmentController
 Builder.load_file(str(Path(__file__).with_name("investment_screen.kv")))
 
 
-class InvestmentScreen(MDScreen):
+class InvestmentScreen(PullToRefreshMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.controller = InvestmentController()

@@ -16,8 +16,8 @@ from typing import Dict, Optional, Sequence
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 
-DEFAULT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/cybercash"
-DEFAULT_SYNC_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5433/cybercash"
+DEFAULT_DATABASE_URL = "postgresql+asyncpg://cyber_app@127.0.0.1:5433/cybercash"
+DEFAULT_SYNC_DATABASE_URL = "postgresql://cyber_app@127.0.0.1:5433/cybercash"
 REQUIRED_LOCAL_DATABASE = "cybercash"
 
 

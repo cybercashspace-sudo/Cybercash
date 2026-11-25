@@ -2,11 +2,10 @@ from kivy.properties import BooleanProperty
 from kivy.properties import NumericProperty
 from kivy.properties import ObjectProperty
 from kivy.properties import StringProperty
-from kivy.uix.behaviors import ButtonBehavior
 from kivymd.uix.card import MDCard
 
 
-class InvestmentCard(ButtonBehavior, MDCard):
+class InvestmentCard(MDCard):
     title = StringProperty("")
     subtitle = StringProperty("")
     detail = StringProperty("")

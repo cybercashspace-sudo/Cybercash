@@ -4,12 +4,9 @@ import asyncio
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import inspect, text, select, or_
+from sqlalchemy import inspect, text
 
 from backend.database import async_engine, async_session, Base
-from backend.models import User, Agent, Wallet
-from utils.security import hash_pin
-from utils.network import detect_network
 from backend.routes import (
     auth,
     wallet,
@@ -219,92 +216,6 @@ def _apply_schema_patches(sync_conn) -> None:
                 )
 
 
-async def _ensure_default_access_user() -> None:
-    """
-    Ensure a default admin/agent/user account exists for local dashboards.
-    """
-    default_phone = "0247689184"
-    default_pin = "2139"
-
-    async with async_session() as session:
-        result = await session.execute(
-            select(User).filter(
-                or_(
-                    User.momo_number == default_phone,
-                    User.phone_number == default_phone,
-                )
-            )
-        )
-        user = result.scalars().first()
-        pin_hashed = hash_pin(default_pin)
-        created_default_admin = False
-
-        if not user:
-            created_default_admin = True
-            user = User(
-                momo_number=default_phone,
-                phone_number=default_phone,
-                full_name="Default Admin",
-                provider=detect_network(default_phone),
-                pin_hash=pin_hashed,
-                password_hash=pin_hashed,
-                is_active=True,
-                is_admin=True,
-                is_agent=True,
-                is_verified=True,
-                status="active",
-                role="admin",
-                failed_pin_attempts=0,
-                pin_locked_until=None,
-            )
-            session.add(user)
-            await session.flush()
-        else:
-            user.momo_number = default_phone
-            user.phone_number = default_phone
-            user.provider = detect_network(default_phone)
-            user.pin_hash = pin_hashed
-            user.password_hash = pin_hashed
-            user.is_active = True
-            user.is_admin = True
-            user.is_agent = True
-            user.is_verified = True
-            user.status = "active"
-            user.role = "admin"
-            user.failed_pin_attempts = 0
-            user.pin_locked_until = None
-            session.add(user)
-
-        result = await session.execute(select(Wallet).filter(Wallet.user_id == user.id))
-        wallet = result.scalars().one_or_none()
-        if not wallet:
-            if not created_default_admin:
-                logger.critical("Default admin user %s is missing a wallet; refusing automatic recreation.", user.id)
-                raise RuntimeError("Default admin wallet missing. Manual investigation required.")
-            wallet = Wallet(user_id=user.id, balance=0.0, currency="GHS")
-            session.add(wallet)
-
-        result = await session.execute(select(Agent).filter(Agent.user_id == user.id))
-        agent = result.scalars().first()
-        if not agent:
-            agent = Agent(
-                user_id=user.id,
-                status="active",
-                business_name="Default Admin Agent",
-                agent_location="HQ",
-                commission_rate=0.02,
-                float_balance=0.0,
-                commission_balance=0.0,
-            )
-            session.add(agent)
-        else:
-            agent.status = "active"
-            if agent.commission_rate is None:
-                agent.commission_rate = 0.02
-            session.add(agent)
-
-        await session.commit()
-
 # ==========================================
 # STARTUP EVENT
 # ==========================================
@@ -316,7 +227,6 @@ async def _run_database_startup() -> None:
             await conn.run_sync(Base.metadata.create_all)
             await conn.run_sync(_apply_schema_patches)
 
-        await _ensure_default_access_user()
 
     from backend.services.ledger_service import LedgerService
 
