@@ -24,6 +24,7 @@ class LoginScreen(ResponsiveScreen):
     remember_me = BooleanProperty(True)
     biometric_login_enabled = BooleanProperty(False)
     biometric_available = BooleanProperty(platform == "android")
+    biometric_login_ready = BooleanProperty(False)
     network_text = StringProperty("Network: Enter your Ghana MoMo number to detect your network.")
     name_hint_text = StringProperty("We will confirm your saved profile name automatically if this number is already registered.")
     detected_first_name = StringProperty("")
@@ -67,11 +68,11 @@ class LoginScreen(ResponsiveScreen):
         app = MDApp.get_running_app()
         availability_check = getattr(app, "is_biometric_available", None) if app else None
         self.biometric_available = bool(availability_check()) if callable(availability_check) else False
-        self.remember_me = True
         self.biometric_login_enabled = False
         self.password_visible = False
         self._set_text("", "momo_input", "pin_input", "first_name_input")
         self._restore_remembered_identity()
+        self._update_biometric_login_ready()
         pin_input = self.ids.get("pin_input")
         if pin_input is not None and hasattr(pin_input, "password"):
             pin_input.password = True
@@ -111,7 +112,7 @@ class LoginScreen(ResponsiveScreen):
 
         momo_number = str(remembered.get("momo") or "").strip()
         self.biometric_login_enabled = bool(
-            remembered.get("biometric_enabled", False) and self.biometric_available
+            momo_number and remembered.get("biometric_enabled", False) and self.biometric_available
         )
         if not momo_number:
             self._sync_auth_controls()
@@ -119,6 +120,24 @@ class LoginScreen(ResponsiveScreen):
 
         self.remember_me = True
         self._set_text(momo_number, "momo_input")
+
+    def _update_biometric_login_ready(self) -> None:
+        app = MDApp.get_running_app()
+        if app is not None:
+            token = getattr(app, "access_token", "") or session.token
+        else:
+            token = session.token
+        access_token = str(token or "").strip()
+        try:
+            has_valid_session = bool(access_token and session.authenticated())
+        except Exception:
+            has_valid_session = False
+        self.biometric_login_ready = bool(
+            self.biometric_available
+            and self.remember_me
+            and self.biometric_login_enabled
+            and has_valid_session
+        )
 
     def _sync_auth_controls(self) -> None:
         password_toggle = self.ids.get("password_toggle")
@@ -258,12 +277,14 @@ class LoginScreen(ResponsiveScreen):
                 session.clear_remember_me()
             except Exception:
                 pass
+        self._update_biometric_login_ready()
         self._sync_auth_controls()
 
     def toggle_biometric_login(self, _instance, active: bool) -> None:
         self.biometric_login_enabled = bool(active) and self.remember_me and self.biometric_available
         if active and not self.remember_me:
             self.show_message("Turn on Remember Me to use biometric unlock.")
+        self._update_biometric_login_ready()
         self._sync_auth_controls()
 
     def login(self):
@@ -482,15 +503,38 @@ class LoginScreen(ResponsiveScreen):
         if not self.biometric_available:
             self.show_message("Fingerprint sign-in is available in the Android app.")
             return
-        if not self.biometric_login_enabled:
+        if not self.remember_me or not self.biometric_login_enabled:
             self.show_message("Sign in with your PIN and enable fingerprint sign-in for this device.")
             return
-        if app is not None:
-            app.request_biometric_auth(
-                reason="Unlock your existing session",
-                on_success=lambda: app.go_to_screen(app.get_authenticated_target(), fallback="login"),
-                on_failure=lambda message: self.show_message(message),
-            )
+        self._update_biometric_login_ready()
+        if not self.biometric_login_ready or app is None:
+            self.show_message("Sign in with your PIN first. Fingerprint unlocks your remembered session on this device.")
+            return
+
+        get_target = getattr(app, "get_authenticated_target", None)
+        go_to_screen = getattr(app, "go_to_screen", None)
+        request_auth = getattr(app, "request_biometric_auth", None)
+        if not callable(go_to_screen) or not callable(request_auth):
+            self.show_message("Fingerprint sign-in is unavailable. Please use your PIN.")
+            return
+        target = str(get_target() or "home") if callable(get_target) else "home"
+        self._set_loading(True)
+
+        def on_success():
+            self._set_loading(False)
+            self._go_to_screen(target, fallback="login")
+
+        def on_failure(message):
+            self._set_loading(False)
+            self.show_message(message or "Fingerprint check failed. Enter your PIN to continue.")
+
+        started = request_auth(
+            reason="Unlock your remembered session",
+            on_success=on_success,
+            on_failure=on_failure,
+        )
+        if started is False:
+            self._set_loading(False)
 
     def show_message(self, text):
         show_app_snackbar(text)
