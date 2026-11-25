@@ -47,8 +47,8 @@ class PullToRefreshMixin:
         "agent_commissions": ("load_commission", {}),
         "agent_commission": ("load_commission", {}),
         "commission": ("load_commission", {}),
-        "loan_screen": ("load_dashboard", {}),
-        "loan": ("load_dashboard", {}),
+        "loan_screen": ("refresh_loans", {"silent": False}),
+        "loan": ("refresh_loans", {"silent": False}),
         "repayments": ("load_repayments", {}),
         "repayment": ("load_repayments", {}),
         "loan_repayments": ("load_repayments", {}),
@@ -61,7 +61,7 @@ class PullToRefreshMixin:
         "escrow": ("load_deals", {"notify_popup": False}),
         "p2p_transfer": ("load_wallet", {"notify": False}),
         "investments": ("load_wallet_balance", {"notify": False}),
-        "loans": ("refresh_loans", {}),
+        "loans": ("refresh_loans", {"silent": False}),
         "agent": ("load_transactions", {}),
         "admin_dashboard": ("load_dashboard", {"silent": True}),
         "admin_agents": ("load_agents", {}),
@@ -128,11 +128,7 @@ class PullToRefreshMixin:
                 if self._screen_refresh_is_busy():
                     return False
                 method(**kwargs)
-                if screen_name == "loans":
-                    eligibility = getattr(self, "load_eligibility", None)
-                    if callable(eligibility):
-                        eligibility()
-                elif screen_name == "p2p_transfer":
+                if screen_name == "p2p_transfer":
                     fee_status = getattr(self, "load_fee_status", None)
                     if callable(fee_status):
                         fee_status(notify=False)

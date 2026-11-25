@@ -82,7 +82,7 @@ KV = """
                     md_bg_color: RED_CARD if root.loan_is_overdue else GREEN_CARD
                     elevation: 0
                     size_hint_y: None
-                    height: dp(134 * root.layout_scale)
+                    height: dp(174 * root.layout_scale) if root.active_loan_id else dp(126 * root.layout_scale)
                     padding: [dp(14 * root.layout_scale)] * 4
 
                     MDBoxLayout:
@@ -110,88 +110,15 @@ KV = """
                             shorten: True
                             shorten_from: "right"
 
-                MDCard:
-                    radius: [dp(20 * root.layout_scale)]
-                    md_bg_color: SURFACE
-                    elevation: 0
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(6 * root.layout_scale)
-
-                        MDLabel:
-                            text: "Summary & Due"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-
-                        MDLabel:
-                            text: root.loan_summary
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.loan_due_hint
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
                         MDRaisedButton:
-                            text: "Repay Loan" if root.manual_repayment_enabled else "Auto Repayment Active"
-                            disabled: not root.manual_repayment_enabled
+                            text: "Repay Loan"
+                            disabled: root.repayment_busy
                             opacity: 1 if root.active_loan_id else 0
                             size_hint_y: None
-                            height: dp(44 * root.layout_scale) if root.active_loan_id else 0
-                            md_bg_color: GOLD_SOFT if root.manual_repayment_enabled else SURFACE_SOFT
-                            text_color: BG if root.manual_repayment_enabled else TEXT_SUB
+                            height: dp(40 * root.layout_scale) if root.active_loan_id else 0
+                            md_bg_color: GOLD_SOFT
+                            text_color: BG
                             on_release: root.repay_loan()
-
-                MDCard:
-                    radius: [dp(20 * root.layout_scale)]
-                    md_bg_color: SURFACE
-                    elevation: 0
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(6 * root.layout_scale)
-
-                        MDLabel:
-                            text: "Eligibility"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-
-                        MDLabel:
-                            text: root.eligibility_status_text
-                            theme_text_color: "Custom"
-                            text_color: root.eligibility_status_color
-                            font_size: sp(12.5 * root.text_scale)
-                            bold: True
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.eligible_amount_text
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            font_size: sp(14 * root.text_scale)
-                            bold: True
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.eligibility_hint_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                 MDCard:
                     radius: [dp(20 * root.layout_scale)]
@@ -215,6 +142,13 @@ KV = """
                             text: "Choose an amount and period. Your repayment total appears below."
                             theme_text_color: "Custom"
                             text_color: TEXT_SUB
+                            font_size: sp(11.5 * root.text_scale)
+                            adaptive_height: True
+
+                        MDLabel:
+                            text: root.eligibility_line
+                            theme_text_color: "Custom"
+                            text_color: GOLD
                             font_size: sp(11.5 * root.text_scale)
                             adaptive_height: True
 
@@ -243,7 +177,6 @@ KV = """
                             cols: 2 if root.compact_mode else 4
                             adaptive_height: True
                             row_default_height: dp(42 * root.layout_scale)
-                            row_force_default: True
                             spacing: dp(8 * root.layout_scale)
 
                             MDRaisedButton:
@@ -349,21 +282,6 @@ KV = """
                             text_color: BG
                             on_release: root.apply_loan()
 
-                MDLabel:
-                    text: root.feedback_text
-                    size_hint_y: None
-                    height: self.texture_size[1] if self.text else 0
-                    theme_text_color: "Custom"
-                    text_color: root.feedback_color
-
-                MDLabel:
-                    text: root.feedback_hint if root.feedback_text else ""
-                    size_hint_y: None
-                    height: self.texture_size[1] if self.text else 0
-                    theme_text_color: "Custom"
-                    text_color: TEXT_SUB
-                    font_size: sp(11.5 * root.text_scale)
-
                 Widget:
                     size_hint_y: None
                     height: dp(8 * root.layout_scale)
@@ -381,15 +299,10 @@ KV = """
 
 
 class LoanScreen(ActionScreen):
-    page_subtitle = StringProperty("Request and manage wallet loans.")
-    loan_status_title = StringProperty("No Loan")
+    page_subtitle = StringProperty("Review your limit, choose a period, and request a loan.")
     loan_status_color = ListProperty([0.74, 0.76, 0.80, 1])
     loan_status_caption = StringProperty("No active loan right now.")
     loan_summary_amount = StringProperty("GHS 0.00")
-    loan_summary = StringProperty(
-        "Choose an amount and period to preview your total repayment."
-    )
-    loan_due_hint = StringProperty("Users can choose 1, 7, 14, or 30 days. Active agents can also choose 60 or 90 days.")
     amount_preview_text = StringProperty(
         "Enter a loan amount to preview total repayment, service fee, and the overdue fee."
     )
@@ -407,6 +320,7 @@ class LoanScreen(ActionScreen):
     transaction_volume_total = NumericProperty(0.0)
     eligible_amount_total = NumericProperty(0.0)
     eligibility_status_text = StringProperty("Checking eligibility...")
+    eligibility_line = StringProperty("Checking your loan limit...")
     eligibility_hint_text = StringProperty(
         "Your eligible limit is based on 25% of your last 30 days total transactions."
     )
@@ -421,8 +335,16 @@ class LoanScreen(ActionScreen):
         super().__init__(**kwargs)
         self._loan_refresh_generation = 0
         self._loan_refresh_pending = 0
+        self._loan_refresh_show_popup = False
+        self._loan_refresh_errors = []
         self._repay_dialog = None
         self._repay_amount_field = None
+
+    def _show_popup(self, title: str, message: str, on_close=None) -> None:
+        manager = getattr(self, "manager", None)
+        if manager is not None and str(getattr(manager, "current", "") or "") != str(self.name or ""):
+            return
+        super()._show_popup(title, message, on_close=on_close)
 
     @staticmethod
     def _parse_float(raw: str) -> float:
@@ -449,7 +371,9 @@ class LoanScreen(ActionScreen):
             if enabled
             else "Manual repayment is not available right now."
         )
-        self.manual_repayment_text = str(message or "").strip() or fallback
+        self.manual_repayment_text = self._friendly_loan_error(
+            {"detail": message}, fallback
+        ) if message else fallback
 
     def _ensure_selected_duration(self) -> None:
         options = [int(item) for item in self.allowed_periods] or [1]
@@ -473,6 +397,7 @@ class LoanScreen(ActionScreen):
     def set_duration(self, days: int) -> None:
         if not self.period_available(days):
             self._set_feedback("That repayment period is not available for your account.", "warning")
+            self._show_popup("Period Unavailable", "Choose one of the repayment periods enabled for your account.")
             return
         self.selected_duration = int(days)
         self.update_amount_preview(self.ids.apply_amount.text if "apply_amount" in self.ids else "")
@@ -488,8 +413,8 @@ class LoanScreen(ActionScreen):
         self._loan_refresh_generation += 1
         generation = self._loan_refresh_generation
         self._loan_refresh_pending = 3
-        if not silent:
-            self._set_feedback("Refreshing loan details…", "info")
+        self._loan_refresh_show_popup = not silent
+        self._loan_refresh_errors = []
 
         requests = (
             ("policy", "GET", "/loans/my-policy", None),
@@ -527,6 +452,19 @@ class LoanScreen(ActionScreen):
         if generation != self._loan_refresh_generation:
             return
         try:
+            ok, payload = result
+            if not ok:
+                fallback_by_kind = {
+                    "policy": "Loan options are temporarily unavailable.",
+                    "eligibility": "We could not refresh your loan limit.",
+                    "active": "We could not refresh your loan balance.",
+                }
+                message = self._friendly_loan_error(
+                    payload,
+                    fallback_by_kind.get(kind, "Loan details could not be refreshed."),
+                )
+                if message not in self._loan_refresh_errors:
+                    self._loan_refresh_errors.append(message)
             if kind == "policy":
                 self.load_policy(result)
             elif kind == "eligibility":
@@ -534,12 +472,38 @@ class LoanScreen(ActionScreen):
             else:
                 self.view_active_loan(show_popup=False, response=result)
         except Exception:
-            self._set_feedback("Some loan details could not be refreshed. Pull down to try again.", "warning")
+            message = "Some loan details could not be refreshed. Pull down to try again."
+            if message not in self._loan_refresh_errors:
+                self._loan_refresh_errors.append(message)
         finally:
             self._loan_refresh_pending = max(0, self._loan_refresh_pending - 1)
             if self._loan_refresh_pending == 0:
                 self.loan_refresh_busy = False
+                self._finish_loan_refresh_popup()
                 self._finish_pull_refresh()
+
+    def _finish_loan_refresh_popup(self) -> None:
+        if self._loan_refresh_errors:
+            self._loan_refresh_show_popup = False
+            self._show_popup("Loan Update", "\n".join(self._loan_refresh_errors[:3]))
+        elif self._loan_refresh_show_popup:
+            self._loan_refresh_show_popup = False
+            self._show_popup("Loans Updated", "Your loan balance and available options are up to date.")
+
+    @classmethod
+    def _friendly_loan_error(cls, payload: object, fallback: str) -> str:
+        message = cls._extract_detail(payload)
+        lowered = str(message or "").lower()
+        technical_or_sensitive = (
+            "traceback", "exception", "sql", "select ", "insert ", "update ",
+            "postgres", "sqlite", "database", "internal server", "stack trace",
+            "authorization:", "bearer ", "token", "password", "secret", "api key",
+            " at line ", "file \"", "connectionpool", "http://", "https://",
+        )
+        if not message or any(marker in lowered for marker in technical_or_sensitive):
+            return fallback
+        message = " ".join(str(message).split())
+        return message[:240].rstrip() or fallback
 
     @staticmethod
     def _format_due_date(raw_value: object) -> str:
@@ -612,6 +576,7 @@ class LoanScreen(ActionScreen):
                 self.eligible_amount_total = round(self.transaction_volume_total * 0.25, 2)
                 self.eligible_amount_text = f"GHS {self.eligible_amount_total:,.2f}"
                 self.eligibility_status_text = "Eligible for a wallet loan"
+                self.eligibility_line = f"Available loan limit: GHS {self.eligible_amount_total:,.2f}"
                 self.eligibility_status_color = [0.60, 0.88, 0.72, 1]
                 self.eligibility_hint_text = (
                     "You can request up to 25% of your last 30 days total transactions." + suffix
@@ -621,6 +586,7 @@ class LoanScreen(ActionScreen):
                 self.eligible_amount_total = 0.0
                 self.eligible_amount_text = "GHS 0.00"
                 self.eligibility_status_text = "Not eligible yet"
+                self.eligibility_line = "No loan limit is available yet."
                 self.eligibility_status_color = [0.98, 0.48, 0.41, 1]
                 self.eligibility_hint_text = (
                     f"Complete at least GHS 200 in the last 30 days total transactions. Remaining: GHS {remaining:,.2f}.{suffix}"
@@ -632,6 +598,7 @@ class LoanScreen(ActionScreen):
         self.transaction_volume_text = "GHS 0.00"
         self.eligible_amount_text = "GHS 0.00"
         self.eligibility_status_text = "Eligibility unavailable"
+        self.eligibility_line = "Loan limit unavailable. Refresh to try again."
         self.eligibility_status_color = [0.98, 0.48, 0.41, 1]
         self.eligibility_hint_text = "We could not load transactions. Please refresh later."
 
@@ -689,6 +656,7 @@ class LoanScreen(ActionScreen):
         except Exception:
             self.loan_submit_busy = False
             self._set_feedback("Unable to start the loan request. Please try again.", "error")
+            self._show_popup("Loan Request Failed", "Unable to start your request. Please try again.")
 
     def _submit_loan_worker(self, amount: float, duration: int, purpose: str) -> None:
         try:
@@ -710,7 +678,12 @@ class LoanScreen(ActionScreen):
         ok, payload = result
         if ok and isinstance(payload, dict):
             app_id = payload.get("id")
-            message = "Loan approved and credited to your wallet."
+            status = str(payload.get("status") or "").strip().lower()
+            message = (
+                "Your loan request was approved and credited to your wallet."
+                if status == "disbursed"
+                else "Your loan request was submitted successfully."
+            )
             if app_id:
                 message = f"{message} Reference #{app_id}."
             self.ids.apply_amount.text = ""
@@ -721,14 +694,14 @@ class LoanScreen(ActionScreen):
             self.refresh_loans(silent=True)
             self._show_popup("Loan Ready", message)
             return
-        detail = self._extract_detail(payload) or "Unable to process your loan request."
+        detail = self._friendly_loan_error(payload, "Unable to process your loan request. Please try again.")
         self._set_feedback(detail, "error")
         self.feedback_hint = "Review your amount and period, then try again."
         self._show_popup("Loan Request Failed", detail)
 
     def view_active_loan(self, show_popup: bool = True, response=None):
         if response is None:
-            self._set_feedback("Loading your current loan…", "info")
+            self._set_feedback("Loading your current loan...", "info")
             response = self._request("GET", "/loans/my-active-loan")
         ok, payload = response
         if ok:
@@ -736,12 +709,9 @@ class LoanScreen(ActionScreen):
                 self.active_loan_id = 0
                 self.outstanding_balance = 0.0
                 self.loan_is_overdue = False
-                self.loan_status_title = "No Loan"
                 self.loan_status_color = [0.74, 0.76, 0.80, 1]
                 self.loan_status_caption = "No active loan. Request one below."
                 self.loan_summary_amount = "GHS 0.00"
-                self.loan_summary = "You do not have any open loan right now. Request one below."
-                self.loan_due_hint = "Incoming wallet credits only sweep while a loan is open."
                 self._set_manual_repayment_state(
                     False,
                     "Manual repayment will appear here when you have an active on-schedule loan.",
@@ -754,10 +724,7 @@ class LoanScreen(ActionScreen):
 
             if isinstance(payload, dict):
                 loan_id = self._parse_int(payload.get("id"))
-                amount = safe_float(payload.get("amount"))
                 remaining = safe_float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)))
-                base_fee_amount = safe_float(payload.get("base_fee_amount"))
-                late_fee_amount = safe_float(payload.get("late_fee_amount"))
                 status_text = str(payload.get("status", "active") or "active").strip().lower()
                 self.loan_is_overdue = bool(payload.get("is_overdue", False)) or status_text == "overdue"
                 manual_repayment_allowed = bool(payload.get("manual_repayment_allowed", not self.loan_is_overdue))
@@ -767,26 +734,12 @@ class LoanScreen(ActionScreen):
                 self.active_loan_id = loan_id
                 self.outstanding_balance = max(0.0, remaining)
                 if self.loan_is_overdue:
-                    self.loan_status_title = "Overdue"
                     self.loan_status_color = [0.98, 0.48, 0.41, 1]
-                    self.loan_status_caption = "Overdue balance"
+                    self.loan_status_caption = f"Overdue | due {due_text}"
                 else:
-                    self.loan_status_title = "Active"
                     self.loan_status_color = [0.60, 0.88, 0.72, 1]
-                    self.loan_status_caption = "Outstanding balance"
+                    self.loan_status_caption = f"Due {due_text}"
                 self.loan_summary_amount = f"GHS {remaining:,.2f}"
-                self.loan_summary = (
-                    f"Loan #{loan_id} | Principal: GHS {amount:,.2f} | Remaining: GHS {remaining:,.2f} | "
-                    f"Fee: GHS {base_fee_amount:,.2f}."
-                )
-                if late_fee_amount > 0:
-                    self.loan_summary += f" Overdue fee: GHS {late_fee_amount:,.2f}."
-                if self.loan_is_overdue and late_fee_amount <= 0:
-                    self.loan_due_hint = f"Overdue since {due_text}. Clear within 24 hours to avoid the extra fee."
-                elif self.loan_is_overdue:
-                    self.loan_due_hint = f"Overdue. Extra fee already added. Original due date: {due_text}."
-                else:
-                    self.loan_due_hint = f"Due on {due_text}. Incoming wallet credits can sweep this balance automatically."
                 if manual_repayment_allowed:
                     self._set_manual_repayment_state(
                         True,
@@ -805,16 +758,13 @@ class LoanScreen(ActionScreen):
                     self.feedback_hint = "Manual repayment is locked for overdue loans. Add funds to your wallet to continue automatic recovery."
                 return
 
-        detail = self._extract_detail(payload) or "Unable to load your loan details."
+        detail = self._friendly_loan_error(payload, "Unable to load your loan details. Please try again.")
         self.active_loan_id = 0
         self.outstanding_balance = 0.0
         self.loan_is_overdue = False
-        self.loan_status_title = "Sync Error"
         self.loan_status_color = [0.98, 0.48, 0.41, 1]
         self.loan_status_caption = "Unable to load loan status."
         self.loan_summary_amount = "GHS 0.00"
-        self.loan_summary = "We could not refresh your loan details right now."
-        self.loan_due_hint = "Please try again when your connection is stable."
         self._set_manual_repayment_state(
             False,
             "Manual repayment is temporarily unavailable until your latest loan details finish loading.",
@@ -842,7 +792,7 @@ class LoanScreen(ActionScreen):
             spacing=dp(10),
             padding=(dp(8), dp(8), dp(8), dp(8)),
             size_hint_y=None,
-            height=dp(152),
+            height=dp(230),
         )
         layout.add_widget(MDLabel(
             text=f"Outstanding balance: GHS {balance:,.2f}",
@@ -914,6 +864,20 @@ class LoanScreen(ActionScreen):
         except Exception:
             self.repayment_busy = False
             self._set_feedback("Unable to start repayment. Please try again.", "error")
+            self._show_popup("Repayment Failed", "Unable to start repayment. Please try again.")
+
+    def on_leave(self, *_args):
+        dialog = self._repay_dialog
+        self._repay_dialog = None
+        self._repay_amount_field = None
+        if dialog is not None:
+            try:
+                dialog.dismiss()
+            except Exception:
+                pass
+        parent_on_leave = getattr(super(), "on_leave", None)
+        if callable(parent_on_leave):
+            return parent_on_leave(*_args)
 
     def _repayment_worker(self, loan_id: int, amount: float) -> None:
         try:
@@ -941,7 +905,7 @@ class LoanScreen(ActionScreen):
             self.refresh_loans(silent=True)
             self._show_popup("Repayment Successful", message)
             return
-        detail = self._extract_detail(payload) or "Unable to process your repayment."
+        detail = self._friendly_loan_error(payload, "Unable to process your repayment. Please try again.")
         self._set_feedback(detail, "error")
         self.feedback_hint = "Check your wallet balance and try again."
         self._show_popup("Repayment Failed", detail)

@@ -50,7 +50,7 @@ from api.client import FAST_TIMEOUT, api_client
 install_kivymd_font_style_compat()
 
 logger = get_logger("cybercash.app")
-LOAN_TERMS_VERSION = "2026-11-v1"
+LOAN_TERMS_VERSION = "2026-11-v2"
 
 
 def _install_snackbar_compat() -> None:
@@ -348,13 +348,15 @@ class CyberCashApp(MDApp):
 
             show_confirm_dialog(
                 owner,
-                title="Loan Terms & Agreements",
+                title="Cyber Cash Loan Terms",
                 message=(
-                    "Before opening Loans, please agree to these terms:\n\n"
-                    "• Review the amount, repayment period, fees, and due date shown before you apply.\n"
-                    "• Repay by the displayed due date. Overdue fees may apply as shown in your loan offer.\n"
-                    "• Where enabled, incoming wallet funds may be used to recover an overdue loan.\n"
-                    "• Only request an amount you can repay. Your final offer is shown before submission."
+                    "Cyber Cash Technologies Ltd. Loan Terms & Conditions (version 2026-11-v2).\n"
+                    "Please review and accept before continuing.\n\n"
+                    "1. Each loan has a one-time 15% service fee, shown in your repayment preview.\n"
+                    "2. Repay the full balance by the due date shown on your loan. If it remains unpaid for 24 hours after that date, a one-time 20% late fee may be added to the original principal.\n"
+                    "3. If automatic recovery is enabled, incoming wallet funds may be used toward an open loan.\n"
+                    "4. Review the amount, period, fees, and due date before you confirm a request. Only borrow what you can repay.\n\n"
+                    "Choose Accept & Continue to confirm that you have read and agree to these terms. You can choose Not Now to return without opening Loans."
                 ),
                 confirm_label="Accept & Continue",
                 cancel_label="Not Now",
