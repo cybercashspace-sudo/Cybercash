@@ -42,6 +42,7 @@ from features.home.home_controller import HomeController
 from services.api import FAST_TIMEOUT, api
 from services.market_service import MarketService
 from storage import save_token
+from utils.formatter import safe_float
 
 MDTopAppBar = resolve_kivymd_top_app_bar()
 
@@ -2377,10 +2378,12 @@ class HomeScreen(ResponsiveScreen):
 
         market_ok = isinstance(payload, dict) and not payload.get("error") and payload.get("last_price_usdt") is not None
         if market_ok:
-            last_price = float(payload.get("last_price_usdt") or 0.0)
-            change_percent = float(payload.get("price_change_percent_24h") or 0.0)
-            usd_to_ghs_rate = float(payload.get("usd_to_ghs_rate") or 0.0)
-            estimated_ghs_per_btc = float(payload.get("estimated_ghs_per_btc") or (last_price * usd_to_ghs_rate))
+            last_price = safe_float(payload.get("last_price_usdt"))
+            change_percent = safe_float(payload.get("price_change_percent_24h"))
+            usd_to_ghs_rate = safe_float(payload.get("usd_to_ghs_rate"))
+            estimated_ghs_per_btc = safe_float(
+                payload.get("estimated_ghs_per_btc"), last_price * usd_to_ghs_rate
+            )
             updated_at = str(payload.get("updated_at") or "")
 
             self.market_btc_display = f"BTC ${last_price:,.0f}"
@@ -2723,7 +2726,7 @@ class HomeScreen(ResponsiveScreen):
 
         if tx_type == "transfer":
             direction = str(metadata.get("direction", "") or "").strip().lower()
-            amount = float(tx.get("amount", 0.0) or 0.0)
+            amount = safe_float(tx.get("amount"))
             if direction == "receive" or amount >= 0:
                 return "Money Received"
             recipient_name = str(
@@ -2784,7 +2787,7 @@ class HomeScreen(ResponsiveScreen):
         self._update_balance_display()
 
     def _build_recent_item(self, tx: dict) -> MDCard:
-        amount = float(tx.get("amount", 0.0) or 0.0)
+        amount = safe_float(tx.get("amount"))
         metadata = self._parse_metadata(tx)
         tx_type = str(tx.get("type", "") or "").strip().lower()
         direction = str(metadata.get("direction", "") or "").strip().lower()
@@ -3058,8 +3061,15 @@ class HomeScreen(ResponsiveScreen):
 
             profile = dashboard_snapshot.get("profile") if isinstance(dashboard_snapshot.get("profile"), dict) else {}
             wallet = dashboard_snapshot.get("wallet") if isinstance(dashboard_snapshot.get("wallet"), dict) else {}
-            recent_rows = list(dashboard_snapshot.get("transactions") or [])
-            notification_count = int(dashboard_snapshot.get("notification_count") or len(dashboard_snapshot.get("notifications") or []))
+            transactions_data = dashboard_snapshot.get("transactions")
+            recent_rows = [row for row in transactions_data if isinstance(row, dict)] if isinstance(transactions_data, list) else []
+            try:
+                notification_count = max(0, int(dashboard_snapshot.get("notification_count") or 0))
+            except (TypeError, ValueError, OverflowError):
+                notification_count = 0
+            if not notification_count:
+                notifications = dashboard_snapshot.get("notifications")
+                notification_count = len([row for row in notifications if isinstance(row, dict)]) if isinstance(notifications, list) else 0
 
             if profile:
                 greeting_name = self._extract_first_name(profile) or greeting_name
@@ -3082,15 +3092,9 @@ class HomeScreen(ResponsiveScreen):
                 )
 
             if dashboard_snapshot.get("balance") is not None:
-                try:
-                    balance = float(dashboard_snapshot.get("balance") or 0.0)
-                except Exception:
-                    balance = None
+                balance = safe_float(dashboard_snapshot.get("balance"), None)
             elif wallet:
-                try:
-                    balance = float(wallet.get("balance", 0.0) or 0.0)
-                except Exception:
-                    balance = None
+                balance = safe_float(wallet.get("balance"), None)
 
             if not error_text:
                 error_text = str(dashboard_snapshot.get("error_text") or "")

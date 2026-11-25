@@ -11,6 +11,7 @@ from kivy.properties import BooleanProperty, ColorProperty, StringProperty
 from kivymd.app import MDApp
 
 from core.screen_actions import ActionScreen
+from utils.formatter import safe_float
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.navigation import navigate
 from utils.network import normalize_ghana_number
@@ -933,7 +934,7 @@ class WalletScreen(ActionScreen):
             when = self._friendly_tx_when(tx.get("timestamp") or tx.get("created_at") or "")
             recent_left = f"{title}\n{when}"
             try:
-                amount = float(tx.get("amount", 0.0) or 0.0)
+                amount = safe_float(tx.get("amount"))
             except Exception:
                 amount = 0.0
             if abs(amount) > 1e-9:
@@ -1183,9 +1184,8 @@ class WalletScreen(ActionScreen):
                     )
                 return
 
-            try:
-                balance = float(payload.get("balance", 0.0) or 0.0)
-            except (TypeError, ValueError, OverflowError):
+            balance = safe_float(payload.get("balance"), None)
+            if balance is None:
                 if callable(on_complete):
                     Clock.schedule_once(
                         lambda _dt: self._set_feedback(
@@ -1218,7 +1218,11 @@ class WalletScreen(ActionScreen):
     def load_wallet(self, notify: bool = True):
         ok, payload = self._request("GET", "/wallet/me")
         if ok and isinstance(payload, dict):
-            balance = float(payload.get("balance", 0.0) or 0.0)
+            balance = safe_float(payload.get("balance"), None)
+            if balance is None:
+                self.wallet_status = "Balance unavailable"
+                self._set_feedback("Wallet data could not be read. Please try again.", "error")
+                return
             self._set_wallet_balance(balance)
             if notify:
                 self._set_feedback("Wallet updated.", "success")

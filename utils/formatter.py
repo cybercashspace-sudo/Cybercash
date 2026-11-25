@@ -1,17 +1,34 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 
 from utils.constants import DEFAULT_CURRENCY
 
 
-def _coerce_float(value, default: float = 0.0) -> float:
+def safe_float(value, default: float | None = 0.0) -> float | None:
+    if default is None:
+        fallback = None
+    else:
+        try:
+            fallback = float(default)
+        except (TypeError, ValueError, OverflowError):
+            fallback = 0.0
+        if not math.isfinite(fallback):
+            fallback = 0.0
     try:
-        if value is None or value == "":
-            return float(default)
-        return float(value)
-    except Exception:
-        return float(default)
+        number = fallback if value is None or value == "" else float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    if number is None:
+        return None
+    if not math.isfinite(number):
+        return fallback
+    return number
+
+
+def _coerce_float(value, default: float = 0.0) -> float:
+    return safe_float(value, default)
 
 
 def format_currency(amount, currency: str = DEFAULT_CURRENCY, precision: int = 2) -> str:

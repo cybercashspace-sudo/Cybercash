@@ -28,6 +28,7 @@ from core.paystack_checkout import open_paystack_checkout, warmup_paystack_check
 from core.pull_refresh import PullToRefreshMixin
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from components.app_snackbar import show_app_snackbar
+from utils.formatter import safe_float
 
 AGENT_REGISTRATION_FEE_GHS = 100.0
 AGENT_STARTUP_LOAN_GHS = 50.0
@@ -855,18 +856,14 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
 
     @staticmethod
     def _format_amount(amount: float) -> str:
-        value = float(amount or 0.0)
+        value = safe_float(amount)
         if abs(value - int(value)) < 1e-9:
             return f"{int(value):,}"
         return f"{value:,.2f}"
 
     @staticmethod
     def _format_currency(value: object) -> str:
-        try:
-            amount = float(value or 0.0)
-        except Exception:
-            amount = 0.0
-        return f"{amount:,.2f}"
+        return f"{safe_float(value):,.2f}"
 
     @staticmethod
     def _safe_first_name(value: str) -> str:
@@ -976,7 +973,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
 
         transferred_amount = metadata.get("transferred_amount", 0.0)
         transfer_fee = metadata.get("transfer_fee", 0.0)
-        transfer_fee_rate = float(metadata.get("transfer_fee_rate", 0.0) or 0.0)
+        transfer_fee_rate = safe_float(metadata.get("transfer_fee_rate", 0.0))
         total_debited = metadata.get("total_debited", tx.get("amount", 0.0))
         fee_label = f"Fee ({transfer_fee_rate * 100:.1f}%)" if transfer_fee_rate > 0 else "Fee"
         if transfer_kind == "wallet_transfer" and transfer_fee_rate > 0:
@@ -986,7 +983,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
                 feeable_amount = 0.0
             if feeable_amount > 0:
                 fee_label = f"Fee ({transfer_fee_rate * 100:.1f}% on GHS {self._format_currency(feeable_amount)})"
-            elif float(transfer_fee or 0.0) <= 0:
+            elif safe_float(transfer_fee) <= 0:
                 fee_label = "Fee (free today)"
         return (
             f"Amt GHS {self._format_currency(transferred_amount)} | "
@@ -1011,7 +1008,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             return "Recent"
 
     def _friendly_icon(self, tx: dict) -> tuple[str, list[float]]:
-        amount = float(tx.get("amount", 0.0) or 0.0)
+        amount = safe_float(tx.get("amount", 0.0))
         positive = amount >= 0
         icon = "arrow-top-right" if positive else "arrow-bottom-right"
         color = POSITIVE_COLOR if positive else NEGATIVE_COLOR
@@ -1019,7 +1016,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
 
     def _build_recent_item(self, tx: dict) -> MDCard:
         app = MDApp.get_running_app()
-        amount = float(tx.get("amount", 0.0) or 0.0)
+        amount = safe_float(tx.get("amount", 0.0))
         positive = amount >= 0
         sign = "+" if positive else "-"
         icon_name, icon_color = self._friendly_icon(tx)
@@ -1196,7 +1193,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             )
             tx_payload = tx_result.get("data", [])
             if tx_result.get("ok") and isinstance(tx_payload, list):
-                tx_rows = tx_payload
+                tx_rows = [row for row in tx_payload if isinstance(row, dict)]
                 tx_loaded = True
             elif not error_text:
                 raw_detail = self._extract_detail(tx_payload) or "Unable to load activity."

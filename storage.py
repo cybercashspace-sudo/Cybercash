@@ -77,7 +77,8 @@ def _read_secure_data() -> dict:
         with open(path, "rb") as f:
             encrypted_data = f.read()
         decrypted_data = fernet.decrypt(encrypted_data)
-        return json.loads(decrypted_data.decode("utf-8"))
+        payload = json.loads(decrypted_data.decode("utf-8"))
+        return payload if isinstance(payload, dict) else {}
     except Exception:
         return _read_plain_data()
 

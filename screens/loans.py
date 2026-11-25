@@ -5,6 +5,7 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
 
 from core.screen_actions import ActionScreen
+from utils.formatter import safe_float
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -604,7 +605,12 @@ class LoanScreen(ActionScreen):
     def load_policy(self) -> None:
         ok, payload = self._request("GET", "/loans/my-policy")
         if ok and isinstance(payload, dict):
-            self.allowed_periods = [int(item) for item in (payload.get("allowed_periods") or [1, 7, 14, 30])]
+            raw_periods = payload.get("allowed_periods")
+            if not isinstance(raw_periods, list):
+                raw_periods = [1, 7, 14, 30]
+            self.allowed_periods = sorted({days for item in raw_periods if (days := self._parse_int(item)) > 0})
+            if not self.allowed_periods:
+                self.allowed_periods = [1, 7, 14, 30]
             self.is_agent_eligible = bool(payload.get("is_agent_eligible", False))
             self.loan_policy_text = (
                 str(payload.get("period_help_text") or "").strip()
@@ -657,10 +663,7 @@ class LoanScreen(ActionScreen):
                     continue
                 if parsed < cutoff:
                     continue
-                try:
-                    amount = float(item.get("amount", 0.0) or 0.0)
-                except Exception:
-                    amount = 0.0
+                amount = safe_float(item.get("amount"))
                 total_volume += abs(amount)
 
             self.transaction_volume_total = round(total_volume, 2)
@@ -804,12 +807,12 @@ class LoanScreen(ActionScreen):
                 return
 
             if isinstance(payload, dict):
-                loan_id = int(payload.get("id") or 0)
-                amount = float(payload.get("amount", 0.0) or 0.0)
-                remaining = float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)) or 0.0)
-                duration = int(payload.get("repayment_duration", 0) or 0)
-                base_fee_amount = float(payload.get("base_fee_amount", 0.0) or 0.0)
-                late_fee_amount = float(payload.get("late_fee_amount", 0.0) or 0.0)
+                loan_id = self._parse_int(payload.get("id"))
+                amount = safe_float(payload.get("amount"))
+                remaining = safe_float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)))
+                duration = self._parse_int(payload.get("repayment_duration"))
+                base_fee_amount = safe_float(payload.get("base_fee_amount"))
+                late_fee_amount = safe_float(payload.get("late_fee_amount"))
                 status_text = str(payload.get("status", "active") or "active").strip().lower()
                 self.loan_is_overdue = bool(payload.get("is_overdue", False)) or status_text == "overdue"
                 manual_repayment_allowed = bool(payload.get("manual_repayment_allowed", not self.loan_is_overdue))
@@ -906,7 +909,7 @@ class LoanScreen(ActionScreen):
             params={"repayment_amount": amount},
         )
         if ok and isinstance(payload, dict):
-            remaining = float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)) or 0.0)
+            remaining = safe_float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)))
             message = "Repayment successful. Your loan is now fully cleared." if remaining <= 0 else f"Repayment successful. Remaining balance: GHS {remaining:,.2f}."
             self.ids.repay_amount.text = ""
             self._set_feedback(message, "success")

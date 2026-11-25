@@ -8,6 +8,7 @@ from kivy.properties import StringProperty
 
 from core.screen_actions import ActionScreen
 from utils.network import normalize_ghana_number
+from utils.formatter import safe_float
 
 MIN_ESCROW_DEAL_GHS = 20.0
 ESCROW_CREATE_FEE_GHS = 5.0
@@ -410,6 +411,7 @@ class EscrowScreen(ActionScreen):
         return message or "Unable to process the escrow request right now."
 
     def _apply_deal_snapshot(self, deals: list[dict]) -> None:
+        deals = [deal for deal in deals if isinstance(deal, dict)]
         if not deals:
             self._reset_dashboard_copy()
             return
@@ -426,17 +428,17 @@ class EscrowScreen(ActionScreen):
             else:
                 active_deals.append(deal)
 
-        held_total = sum(float(item.get("amount", 0.0) or 0.0) for item in active_deals)
+        held_total = sum(safe_float(item.get("amount")) for item in active_deals)
         self.held_balance_display = self._format_money(held_total)
         self.deal_status_text = (
             f"{len(active_deals)} active, {len(released_deals)} released, {len(disputed_deals)} disputed."
         )
 
         latest = deals[0]
-        latest_id = int(latest.get("deal_id", 0) or 0)
+        latest_id = self._parse_int(latest.get("deal_id"))
         latest_status = str(latest.get("status", "active") or "active").strip().title()
-        latest_amount = float(latest.get("amount", 0.0) or 0.0)
-        latest_net = float(latest.get("receiver_net_amount", 0.0) or 0.0)
+        latest_amount = safe_float(latest.get("amount"))
+        latest_net = safe_float(latest.get("receiver_net_amount"))
         latest_recipient = str(latest.get("recipient_wallet_id") or "N/A")
         latest_description = str(latest.get("description") or "").strip() or "Protected payment"
         latest_date = self._format_date_label(latest.get("created_at"))
@@ -517,8 +519,9 @@ class EscrowScreen(ActionScreen):
         self._set_feedback("Refreshing escrow dashboard...", "info")
         ok, payload = self._request("GET", "/transactions/escrow/deals")
         if ok and isinstance(payload, list):
-            self._apply_deal_snapshot(payload)
-            if not payload:
+            deals = [deal for deal in payload if isinstance(deal, dict)]
+            self._apply_deal_snapshot(deals)
+            if not deals:
                 self._set_feedback("No escrow deals found yet.", "warning")
                 return
             self._set_feedback("Escrow dashboard updated.", "success")

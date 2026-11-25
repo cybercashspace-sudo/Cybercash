@@ -9,6 +9,7 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 
 from core.screen_actions import ActionScreen
+from utils.formatter import safe_float
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -136,11 +137,7 @@ class TransactionScreen(ActionScreen):
 
     @staticmethod
     def _format_currency(value: object) -> str:
-        try:
-            amount = float(value or 0.0)
-        except Exception:
-            amount = 0.0
-        return f"{amount:,.2f}"
+        return f"{safe_float(value):,.2f}"
 
     def _friendly_title(self, tx: dict) -> str:
         key = str(tx.get("type", "") or "").strip().lower()
@@ -181,17 +178,14 @@ class TransactionScreen(ActionScreen):
 
         transferred_amount = metadata.get("transferred_amount", 0.0)
         transfer_fee = metadata.get("transfer_fee", 0.0)
-        transfer_fee_rate = float(metadata.get("transfer_fee_rate", 0.0) or 0.0)
+        transfer_fee_rate = safe_float(metadata.get("transfer_fee_rate", 0.0))
         total_debited = metadata.get("total_debited", tx.get("amount", 0.0))
         fee_label = f"Fee ({transfer_fee_rate * 100:.1f}%)" if transfer_fee_rate > 0 else "Fee"
         if transfer_kind == "wallet_transfer" and transfer_fee_rate > 0:
-            try:
-                feeable_amount = float(metadata.get("p2p_feeable_amount", 0.0) or 0.0)
-            except Exception:
-                feeable_amount = 0.0
+            feeable_amount = safe_float(metadata.get("p2p_feeable_amount"))
             if feeable_amount > 0:
                 fee_label = f"Fee ({transfer_fee_rate * 100:.1f}% on GHS {self._format_currency(feeable_amount)})"
-            elif float(transfer_fee or 0.0) <= 0:
+            elif safe_float(transfer_fee) <= 0:
                 fee_label = "Fee (free today)"
         return (
             f"Amt GHS {self._format_currency(transferred_amount)} | "
@@ -200,7 +194,7 @@ class TransactionScreen(ActionScreen):
         )
 
     def _build_item(self, tx: dict) -> MDCard:
-        amount = float(tx.get("amount", 0.0) or 0.0)
+        amount = safe_float(tx.get("amount", 0.0))
         positive = amount >= 0
         amount_color = [0.54, 0.82, 0.67, 1] if positive else [0.96, 0.47, 0.42, 1]
         sign = "+" if positive else "-"
@@ -267,8 +261,9 @@ class TransactionScreen(ActionScreen):
         container.clear_widgets()
 
         if ok and isinstance(payload, list):
-            self.summary_text = f"{len(payload)} item(s)"
-            if not payload:
+            transactions = [row for row in payload[:50] if isinstance(row, dict)]
+            self.summary_text = f"{len(transactions)} item(s)"
+            if not transactions:
                 empty_card = MDCard(
                     size_hint_y=None,
                     height=dp(64 * float(self.layout_scale or 1.0)),
@@ -294,7 +289,7 @@ class TransactionScreen(ActionScreen):
                 self._set_feedback("No transactions yet.", "warning")
                 return
 
-            for tx in payload[:50]:
+            for tx in transactions:
                 container.add_widget(self._build_item(tx))
             self._set_feedback("Transactions loaded.", "success")
             return

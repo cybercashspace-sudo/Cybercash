@@ -9,6 +9,7 @@ from core.app_state import AppState
 from core.logger import get_logger
 from features.home.adapters import TransactionAdapter
 from features.home.home_service import HomeService
+from utils.formatter import safe_float
 
 
 logger = get_logger(__name__)
@@ -243,10 +244,7 @@ class HomeController:
         wallet_balance = wallet.get("balance")
         if wallet_balance in {None, ""} and "balance" in data:
             wallet_balance = data.get("balance")
-        try:
-            balance_value = float(wallet_balance) if wallet_balance is not None else None
-        except Exception:
-            balance_value = None
+        balance_value = safe_float(wallet_balance, None)
 
         greeting_name = str(
             profile.get("first_name")
