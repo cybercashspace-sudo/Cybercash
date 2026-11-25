@@ -1936,6 +1936,7 @@ class HomeScreen(ResponsiveScreen):
     offline_banner_text = StringProperty("Offline mode")
     is_agent_active = BooleanProperty(False)
     dashboard_ready = BooleanProperty(False)
+    dashboard_syncing = BooleanProperty(False)
     agent_action_label = StringProperty("Become Agent")
     agent_action_hint = StringProperty(f"Pay GH¢ {AGENT_REGISTRATION_FEE_GHS:,.0f}")
     _loading = False
@@ -2053,6 +2054,7 @@ class HomeScreen(ResponsiveScreen):
         self._dashboard_load_seq += 1
         self._market_load_seq += 1
         self._market_loading = False
+        self.dashboard_syncing = False
         self.loading_skeleton_visible = False
         self.offline_banner_visible = False
         self._set_loading_guard(False)
@@ -2342,20 +2344,31 @@ class HomeScreen(ResponsiveScreen):
             return
         self._loading = True
         self._is_loading = True
+        self.dashboard_syncing = True
         self.balance_status = "Refreshing..."
         self._set_account_status("SYNC", [0.12, 0.14, 0.18, 0.95], [0.86, 0.88, 0.90, 1])
-        self.load_dashboard(force=True)
-        self.refresh_market_data(silent=False)
-
         if self._dashboard_refresh_event is not None:
             try:
                 self._dashboard_refresh_event.cancel()
             except Exception:
                 pass
 
-        self._dashboard_refresh_event = Clock.schedule_once(self._finish_dashboard_refresh, 1.25)
+        # Complete from the request callback when possible; keep a bounded
+        # fallback for a stalled worker or an interrupted screen lifecycle.
+        self._dashboard_refresh_event = Clock.schedule_once(
+            self._finish_dashboard_refresh, max(FAST_TIMEOUT) * 5 + 2
+        )
+        self.load_dashboard(force=True)
+        self.refresh_market_data(silent=False)
 
     def _finish_dashboard_refresh(self, *_args) -> None:
+        event = self._dashboard_refresh_event
+        self._dashboard_refresh_event = None
+        if event is not None:
+            try:
+                event.cancel()
+            except Exception:
+                pass
         refresh_layout = self.ids.get("refresh_layout")
         if refresh_layout is not None:
             try:
@@ -2967,6 +2980,7 @@ class HomeScreen(ResponsiveScreen):
             _queue_widget(self._build_recent_item(tx), index * 0.08)
 
     def _apply_signed_out_state(self, greeting_name: str = "") -> None:
+        self.dashboard_syncing = False
         self._set_greeting(greeting_name)
         self._set_balance_unavailable("Sign in", "Sign in to view live wallet")
         self._set_agent_action_state(False)
@@ -3156,6 +3170,9 @@ class HomeScreen(ResponsiveScreen):
     ) -> None:
         if final:
             self._set_loading_guard(False)
+            self.dashboard_syncing = False
+            if self._dashboard_refresh_event is not None:
+                self._finish_dashboard_refresh()
         previous_balance = float(self.wallet_balance_amount or 0.0)
         had_loaded_balance = bool(self.wallet_balance_loaded)
         if reset_token:
@@ -3247,12 +3264,15 @@ class HomeScreen(ResponsiveScreen):
         if not token:
             self._set_loading_guard(False)
             self._apply_signed_out_state(pending_name if not pending_name.isdigit() else "")
+            if self._dashboard_refresh_event is not None:
+                self._finish_dashboard_refresh()
             return
 
         self._dashboard_load_seq += 1
         load_seq = self._dashboard_load_seq
         previous_ready = bool(self.dashboard_ready)
         self._set_loading_guard(True)
+        self.dashboard_syncing = True
         self.dashboard_ready = previous_ready if force else False
         self.loading_skeleton_visible = not force
         self.offline_banner_visible = False

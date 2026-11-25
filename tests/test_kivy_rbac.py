@@ -5,6 +5,23 @@ import logging
 from unittest.mock import MagicMock
 
 
+_STUBBED_MODULE_PREFIXES = (
+    "kivy",
+    "kivymd",
+    "core.kivymd_compat",
+    "core.silent_touch",
+    "screens.splash_screen",
+    "storage",
+    "theme",
+)
+_ORIGINAL_MODULES = {
+    name: module
+    for name, module in sys.modules.items()
+    if any(name == prefix or name.startswith(f"{prefix}.") for prefix in _STUBBED_MODULE_PREFIXES)
+}
+_ORIGINAL_LOGGING_DISABLE = logging.root.manager.disable
+
+
 def install_kivy_stubs():
     def module(name):
         mod = types.ModuleType(name)
@@ -177,6 +194,15 @@ install_project_stubs()
 logging.disable(logging.CRITICAL)
 
 from kivy_app import CyberCashApp
+
+# CyberCashApp keeps references to the stubs it needs for these unit tests.
+# Restore the real modules immediately so importing other screens in the test
+# session uses the actual Kivy package instead of these narrow RBAC stubs.
+for _name in list(sys.modules):
+    if any(_name == prefix or _name.startswith(f"{prefix}.") for prefix in _STUBBED_MODULE_PREFIXES):
+        sys.modules.pop(_name, None)
+sys.modules.update(_ORIGINAL_MODULES)
+logging.disable(_ORIGINAL_LOGGING_DISABLE)
 
 
 class TestKivyRBAC(unittest.TestCase):

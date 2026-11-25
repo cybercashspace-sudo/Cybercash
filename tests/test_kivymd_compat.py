@@ -5,6 +5,24 @@ import sys
 import types
 import unittest
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def restore_kivy_modules_after_test():
+    """Keep compatibility stubs from leaking into later screen imports."""
+    prefixes = ("kivy", "kivymd", "core.kivymd_compat")
+    original = {
+        name: module
+        for name, module in sys.modules.items()
+        if any(name == prefix or name.startswith(f"{prefix}.") for prefix in prefixes)
+    }
+    yield
+    for name in list(sys.modules):
+        if any(name == prefix or name.startswith(f"{prefix}.") for prefix in prefixes):
+            sys.modules.pop(name, None)
+    sys.modules.update(original)
+
 
 def _install_stubs(mode_options):
     def module(name):
