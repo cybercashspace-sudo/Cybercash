@@ -45,6 +45,48 @@ def _clear_active_dialog(owner, dialog_obj: Popup | None = None) -> None:
         owner._active_dialog = None
 
 
+def _owner_is_active(owner) -> bool:
+    """Prevent a delayed response from opening a dialog over another screen."""
+    manager = getattr(owner, "manager", None)
+    if manager is None:
+        return True
+    try:
+        current_screen = getattr(manager, "current_screen", None)
+        if current_screen is not None:
+            return current_screen is owner
+        current_name = str(getattr(manager, "current", "") or "").strip()
+        owner_name = str(getattr(owner, "name", "") or "").strip()
+        return not current_name or not owner_name or current_name == owner_name
+    except Exception:
+        # A transient manager lookup issue should not crash a response callback.
+        return False
+
+
+def _bind_popup_lifecycle(owner, popup: Popup) -> None:
+    """Dismiss screen-owned dialogs on navigation and release their bindings."""
+    def dismiss_when_owner_leaves(*_args):
+        if getattr(owner, "_active_dialog", None) is popup:
+            _dismiss_dialog(owner)
+
+    bind = getattr(owner, "bind", None)
+    unbind = getattr(owner, "unbind", None)
+    if callable(bind):
+        try:
+            bind(on_leave=dismiss_when_owner_leaves)
+        except Exception:
+            pass
+
+    def on_dismiss(*_args):
+        if callable(unbind):
+            try:
+                unbind(on_leave=dismiss_when_owner_leaves)
+            except Exception:
+                pass
+        _clear_active_dialog(owner, popup)
+
+    popup.bind(on_dismiss=on_dismiss)
+
+
 def _dismiss_dialog(owner) -> None:
     dialog = getattr(owner, "_active_dialog", None)
     if dialog is not None:
@@ -154,6 +196,8 @@ def show_message_dialog(
     close_label: str = "Close",
     on_close: Optional[Callable[[], None]] = None,
 ) -> None:
+    if not _owner_is_active(owner):
+        return
     _dismiss_dialog(owner)
 
     container = BoxLayout(
@@ -191,7 +235,7 @@ def show_message_dialog(
     container.add_widget(actions)
 
     popup = _make_popup(title, container, auto_dismiss=False, height=360)
-    popup.bind(on_dismiss=lambda *_args: _clear_active_dialog(owner, popup))
+    _bind_popup_lifecycle(owner, popup)
     owner._active_dialog = popup
     popup.open()
 
@@ -206,6 +250,8 @@ def show_confirm_dialog(
     cancel_label: str = "Cancel",
     on_cancel: Optional[Callable[[], None]] = None,
 ) -> None:
+    if not _owner_is_active(owner):
+        return
     _dismiss_dialog(owner)
 
     container = BoxLayout(
@@ -248,7 +294,7 @@ def show_confirm_dialog(
     container.add_widget(actions)
 
     popup = _make_popup(title or "Confirm Action", container, auto_dismiss=False, height=360)
-    popup.bind(on_dismiss=lambda *_args: _clear_active_dialog(owner, popup))
+    _bind_popup_lifecycle(owner, popup)
     owner._active_dialog = popup
     popup.open()
 
@@ -262,6 +308,8 @@ def show_custom_dialog(
     on_close: Optional[Callable[[], None]] = None,
     auto_dismiss: bool = True,
 ):
+    if not _owner_is_active(owner):
+        return None
     _dismiss_dialog(owner)
 
     container = BoxLayout(
@@ -300,7 +348,7 @@ def show_custom_dialog(
     container.add_widget(actions)
 
     popup = _make_popup(title, container, auto_dismiss=bool(auto_dismiss), height=430)
-    popup.bind(on_dismiss=lambda *_args: _clear_active_dialog(owner, popup))
+    _bind_popup_lifecycle(owner, popup)
     owner._active_dialog = popup
     popup.open()
     return popup
