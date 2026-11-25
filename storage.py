@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import hashlib
 import time
 from kivy.app import App
 
@@ -250,6 +251,46 @@ def save_privacy_mode(enabled: bool):
 def get_privacy_mode() -> bool:
     data = _read_secure_data()
     return bool(data.get("privacy_mode", True))
+
+
+def save_loan_terms_acceptance(user_key: str, version: str) -> None:
+    """Persist a versioned loan terms acceptance without storing account identifiers."""
+    normalized_user = str(user_key or "").strip().lower()
+    normalized_version = str(version or "").strip()
+    if not normalized_user or not normalized_version:
+        return
+    try:
+        data = _read_secure_data()
+        acceptances = data.get("loan_terms_acceptance")
+        if not isinstance(acceptances, dict):
+            acceptances = {}
+        user_hash = hashlib.sha256(normalized_user.encode("utf-8")).hexdigest()
+        acceptances[user_hash] = {
+            "version": normalized_version,
+            "accepted_at": time.time(),
+        }
+        data["loan_terms_acceptance"] = acceptances
+        _write_secure_data(data)
+    except Exception:
+        return
+
+
+def get_loan_terms_acceptance(user_key: str) -> str:
+    normalized_user = str(user_key or "").strip().lower()
+    if not normalized_user:
+        return ""
+    try:
+        data = _read_secure_data()
+        acceptances = data.get("loan_terms_acceptance")
+        if not isinstance(acceptances, dict):
+            return ""
+        user_hash = hashlib.sha256(normalized_user.encode("utf-8")).hexdigest()
+        value = acceptances.get(user_hash)
+        if isinstance(value, dict):
+            return str(value.get("version") or "").strip()
+        return str(value or "").strip()
+    except Exception:
+        return ""
 
 
 def _decode_jwt_payload(token: str) -> dict:

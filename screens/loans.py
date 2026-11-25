@@ -1,10 +1,17 @@
 from datetime import datetime, timezone, timedelta
+from threading import Thread
 
 from kivy.clock import Clock
+from kivy.metrics import dp
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.button import MDRaisedButton
+from kivymd.uix.label import MDLabel
+from kivymd.uix.textfield import MDTextField
 
 from core.screen_actions import ActionScreen
+from core.popup_manager import show_confirm_dialog, show_custom_dialog
 from utils.formatter import safe_float
 
 KV = """
@@ -135,37 +142,15 @@ KV = """
                             font_size: sp(11.5 * root.text_scale)
                             adaptive_height: True
 
-                MDCard:
-                    radius: [dp(20 * root.layout_scale)]
-                    md_bg_color: SURFACE
-                    elevation: 0
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(6 * root.layout_scale)
-
-                        MDLabel:
-                            text: "Loan Rules"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-
-                        MDLabel:
-                            text: root.loan_policy_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.fee_policy_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
+                        MDRaisedButton:
+                            text: "Repay Loan" if root.manual_repayment_enabled else "Auto Repayment Active"
+                            disabled: not root.manual_repayment_enabled
+                            opacity: 1 if root.active_loan_id else 0
+                            size_hint_y: None
+                            height: dp(44 * root.layout_scale) if root.active_loan_id else 0
+                            md_bg_color: GOLD_SOFT if root.manual_repayment_enabled else SURFACE_SOFT
+                            text_color: BG if root.manual_repayment_enabled else TEXT_SUB
+                            on_release: root.repay_loan()
 
                 MDCard:
                     radius: [dp(20 * root.layout_scale)]
@@ -191,28 +176,6 @@ KV = """
                             text_color: root.eligibility_status_color
                             font_size: sp(12.5 * root.text_scale)
                             bold: True
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Last 30 days total volume"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.transaction_volume_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(14 * root.text_scale)
-                            bold: True
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Eligible limit (25%)"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
                             adaptive_height: True
 
                         MDLabel:
@@ -249,7 +212,7 @@ KV = """
                             text_color: GOLD
 
                         MDLabel:
-                            text: "Enter an amount and choose a repayment period to preview the total repayment."
+                            text: "Choose an amount and period. Your repayment total appears below."
                             theme_text_color: "Custom"
                             text_color: TEXT_SUB
                             font_size: sp(11.5 * root.text_scale)
@@ -291,7 +254,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(1)
                                 text_color: root.period_button_text_color(1)
-                                on_release: root.select_duration(1)
+                                on_release: root.set_duration(1)
 
                             MDRaisedButton:
                                 text: "7D"
@@ -301,7 +264,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(7)
                                 text_color: root.period_button_text_color(7)
-                                on_release: root.select_duration(7)
+                                on_release: root.set_duration(7)
 
                             MDRaisedButton:
                                 text: "14D"
@@ -311,7 +274,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(14)
                                 text_color: root.period_button_text_color(14)
-                                on_release: root.select_duration(14)
+                                on_release: root.set_duration(14)
 
                             MDRaisedButton:
                                 text: "30D"
@@ -321,7 +284,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(30)
                                 text_color: root.period_button_text_color(30)
-                                on_release: root.select_duration(30)
+                                on_release: root.set_duration(30)
 
                             MDRaisedButton:
                                 text: "60D"
@@ -331,7 +294,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(60)
                                 text_color: root.period_button_text_color(60)
-                                on_release: root.select_duration(60)
+                                on_release: root.set_duration(60)
 
                             MDRaisedButton:
                                 text: "90D"
@@ -341,7 +304,7 @@ KV = """
                                 size_hint_y: None
                                 md_bg_color: root.period_button_bg(90)
                                 text_color: root.period_button_text_color(90)
-                                on_release: root.select_duration(90)
+                                on_release: root.set_duration(90)
 
                         MDLabel:
                             text: "Selected period: {} days".format(int(root.selected_duration))
@@ -363,7 +326,7 @@ KV = """
                             mode: "rectangle"
 
                         MDLabel:
-                            text: "Tell us how you plan to use the loan (optional)."
+                            text: "Purpose is optional."
                             theme_text_color: "Custom"
                             text_color: TEXT_SUB
                             font_size: sp(11.5 * root.text_scale)
@@ -377,90 +340,14 @@ KV = """
                             adaptive_height: True
 
                         MDRaisedButton:
+                            id: apply_loan_button
                             text: "Request Loan"
+                            disabled: root.loan_submit_busy
                             size_hint_y: None
                             height: dp(48 * root.layout_scale)
                             md_bg_color: GOLD_SOFT
                             text_color: BG
                             on_release: root.apply_loan()
-
-                MDCard:
-                    radius: [dp(20 * root.layout_scale)]
-                    md_bg_color: SURFACE
-                    elevation: 0
-                    padding: [dp(14 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        adaptive_height: True
-                        spacing: dp(8 * root.layout_scale)
-
-                        MDLabel:
-                            text: "Repay Loan"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-
-                        MDLabel:
-                            text: "Manual repayment is available while your loan is on schedule. Overdue loans are repaid automatically from incoming wallet credits."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Loan ID"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(13 * root.text_scale)
-                            adaptive_height: True
-
-                        MDTextField:
-                            id: repay_loan_id
-                            hint_text: "Loan ID"
-                            mode: "rectangle"
-                            input_filter: "int"
-
-                        MDLabel:
-                            text: "Repayment Amount"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(13 * root.text_scale)
-                            adaptive_height: True
-
-                        MDTextField:
-                            id: repay_amount
-                            hint_text: "Repayment amount"
-                            mode: "rectangle"
-                            input_filter: "float"
-
-                        MDLabel:
-                            text: root.manual_repayment_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB if not root.manual_repayment_enabled else TEXT_MAIN
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDGridLayout:
-                            cols: 1 if root.compact_mode else 2
-                            adaptive_height: True
-                            spacing: dp(8 * root.layout_scale)
-
-                            MDRaisedButton:
-                                text: "Refresh Loan"
-                                size_hint_y: None
-                                height: dp(46 * root.layout_scale)
-                                on_release: root.view_active_loan()
-
-                            MDRaisedButton:
-                                text: root.repay_button_text
-                                disabled: not root.manual_repayment_enabled
-                                size_hint_y: None
-                                height: dp(46 * root.layout_scale)
-                                md_bg_color: GOLD_SOFT if root.manual_repayment_enabled else SURFACE_SOFT
-                                text_color: BG if root.manual_repayment_enabled else TEXT_SUB
-                                on_release: root.repay_loan()
 
                 MDLabel:
                     text: root.feedback_text
@@ -494,9 +381,7 @@ KV = """
 
 
 class LoanScreen(ActionScreen):
-    page_subtitle = StringProperty(
-        "Instant wallet loans with clear fees and automatic repayment when new money enters your wallet."
-    )
+    page_subtitle = StringProperty("Request and manage wallet loans.")
     loan_status_title = StringProperty("No Loan")
     loan_status_color = ListProperty([0.74, 0.76, 0.80, 1])
     loan_status_caption = StringProperty("No active loan right now.")
@@ -505,13 +390,6 @@ class LoanScreen(ActionScreen):
         "Choose an amount and period to preview your total repayment."
     )
     loan_due_hint = StringProperty("Users can choose 1, 7, 14, or 30 days. Active agents can also choose 60 or 90 days.")
-    loan_policy_text = StringProperty(
-        "Select a repayment period before you submit. We will show your service fee and total repayment upfront."
-    )
-    fee_policy_text = StringProperty(
-        "Service fee is 15% of the principal. If overdue 24 hours, a one-time 20% overdue fee applies. "
-        "Manual repayment is available while the loan is on schedule; overdue loans are repaid automatically."
-    )
     amount_preview_text = StringProperty(
         "Enter a loan amount to preview total repayment, service fee, and the overdue fee."
     )
@@ -519,10 +397,10 @@ class LoanScreen(ActionScreen):
     manual_repayment_text = StringProperty(
         "Load your active loan to see if manual repayment is available."
     )
-    repay_button_text = StringProperty("Repay Now")
     allowed_periods = ListProperty([1, 7, 14, 30])
     selected_duration = NumericProperty(7)
     active_loan_id = NumericProperty(0)
+    outstanding_balance = NumericProperty(0.0)
     loan_is_overdue = BooleanProperty(False)
     is_agent_eligible = BooleanProperty(False)
     manual_repayment_enabled = BooleanProperty(False)
@@ -535,6 +413,16 @@ class LoanScreen(ActionScreen):
     eligibility_status_color = ListProperty([0.74, 0.76, 0.80, 1])
     transaction_volume_text = StringProperty("GHS 0.00")
     eligible_amount_text = StringProperty("GHS 0.00")
+    loan_refresh_busy = BooleanProperty(False)
+    loan_submit_busy = BooleanProperty(False)
+    repayment_busy = BooleanProperty(False)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._loan_refresh_generation = 0
+        self._loan_refresh_pending = 0
+        self._repay_dialog = None
+        self._repay_amount_field = None
 
     @staticmethod
     def _parse_float(raw: str) -> float:
@@ -551,14 +439,11 @@ class LoanScreen(ActionScreen):
             return 0
 
     def on_pre_enter(self):
-        self.load_policy()
-        Clock.schedule_once(lambda *_args: self.load_eligibility(), 0.02)
-        Clock.schedule_once(lambda *_args: self.view_active_loan(show_popup=False), 0.05)
+        self.refresh_loans(silent=True)
         Clock.schedule_once(lambda *_args: self.update_amount_preview(self.ids.apply_amount.text if "apply_amount" in self.ids else ""), 0.1)
 
-    def _set_manual_repayment_state(self, enabled: bool, message: str = "", button_text: str = "Repay Now") -> None:
+    def _set_manual_repayment_state(self, enabled: bool, message: str = "") -> None:
         self.manual_repayment_enabled = bool(enabled)
-        self.repay_button_text = str(button_text or "Repay Now")
         fallback = (
             "Manual repayment is available while the loan stays on schedule."
             if enabled
@@ -585,11 +470,76 @@ class LoanScreen(ActionScreen):
             return [0.03, 0.04, 0.06, 1]
         return [0.95, 0.95, 0.95, 1]
 
-    def select_duration(self, days: int) -> None:
+    def set_duration(self, days: int) -> None:
         if not self.period_available(days):
+            self._set_feedback("That repayment period is not available for your account.", "warning")
             return
         self.selected_duration = int(days)
         self.update_amount_preview(self.ids.apply_amount.text if "apply_amount" in self.ids else "")
+
+    # Kept for callers from older screen code.
+    select_duration = set_duration
+
+    def refresh_loans(self, silent: bool = False) -> bool:
+        """Refresh loan policy, eligibility, and active balance without blocking the UI."""
+        if self.loan_refresh_busy:
+            return False
+        self.loan_refresh_busy = True
+        self._loan_refresh_generation += 1
+        generation = self._loan_refresh_generation
+        self._loan_refresh_pending = 3
+        if not silent:
+            self._set_feedback("Refreshing loan details…", "info")
+
+        requests = (
+            ("policy", "GET", "/loans/my-policy", None),
+            ("eligibility", "GET", "/wallet/transactions/me", {"limit": 1000}),
+            ("active", "GET", "/loans/my-active-loan", None),
+        )
+        for kind, method, path, params in requests:
+            try:
+                Thread(
+                    target=self._load_loan_refresh_piece,
+                    args=(generation, kind, method, path, params),
+                    daemon=True,
+                ).start()
+            except Exception as exc:
+                result = (False, {"detail": str(exc) or "Unable to refresh loan details."})
+                Clock.schedule_once(
+                    lambda _dt, piece=kind, response=result: self._apply_loan_refresh_piece(
+                        generation, piece, response
+                    ),
+                    0,
+                )
+        return True
+
+    def _load_loan_refresh_piece(self, generation, kind, method, path, params) -> None:
+        try:
+            result = self._request(method, path, params=params)
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to refresh loan details."})
+        Clock.schedule_once(
+            lambda _dt: self._apply_loan_refresh_piece(generation, kind, result),
+            0,
+        )
+
+    def _apply_loan_refresh_piece(self, generation, kind, result) -> None:
+        if generation != self._loan_refresh_generation:
+            return
+        try:
+            if kind == "policy":
+                self.load_policy(result)
+            elif kind == "eligibility":
+                self.load_eligibility(result)
+            else:
+                self.view_active_loan(show_popup=False, response=result)
+        except Exception:
+            self._set_feedback("Some loan details could not be refreshed. Pull down to try again.", "warning")
+        finally:
+            self._loan_refresh_pending = max(0, self._loan_refresh_pending - 1)
+            if self._loan_refresh_pending == 0:
+                self.loan_refresh_busy = False
+                self._finish_pull_refresh()
 
     @staticmethod
     def _format_due_date(raw_value: object) -> str:
@@ -602,8 +552,10 @@ class LoanScreen(ActionScreen):
             return raw_text
         return due_at.strftime("%d %b %Y, %I:%M %p")
 
-    def load_policy(self) -> None:
-        ok, payload = self._request("GET", "/loans/my-policy")
+    def load_policy(self, response=None) -> None:
+        if response is None:
+            response = self._request("GET", "/loans/my-policy")
+        ok, payload = response
         if ok and isinstance(payload, dict):
             raw_periods = payload.get("allowed_periods")
             if not isinstance(raw_periods, list):
@@ -612,22 +564,6 @@ class LoanScreen(ActionScreen):
             if not self.allowed_periods:
                 self.allowed_periods = [1, 7, 14, 30]
             self.is_agent_eligible = bool(payload.get("is_agent_eligible", False))
-            self.loan_policy_text = (
-                str(payload.get("period_help_text") or "").strip()
-                or "Choose a supported repayment period before you continue."
-            )
-            base_fee_policy_text = (
-                str(payload.get("fee_help_text") or "").strip()
-                or self.fee_policy_text
-            )
-            manual_rule_text = (
-                "Manual repayment is available while the loan is on schedule. "
-                "Overdue loans are repaid automatically from incoming wallet credits."
-            )
-            if manual_rule_text not in base_fee_policy_text:
-                self.fee_policy_text = f"{base_fee_policy_text} {manual_rule_text}".strip()
-            else:
-                self.fee_policy_text = base_fee_policy_text
             self._ensure_selected_duration()
             self.update_amount_preview(self.ids.apply_amount.text if "apply_amount" in self.ids else "")
             return
@@ -636,10 +572,12 @@ class LoanScreen(ActionScreen):
         self.is_agent_eligible = False
         self._ensure_selected_duration()
 
-    def load_eligibility(self) -> None:
+    def load_eligibility(self, response=None) -> None:
         self.eligibility_status_text = "Calculating eligibility..."
         self.eligibility_status_color = [0.74, 0.76, 0.80, 1]
-        ok, payload = self._request("GET", "/wallet/transactions/me", params={"limit": 1000})
+        if response is None:
+            response = self._request("GET", "/wallet/transactions/me", params={"limit": 1000})
+        ok, payload = response
         if ok and isinstance(payload, list):
             total_volume = 0.0
             unknown_count = 0
@@ -711,55 +649,65 @@ class LoanScreen(ActionScreen):
         overdue_fee = round(amount * 0.20, 2)
         day_label = "day" if duration == 1 else "days"
         self.amount_preview_text = (
-            f"Borrow GHS {amount:,.2f} today. Repay GHS {scheduled_total:,.2f} within {duration} {day_label}. "
-            f"Service fee: GHS {service_fee:,.2f}. Overdue fee after 24 hours late: GHS {overdue_fee:,.2f}."
+            f"Repay GHS {scheduled_total:,.2f} within {duration} {day_label} "
+            f"(includes GHS {service_fee:,.2f} service fee). Late fee may be GHS {overdue_fee:,.2f}."
         )
 
     def apply_loan(self):
+        if self.loan_submit_busy:
+            return
         amount = self._parse_float(self.ids.apply_amount.text)
         duration = int(self.selected_duration or 0)
         purpose = str(self.ids.apply_purpose.text or "").strip()
 
         if self.transaction_volume_total < 200.0:
             self._set_feedback("You are not eligible for a loan yet.", "error")
-            self.feedback_hint = "Reach at least GHS 200 in your last 30 days total transactions to unlock loans."
-            self._show_popup(
-                "Not Eligible",
-                "Total transaction volume in the last 30 days must be at least GHS 200 to qualify for a loan.",
-            )
+            self._show_popup("Not Eligible", "At least GHS 200 in recent transactions is required.")
             return
-
         if self.eligible_amount_total > 0 and amount > self.eligible_amount_total:
             self._set_feedback("Requested amount exceeds your eligible limit.", "error")
-            self.feedback_hint = f"Maximum eligible amount is {self.eligible_amount_text}."
-            self._show_popup(
-                "Amount Too High",
-                f"You can request up to {self.eligible_amount_text} based on your transaction activity.",
-            )
+            self._show_popup("Amount Too High", f"Your current maximum is {self.eligible_amount_text}.")
             return
-
         if amount <= 0:
             self._set_feedback("Enter a valid loan amount in Ghana cedis.", "error")
-            self.feedback_hint = "Example: 250 means you are requesting GHS 250."
-            self._show_popup("Invalid Amount", "Loan amount must be greater than zero.")
+            self._show_popup("Invalid Amount", "Enter an amount greater than zero.")
             return
         if duration <= 0 or not self.period_available(duration):
-            self._set_feedback("Select one of the supported repayment periods.", "error")
-            self.feedback_hint = "Users can use 1, 7, 14, or 30 days. Active agents can also use 60 or 90 days."
-            self._show_popup("Invalid Period", "Please choose one of the supported repayment periods.")
+            self._set_feedback("Select an available repayment period.", "error")
+            self._show_popup("Invalid Period", "Choose one of the periods enabled for your account.")
             return
 
+        self.loan_submit_busy = True
         self._set_feedback("Submitting your loan request...", "info")
-        self.feedback_hint = "Keep this screen open while your wallet loan is being prepared."
-        ok, payload = self._request(
-            "POST",
-            "/loans/apply",
-            payload={
-                "amount": amount,
-                "repayment_duration": duration,
-                "purpose": purpose or None,
-            },
-        )
+        self.feedback_hint = "You can keep this screen open while we process it."
+        try:
+            Thread(
+                target=self._submit_loan_worker,
+                args=(amount, duration, purpose),
+                daemon=True,
+            ).start()
+        except Exception:
+            self.loan_submit_busy = False
+            self._set_feedback("Unable to start the loan request. Please try again.", "error")
+
+    def _submit_loan_worker(self, amount: float, duration: int, purpose: str) -> None:
+        try:
+            result = self._request(
+                "POST",
+                "/loans/apply",
+                payload={
+                    "amount": amount,
+                    "repayment_duration": duration,
+                    "purpose": purpose or None,
+                },
+            )
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to process the loan request."})
+        Clock.schedule_once(lambda _dt: self._finish_loan_submission(result), 0)
+
+    def _finish_loan_submission(self, result) -> None:
+        self.loan_submit_busy = False
+        ok, payload = result
         if ok and isinstance(payload, dict):
             app_id = payload.get("id")
             message = "Loan approved and credited to your wallet."
@@ -768,26 +716,25 @@ class LoanScreen(ActionScreen):
             self.ids.apply_amount.text = ""
             self.ids.apply_purpose.text = ""
             self.update_amount_preview("")
-            self.view_active_loan(show_popup=False)
             self._set_feedback(message, "success")
-            self.feedback_hint = "Use Refresh Loan below any time you want to reload the latest balance and due date."
+            self.feedback_hint = "Your loan balance is refreshing."
+            self.refresh_loans(silent=True)
             self._show_popup("Loan Ready", message)
             return
-
         detail = self._extract_detail(payload) or "Unable to process your loan request."
         self._set_feedback(detail, "error")
-        self.feedback_hint = "Check the amount, repayment period, and whether you already have an open loan, then try again."
+        self.feedback_hint = "Review your amount and period, then try again."
         self._show_popup("Loan Request Failed", detail)
 
-    def view_active_loan(self, show_popup: bool = True):
-        self._set_feedback("Loading your current loan...", "info")
-        self.feedback_hint = "This checks your latest balance, due date, and overdue status."
-        ok, payload = self._request("GET", "/loans/my-active-loan")
+    def view_active_loan(self, show_popup: bool = True, response=None):
+        if response is None:
+            self._set_feedback("Loading your current loan…", "info")
+            response = self._request("GET", "/loans/my-active-loan")
+        ok, payload = response
         if ok:
             if not payload:
                 self.active_loan_id = 0
-                if "repay_loan_id" in self.ids:
-                    self.ids.repay_loan_id.text = ""
+                self.outstanding_balance = 0.0
                 self.loan_is_overdue = False
                 self.loan_status_title = "No Loan"
                 self.loan_status_color = [0.74, 0.76, 0.80, 1]
@@ -798,7 +745,6 @@ class LoanScreen(ActionScreen):
                 self._set_manual_repayment_state(
                     False,
                     "Manual repayment will appear here when you have an active on-schedule loan.",
-                    "Repay Now",
                 )
                 self._set_feedback("No open loan found.", "warning")
                 self.feedback_hint = "If you just borrowed, wait briefly and tap Refresh Loan again."
@@ -810,7 +756,6 @@ class LoanScreen(ActionScreen):
                 loan_id = self._parse_int(payload.get("id"))
                 amount = safe_float(payload.get("amount"))
                 remaining = safe_float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)))
-                duration = self._parse_int(payload.get("repayment_duration"))
                 base_fee_amount = safe_float(payload.get("base_fee_amount"))
                 late_fee_amount = safe_float(payload.get("late_fee_amount"))
                 status_text = str(payload.get("status", "active") or "active").strip().lower()
@@ -820,7 +765,7 @@ class LoanScreen(ActionScreen):
                 due_text = self._format_due_date(payload.get("repayment_due_date"))
 
                 self.active_loan_id = loan_id
-                self.ids.repay_loan_id.text = str(loan_id) if loan_id else ""
+                self.outstanding_balance = max(0.0, remaining)
                 if self.loan_is_overdue:
                     self.loan_status_title = "Overdue"
                     self.loan_status_color = [0.98, 0.48, 0.41, 1]
@@ -830,7 +775,6 @@ class LoanScreen(ActionScreen):
                     self.loan_status_color = [0.60, 0.88, 0.72, 1]
                     self.loan_status_caption = "Outstanding balance"
                 self.loan_summary_amount = f"GHS {remaining:,.2f}"
-                duration_text = f"{duration} day" if duration == 1 else f"{duration} days"
                 self.loan_summary = (
                     f"Loan #{loan_id} | Principal: GHS {amount:,.2f} | Remaining: GHS {remaining:,.2f} | "
                     f"Fee: GHS {base_fee_amount:,.2f}."
@@ -846,16 +790,13 @@ class LoanScreen(ActionScreen):
                 if manual_repayment_allowed:
                     self._set_manual_repayment_state(
                         True,
-                        manual_repayment_message
-                        or "Manual repayment is available because this loan is still on schedule. You can make part-payments or clear the full balance here.",
-                        "Repay Now",
+                        manual_repayment_message or "Choose an amount to repay from your wallet.",
                     )
                 else:
                     self._set_manual_repayment_state(
                         False,
                         manual_repayment_message
-                        or "Manual repayment is locked because this loan is overdue. Add money to your wallet and automatic deductions will continue until the balance is cleared.",
-                        "Auto-Sweep Only",
+                        or "Manual repayment is unavailable. Incoming wallet funds may be used for recovery.",
                     )
                 self._set_feedback("Loan details updated.", "success")
                 if self.manual_repayment_enabled:
@@ -865,6 +806,8 @@ class LoanScreen(ActionScreen):
                 return
 
         detail = self._extract_detail(payload) or "Unable to load your loan details."
+        self.active_loan_id = 0
+        self.outstanding_balance = 0.0
         self.loan_is_overdue = False
         self.loan_status_title = "Sync Error"
         self.loan_status_color = [0.98, 0.48, 0.41, 1]
@@ -875,7 +818,6 @@ class LoanScreen(ActionScreen):
         self._set_manual_repayment_state(
             False,
             "Manual repayment is temporarily unavailable until your latest loan details finish loading.",
-            "Repay Now",
         )
         self._set_feedback(detail, "error")
         self.feedback_hint = "Refresh the screen and try again."
@@ -883,44 +825,125 @@ class LoanScreen(ActionScreen):
             self._show_popup("Loan Sync Error", detail)
 
     def repay_loan(self):
+        if not self.active_loan_id:
+            self._set_feedback("No active loan is loaded.", "warning")
+            self._show_popup("No Open Loan", "Refresh the Loans screen to check your current balance.")
+            return
         if not self.manual_repayment_enabled:
-            self._set_feedback("Manual repayment is unavailable for this loan right now.", "warning")
-            self.feedback_hint = self.manual_repayment_text
-            self._show_popup("Manual Repayment Locked", self.manual_repayment_text)
+            self._set_feedback("Manual repayment is unavailable for this loan.", "warning")
+            self._show_popup("Repayment Unavailable", self.manual_repayment_text)
             return
-        loan_id = self._parse_int(self.ids.repay_loan_id.text) or int(self.active_loan_id or 0)
-        amount = self._parse_float(self.ids.repay_amount.text)
-        if loan_id <= 0:
-            self._set_feedback("Load your open loan first or enter a valid loan ID.", "error")
-            self.feedback_hint = "Tap Refresh Loan above to auto-fill the current loan ID."
-            self._show_popup("Invalid Loan ID", "Please load your current loan first or enter a valid loan ID.")
-            return
-        if amount <= 0:
-            self._set_feedback("Enter a valid repayment amount in Ghana cedis.", "error")
-            self.feedback_hint = "You can repay part of the balance or clear the full remaining amount."
-            self._show_popup("Invalid Amount", "Repayment amount must be greater than zero.")
+        if self.repayment_busy or self._repay_dialog is not None:
             return
 
-        self._set_feedback("Processing your repayment...", "info")
-        self.feedback_hint = "The repayment will be deducted from your available wallet balance."
-        ok, payload = self._request(
-            "POST",
-            f"/loans/{loan_id}/repay",
-            params={"repayment_amount": amount},
+        balance = max(0.0, safe_float(self.outstanding_balance))
+        layout = MDBoxLayout(
+            orientation="vertical",
+            spacing=dp(10),
+            padding=(dp(8), dp(8), dp(8), dp(8)),
+            size_hint_y=None,
+            height=dp(152),
         )
+        layout.add_widget(MDLabel(
+            text=f"Outstanding balance: GHS {balance:,.2f}",
+            adaptive_height=True,
+            theme_text_color="Primary",
+        ))
+        amount_field = MDTextField(
+            hint_text="Amount to repay",
+            text=f"{balance:.2f}" if balance > 0 else "",
+            input_filter="float",
+            mode="rectangle",
+            size_hint_y=None,
+            height=dp(52),
+        )
+        self._repay_amount_field = amount_field
+        layout.add_widget(amount_field)
+        layout.add_widget(MDLabel(
+            text="Payment uses your available wallet balance and may be partial.",
+            adaptive_height=True,
+            theme_text_color="Secondary",
+        ))
+
+        def review_repayment(*_args):
+            amount = self._parse_float(amount_field.text)
+            if amount <= 0 or amount > balance:
+                self._set_feedback("Enter an amount up to your outstanding balance.", "error")
+                self._show_popup("Check Repayment Amount", f"Enter an amount from GHS 0.01 to GHS {balance:,.2f}.")
+                return
+            self._clear_repay_dialog()
+            show_confirm_dialog(
+                self,
+                title="Confirm Repayment",
+                message=f"Apply up to GHS {amount:,.2f} toward this loan from your available wallet balance?",
+                confirm_label="Repay Now",
+                cancel_label="Cancel",
+                on_confirm=lambda: self._submit_repayment(amount),
+            )
+
+        layout.add_widget(MDRaisedButton(
+            text="Continue",
+            size_hint_y=None,
+            height=dp(44),
+            on_release=review_repayment,
+        ))
+        self._repay_dialog = show_custom_dialog(
+            self,
+            title="Repay Loan",
+            content_cls=layout,
+            close_label="Cancel",
+            on_close=self._clear_repay_dialog,
+        )
+
+    def _clear_repay_dialog(self) -> None:
+        self._repay_dialog = None
+        self._repay_amount_field = None
+
+    def _submit_repayment(self, amount: float) -> None:
+        if self.repayment_busy or not self.active_loan_id:
+            return
+        self.repayment_busy = True
+        self._set_feedback("Processing your repayment...", "info")
+        self.feedback_hint = "Your wallet and loan balance will refresh when processing finishes."
+        try:
+            Thread(
+                target=self._repayment_worker,
+                args=(int(self.active_loan_id), float(amount)),
+                daemon=True,
+            ).start()
+        except Exception:
+            self.repayment_busy = False
+            self._set_feedback("Unable to start repayment. Please try again.", "error")
+
+    def _repayment_worker(self, loan_id: int, amount: float) -> None:
+        try:
+            result = self._request(
+                "POST",
+                f"/loans/{loan_id}/repay",
+                params={"repayment_amount": amount},
+            )
+        except Exception as exc:
+            result = (False, {"detail": str(exc) or "Unable to process your repayment."})
+        Clock.schedule_once(lambda _dt: self._finish_repayment(result), 0)
+
+    def _finish_repayment(self, result) -> None:
+        self.repayment_busy = False
+        ok, payload = result
         if ok and isinstance(payload, dict):
             remaining = safe_float(payload.get("remaining_balance", payload.get("outstanding_balance", 0.0)))
-            message = "Repayment successful. Your loan is now fully cleared." if remaining <= 0 else f"Repayment successful. Remaining balance: GHS {remaining:,.2f}."
-            self.ids.repay_amount.text = ""
+            message = (
+                "Repayment successful. Your loan is cleared."
+                if remaining <= 0
+                else f"Repayment successful. Remaining balance: GHS {remaining:,.2f}."
+            )
             self._set_feedback(message, "success")
-            self.feedback_hint = "Your loan summary has been refreshed with the latest balance."
-            self.view_active_loan(show_popup=False)
+            self.feedback_hint = "Your latest loan balance is loading."
+            self.refresh_loans(silent=True)
             self._show_popup("Repayment Successful", message)
             return
-
         detail = self._extract_detail(payload) or "Unable to process your repayment."
         self._set_feedback(detail, "error")
-        self.feedback_hint = "Confirm the loan ID, the repayment amount, and your wallet balance, then try again."
+        self.feedback_hint = "Check your wallet balance and try again."
         self._show_popup("Repayment Failed", detail)
 
 

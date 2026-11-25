@@ -61,7 +61,7 @@ class PullToRefreshMixin:
         "escrow": ("load_deals", {"notify_popup": False}),
         "p2p_transfer": ("load_wallet", {"notify": False}),
         "investments": ("load_wallet_balance", {"notify": False}),
-        "loans": ("load_policy", {}),
+        "loans": ("refresh_loans", {}),
         "agent": ("load_transactions", {}),
         "admin_dashboard": ("load_dashboard", {"silent": True}),
         "admin_agents": ("load_agents", {}),
@@ -160,6 +160,7 @@ class PullToRefreshMixin:
             for attr in (
                 "loading", "_is_loading", "_loading", "_loading_settings",
                 "_busy", "_refreshing", "_refresh_in_progress", "is_loading",
+                "loan_refresh_busy", "loan_submit_busy", "repayment_busy",
             )
         )
 

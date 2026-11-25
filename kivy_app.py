@@ -31,6 +31,8 @@ from core.logger import get_logger
 from core.session import session
 from core.event_bus import EventBus
 from core.navigation import navigate
+from core.popup_manager import show_confirm_dialog
+import storage as app_storage
 
 install_silent_touch()
 
@@ -48,6 +50,7 @@ from api.client import FAST_TIMEOUT, api_client
 install_kivymd_font_style_compat()
 
 logger = get_logger("cybercash.app")
+LOAN_TERMS_VERSION = "2026-11-v1"
 
 
 def _install_snackbar_compat() -> None:
@@ -322,6 +325,43 @@ class CyberCashApp(MDApp):
         target = str(screen_name or "").strip()
         if not target:
             return False
+        if target == "loans" and not self._loan_terms_accepted():
+            sm = getattr(self, "root", None)
+            current = str(getattr(sm, "current", "") or "").strip() if sm is not None else ""
+            owner = sm.get_screen(current) if sm is not None and current and sm.has_screen(current) else None
+            if owner is None or getattr(self, "_loan_terms_dialog_pending", False):
+                return False
+
+            identity = self._loan_terms_identity()
+            self._loan_terms_dialog_pending = True
+
+            def dismiss_terms(*_args):
+                self._loan_terms_dialog_pending = False
+
+            def accept_terms():
+                self._loan_terms_dialog_pending = False
+                self._loan_terms_session_identity = identity
+                save_acceptance = getattr(app_storage, "save_loan_terms_acceptance", None)
+                if callable(save_acceptance):
+                    save_acceptance(identity, LOAN_TERMS_VERSION)
+                self.go_to_screen(target, fallback=fallback, transition_style=transition_style)
+
+            show_confirm_dialog(
+                owner,
+                title="Loan Terms & Agreements",
+                message=(
+                    "Before opening Loans, please agree to these terms:\n\n"
+                    "• Review the amount, repayment period, fees, and due date shown before you apply.\n"
+                    "• Repay by the displayed due date. Overdue fees may apply as shown in your loan offer.\n"
+                    "• Where enabled, incoming wallet funds may be used to recover an overdue loan.\n"
+                    "• Only request an amount you can repay. Your final offer is shown before submission."
+                ),
+                confirm_label="Accept & Continue",
+                cancel_label="Not Now",
+                on_confirm=accept_terms,
+                on_cancel=dismiss_terms,
+            )
+            return False
         self._admin_dashboard_entry_authorized = False
 
         # Centralized Role-Based Access Control (RBAC)
@@ -361,6 +401,33 @@ class CyberCashApp(MDApp):
             return navigate(sm, fallback, previous=previous, fallback="", transition_style="fade")
         logger.warning("Navigation failed: target=%s fallback=%s", target, fallback)
         return False
+
+    @staticmethod
+    def _loan_terms_identity() -> str:
+        user = session.get_user() or {}
+        if not isinstance(user, dict):
+            return ""
+        return str(
+            user.get("id")
+            or user.get("user_id")
+            or user.get("sub")
+            or user.get("email")
+            or user.get("phone_number")
+            or getattr(MDApp.get_running_app(), "access_token", "")
+            or ""
+        ).strip()
+
+    def _loan_terms_accepted(self) -> bool:
+        identity = self._loan_terms_identity()
+        get_acceptance = getattr(app_storage, "get_loan_terms_acceptance", None)
+        stored_version = get_acceptance(identity) if identity and callable(get_acceptance) else ""
+        return bool(
+            identity
+            and (
+                getattr(self, "_loan_terms_session_identity", "") == identity
+                or stored_version == LOAN_TERMS_VERSION
+            )
+        )
 
     def _is_mobile_runtime(self) -> bool:
         return str(platform or "").strip().lower() in {"android", "ios"}
