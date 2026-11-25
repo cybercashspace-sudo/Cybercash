@@ -305,6 +305,14 @@ def test_investment_payout_charges_ten_percent_of_gross_profit(client, db_sessio
     payout_data = payout_response.json()
     assert payout_data["type"] == TransactionType.INVESTMENT_PAYOUT
 
+    retry_response = client.post(
+        "/transactions/investment/payout",
+        json=_build_payout_payload(investment_id=investment_id, amount=100.0),
+        headers=_auth_headers(user_id),
+    )
+    assert retry_response.status_code == 400
+    assert "already been paid out" in retry_response.json()["detail"].lower()
+
     verify_db = SessionLocal()
     try:
         payout_tx = verify_db.query(Transaction).filter(Transaction.id == payout_data["id"]).first()

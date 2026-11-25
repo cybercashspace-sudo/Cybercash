@@ -3399,7 +3399,8 @@ class HomeScreen(ResponsiveScreen):
             detail = self._extract_detail(payload)
             Clock.schedule_once(lambda _dt: self._on_agent_registration_failed(detail))
         except Exception as exc:
-            Clock.schedule_once(lambda _dt: self._on_agent_registration_failed(sanitize_backend_message(exc)))
+            message = sanitize_backend_message(exc)
+            Clock.schedule_once(lambda _dt, error=message: self._on_agent_registration_failed(error))
 
     def _on_agent_registration_started(self, reference: str, authorization_url: str, message: str) -> None:
         self._last_agent_reference = reference

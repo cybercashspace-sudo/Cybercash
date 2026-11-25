@@ -48,7 +48,8 @@ class InvestmentScreen(PullToRefreshMixin, MDScreen):
         try:
             data = self.controller.load_dashboard()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load investments."))
+            message = str(exc) or "Unable to load investments."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
         Clock.schedule_once(lambda dt: self.update_ui(data))
 
@@ -144,7 +145,8 @@ class InvestmentScreen(PullToRefreshMixin, MDScreen):
                 purpose=purpose,
             )
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Investment could not be created."))
+            message = str(exc) or "Investment could not be created."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
 
         Clock.schedule_once(lambda dt: self.show_message(self._success_text(result)))

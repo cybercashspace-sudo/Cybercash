@@ -664,6 +664,11 @@ async def payout_investment(
         investment_metadata["realized_gross_profit"] = gross_profit
         investment_metadata["realized_profit_fee"] = profit_fee
         investment_metadata["realized_net_profit"] = net_profit
+        # TransactionEngine commits the payout transaction and wallet credit.
+        # Persist the closed investment state before calling it so both changes
+        # land in that same commit. A retry after a timeout can then never pay
+        # out an investment whose credit already succeeded.
+        investment_tx.metadata_json = json.dumps(investment_metadata)
         db.add(investment_tx)
         payout_tx = await transaction_engine.process_transaction(
             user_id=current_user.id,

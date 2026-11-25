@@ -33,7 +33,8 @@ class LoanScreen(PullToRefreshMixin, MDScreen):
         try:
             data = self.controller.load_dashboard()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load loan dashboard."))
+            message = str(exc) or "Unable to load loan dashboard."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
         Clock.schedule_once(lambda dt: self.update_ui(data))
 
@@ -70,7 +71,8 @@ class LoanScreen(PullToRefreshMixin, MDScreen):
         try:
             result = self.controller.apply_loan(amount, duration, purpose)
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Loan application failed."))
+            message = str(exc) or "Loan application failed."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
 
         Clock.schedule_once(lambda dt: self.show_message(self._success_text(result)))

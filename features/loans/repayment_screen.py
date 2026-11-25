@@ -28,7 +28,8 @@ class RepaymentScreen(PullToRefreshMixin, MDScreen):
         try:
             data = self.controller.load_dashboard()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load repayments."))
+            message = str(exc) or "Unable to load repayments."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
         Clock.schedule_once(lambda dt: self.update_ui(data))
 

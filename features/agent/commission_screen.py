@@ -28,7 +28,8 @@ class CommissionScreen(PullToRefreshMixin, MDScreen):
         try:
             data = self.controller.commission_summary()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load commissions."))
+            message = str(exc) or "Unable to load commissions."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
         Clock.schedule_once(lambda dt: self.update_ui(data))
 

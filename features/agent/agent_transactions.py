@@ -28,7 +28,8 @@ class AgentTransactionsScreen(PullToRefreshMixin, MDScreen):
         try:
             rows = self.controller.transaction_history()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load agent transactions."))
+            message = str(exc) or "Unable to load agent transactions."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
         Clock.schedule_once(lambda dt: self.update_ui(rows))
 

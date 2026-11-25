@@ -53,7 +53,8 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
         try:
             data = self.controller.load_dashboard()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to load Bitcoin wallet."))
+            message = str(exc) or "Unable to load Bitcoin wallet."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
 
         Clock.schedule_once(lambda dt: self.update_ui(data))
@@ -108,7 +109,8 @@ class BitcoinScreen(PullToRefreshMixin, MDScreen):
         try:
             payload = self.controller.create_deposit_address()
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Unable to create deposit address."))
+            message = str(exc) or "Unable to create deposit address."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
 
         address = ""

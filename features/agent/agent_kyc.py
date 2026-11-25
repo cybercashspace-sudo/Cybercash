@@ -34,7 +34,8 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         try:
             result = self.controller.submit_kyc(name, phone, id_number, document_ref, selfie_ref)
         except Exception as exc:
-            Clock.schedule_once(lambda dt: self.show_message(str(exc) or "Agent KYC submission failed."))
+            message = str(exc) or "Agent KYC submission failed."
+            Clock.schedule_once(lambda dt, error=message: self.show_message(error))
             return
 
         Clock.schedule_once(lambda dt: self.show_message(self._success_text(result)))
