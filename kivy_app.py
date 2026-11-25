@@ -496,12 +496,14 @@ class CyberCashApp(MDApp):
         request_id = int(getattr(self, "_biometric_request_id", 0)) + 1
         self._biometric_request_id = request_id
         settled = {"value": False}
+        settled_lock = threading.Lock()
         fingerprint_dialog = {"popup": None}
 
         def finish(success, message=""):
-            if settled["value"]:
-                return
-            settled["value"] = True
+            with settled_lock:
+                if settled["value"]:
+                    return
+                settled["value"] = True
 
             def apply_result(_dt):
                 if request_id != getattr(self, "_biometric_request_id", 0):

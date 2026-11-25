@@ -11,8 +11,10 @@ class PullRefreshScrollView(MDScrollViewRefreshLayout):
     def on_touch_up(self, *args):
         # KivyMD's callback has no completion parameter. Adapt it for our screens
         # while keeping its native overscroll gesture and spinner implementation.
-        callback = self.refresh_callback
-        if not self._did_overscroll or self._work_spinner or not callable(callback):
+        callback = getattr(self, "refresh_callback", None)
+        did_overscroll = bool(getattr(self, "_did_overscroll", False))
+        work_spinner = bool(getattr(self, "_work_spinner", False))
+        if not did_overscroll or work_spinner or not callable(callback):
             return super().on_touch_up(*args)
 
         def dispatch_refresh():

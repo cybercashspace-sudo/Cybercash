@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.metrics import dp
@@ -182,11 +183,28 @@ class RefreshIndicator(MDBoxLayout):
         self.set_loading(message)
         callback = self.refresh_callback
         if not callable(callback):
+            self.fail_refresh("Refresh is unavailable right now. Please try again.")
             return
         try:
-            callback(self, *args)
-        except TypeError:
-            callback(*args)
+            signature = inspect.signature(callback)
+        except (TypeError, ValueError):
+            call_args = (self, *args)
+        else:
+            try:
+                signature.bind(self, *args)
+                call_args = (self, *args)
+            except TypeError:
+                try:
+                    signature.bind(*args)
+                    call_args = args
+                except TypeError:
+                    self.fail_refresh("Unable to refresh right now. Please try again.")
+                    return
+
+        try:
+            callback(*call_args)
+        except Exception:
+            self.fail_refresh("Unable to refresh right now. Please try again.")
 
     def finish_refresh(self, text: str | None = None):
         self.set_complete(text=text, auto_reset=True)

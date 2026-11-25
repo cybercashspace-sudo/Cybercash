@@ -353,10 +353,12 @@ class SettingsScreen(ActionScreen):
             adaptive_height=True,
         )
         privacy_switch = MDSwitch(
-            active=bool(getattr(app, "privacy_mode", True)) if app else True,
             size_hint=(None, None),
             size=(dp(48), dp(32)),
         )
+        # MDSwitch dispatches on_active during construction; an active kwarg can
+        # run that handler before its KV thumb exists on Android.
+        privacy_switch.active = bool(getattr(app, "privacy_mode", True)) if app else True
 
         def _save_privacy_mode(_instance, enabled):
             if app is not None:

@@ -103,3 +103,30 @@ def test_fingerprint_bridge_error_returns_pin_fallback(monkeypatch):
 
     assert len(errors) == 1
     assert "Sign in with your PIN" in errors[0]
+
+
+def test_callback_exception_does_not_escape_android_auth_callback(monkeypatch):
+    manager = _FingerprintManager("success")
+    _install_fake_jnius(monkeypatch, manager)
+    auth = biometric_auth.FingerprintAuthenticator()
+
+    def broken_callback():
+        raise RuntimeError("simulated UI callback failure")
+
+    assert auth.authenticate(
+        on_success=broken_callback,
+        on_error=lambda _message: None,
+    ) is True
+
+
+def test_retry_callback_exception_does_not_escape_android_auth_callback(monkeypatch):
+    manager = _FingerprintManager("waiting")
+    _install_fake_jnius(monkeypatch, manager)
+    auth = biometric_auth.FingerprintAuthenticator()
+
+    assert auth.authenticate(
+        on_success=lambda: None,
+        on_error=lambda _message: None,
+        on_failed=lambda: (_ for _ in ()).throw(RuntimeError("simulated UI callback failure")),
+    ) is True
+    manager.callback.onAuthenticationFailed()

@@ -63,7 +63,10 @@ class FingerprintAuthenticator:
     ) -> bool:
         """Start one Android fingerprint scan, retaining JNI objects until completion."""
         if str(platform or "").lower() != "android":
-            on_error("Fingerprint unlock is available in the Android app.")
+            try:
+                on_error("Fingerprint unlock is available in the Android app.")
+            except Exception:
+                logger.exception("Fingerprint availability callback failed")
             return False
 
         try:
@@ -175,10 +178,13 @@ class FingerprintAuthenticator:
 
         if callback is None:
             return
-        if success:
-            callback()
-        else:
-            callback(message)
+        try:
+            if success:
+                callback()
+            else:
+                callback(message)
+        except Exception:
+            logger.exception("Fingerprint result callback failed")
 
     def _notify_failed(self) -> None:
         with self._lock:
@@ -186,4 +192,7 @@ class FingerprintAuthenticator:
                 return
             callback = self._on_failed
         if callback is not None:
-            callback()
+            try:
+                callback()
+            except Exception:
+                logger.exception("Fingerprint retry callback failed")
