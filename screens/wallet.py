@@ -246,6 +246,7 @@ KV = """
                             size_hint_y: None
                             height: deposit_section_content.height + dp(28 * root.layout_scale) if root.screen_mode != "withdraw" else 0
                             opacity: 1 if root.screen_mode != "withdraw" else 0
+                            disabled: root.screen_mode == "withdraw"
                             radius: [dp(20 * root.layout_scale)]
                             md_bg_color: SURFACE
                             elevation: 0
@@ -422,6 +423,7 @@ KV = """
                             size_hint_y: None
                             height: deposit_summary_content.height + dp(28 * root.layout_scale) if root.screen_mode == "all" else 0
                             opacity: 1 if root.screen_mode == "all" else 0
+                            disabled: root.screen_mode != "all"
                             radius: [dp(20 * root.layout_scale)]
                             md_bg_color: SURFACE
                             elevation: 0
@@ -458,6 +460,7 @@ KV = """
                             size_hint_y: None
                             height: withdraw_section_content.height + dp(28 * root.layout_scale) if root.screen_mode != "deposit" else 0
                             opacity: 1 if root.screen_mode != "deposit" else 0
+                            disabled: root.screen_mode == "deposit"
                             radius: [dp(20 * root.layout_scale)]
                             md_bg_color: SURFACE
                             elevation: 0

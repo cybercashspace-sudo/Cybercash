@@ -98,3 +98,22 @@ def test_invalid_quick_amounts_do_not_change_fields_or_previews():
 def test_quick_amount_buttons_bind_selection_highlighting():
     assert 'root.selected_deposit_quick_amount == "50"' in KV
     assert 'root.selected_withdraw_quick_amount == "20"' in KV
+
+
+def test_every_withdraw_quick_amount_updates_the_amount_and_fee_preview():
+    screen = _QuickAmountHarness()
+
+    for amount in WalletScreen.WITHDRAW_QUICK_AMOUNTS:
+        WalletScreen.set_withdraw_amount(screen, amount)
+
+        fee = round(amount * 0.01, 2)
+        total = round(amount + fee, 2)
+        assert screen.ids["transfer_amount"].text == str(amount)
+        assert screen.selected_withdraw_quick_amount == str(amount)
+        assert f"Fee: GHS {fee:,.2f}" in screen.withdraw_fee_preview
+        assert f"Total debit: GHS {total:,.2f}" in screen.withdraw_fee_preview
+
+
+def test_wallet_modes_share_one_apk_dashboard_bottom_navigation():
+    assert KV.count("BottomNavBar:") == 1
+    assert 'nav_variant: "dashboard"' in KV
