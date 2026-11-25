@@ -97,6 +97,8 @@ class NotificationScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
                 pass
         self.loading = False
         self._sync_empty_state()
+        if source == "network":
+            self._complete_refresh("Notifications updated.")
 
     def mark_read(self, notification_id: str):
         try:

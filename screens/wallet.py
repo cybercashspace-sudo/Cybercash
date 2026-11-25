@@ -1163,24 +1163,56 @@ class WalletScreen(ActionScreen):
         self.balance_display = f"GHS {value:,.2f}"
         self.wallet_status = status
 
-    def _refresh_wallet_balance_async(self, status: str = "Live wallet balance") -> None:
-        threading.Thread(target=self._refresh_wallet_balance_worker, args=(status,), daemon=True).start()
+    def _refresh_wallet_balance_async(self, status: str = "Live wallet balance", on_complete=None) -> None:
+        threading.Thread(
+            target=self._refresh_wallet_balance_worker,
+            args=(status, on_complete),
+            daemon=True,
+        ).start()
 
-    def _refresh_wallet_balance_worker(self, status: str) -> None:
-        ok, payload = self._request("GET", "/wallet/me")
-        if not ok or not isinstance(payload, dict):
-            return
-
+    def _refresh_wallet_balance_worker(self, status: str, on_complete=None) -> None:
         try:
-            balance = float(payload.get("balance", 0.0) or 0.0)
-        except Exception:
-            return
+            ok, payload = self._request("GET", "/wallet/me")
+            if not ok or not isinstance(payload, dict):
+                if callable(on_complete):
+                    Clock.schedule_once(
+                        lambda _dt: self._set_feedback(
+                            "Wallet could not refresh. Check your connection and try again.", "error"
+                        ),
+                        0,
+                    )
+                return
 
-        Clock.schedule_once(lambda _dt, bal=balance, st=status: self._set_wallet_balance(bal, st))
+            try:
+                balance = float(payload.get("balance", 0.0) or 0.0)
+            except (TypeError, ValueError, OverflowError):
+                if callable(on_complete):
+                    Clock.schedule_once(
+                        lambda _dt: self._set_feedback(
+                            "Wallet data could not be read. Please try again.", "error"
+                        ),
+                        0,
+                    )
+                return
+
+            Clock.schedule_once(lambda _dt, bal=balance, st=status: self._set_wallet_balance(bal, st))
+        except Exception:
+            Clock.schedule_once(
+                lambda _dt: self._set_feedback(
+                    "Wallet refresh failed. Check your connection and try again.", "error"
+                ),
+                0,
+            )
+        finally:
+            if callable(on_complete):
+                Clock.schedule_once(lambda _dt: on_complete(), 0)
 
     def refresh_wallet(self) -> None:
         self._set_feedback("Refreshing wallet...", "info")
-        self._refresh_wallet_balance_async("Wallet updated.")
+        self._refresh_wallet_balance_async(
+            "Wallet updated.",
+            on_complete=self._finish_pull_refresh,
+        )
         self._recover_paystack_deposits_async(show_idle=True)
 
     def load_wallet(self, notify: bool = True):

@@ -8,6 +8,22 @@ from kivymd.uix.refreshlayout import MDScrollViewRefreshLayout
 class PullRefreshScrollView(MDScrollViewRefreshLayout):
     """Native KivyMD pull gesture with one shared callback per screen."""
 
+    def on_touch_up(self, *args):
+        # KivyMD's callback has no completion parameter. Adapt it for our screens
+        # while keeping its native overscroll gesture and spinner implementation.
+        callback = self.refresh_callback
+        if not self._did_overscroll or self._work_spinner or not callable(callback):
+            return super().on_touch_up(*args)
+
+        def dispatch_refresh():
+            Clock.schedule_once(lambda _dt: callback(self.refresh_done), 0)
+
+        self.refresh_callback = dispatch_refresh
+        try:
+            return super().on_touch_up(*args)
+        finally:
+            self.refresh_callback = callback
+
 
 Factory.register("PullRefreshScrollView", cls=PullRefreshScrollView)
 
@@ -54,14 +70,18 @@ class PullToRefreshMixin:
     def __init__(self, **kwargs):
         self._pull_refresh_event = None
         self._pull_refresh_busy = False
+        self._pull_refresh_done_callback = None
         super().__init__(**kwargs)
         self.bind(on_leave=self._on_pull_refresh_leave)
         self.bind(on_parent=self._on_pull_refresh_parent)
 
-    def pull_to_refresh(self, *_args):
+    def pull_to_refresh(self, done=None, *_args):
         if self._pull_refresh_busy:
+            if callable(done):
+                done()
             return
         self._pull_refresh_busy = True
+        self._pull_refresh_done_callback = done if callable(done) else None
         self._pull_refresh_event = Clock.schedule_once(self._finish_pull_refresh, 8.0)
         try:
             started = self.refresh_content_from_pull()
@@ -155,12 +175,22 @@ class PullToRefreshMixin:
             except Exception:
                 pass
         self._pull_refresh_busy = False
-        self._hide_pull_refresh_spinners()
+        done = self._pull_refresh_done_callback
+        self._pull_refresh_done_callback = None
+        done_owner = getattr(done, "__self__", None)
+        if callable(done):
+            try:
+                done()
+            except Exception:
+                pass
+        self._hide_pull_refresh_spinners(skip_widget=done_owner)
 
-    def _hide_pull_refresh_spinners(self, *_args):
+    def _hide_pull_refresh_spinners(self, *_args, skip_widget=None):
         walk = getattr(self, "walk", None)
         if callable(walk):
             for widget in walk(restrict=True):
+                if widget is skip_widget:
+                    continue
                 done = getattr(widget, "refresh_done", None)
                 if callable(done):
                     done()

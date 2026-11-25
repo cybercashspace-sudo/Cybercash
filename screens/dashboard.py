@@ -1235,8 +1235,11 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             self._is_loading = False
             if self.manager and self.manager.current == self.name:
                 Clock.schedule_once(lambda _dt: self.load_dashboard_data(), 0)
+            else:
+                self._finish_pull_refresh()
             return
         if not self.parent:
+            self._finish_pull_refresh()
             return
         self._is_loading = False
         self.is_agent_valid = bool(is_agent_valid)
@@ -1272,6 +1275,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             self._render_recent_activity(self._recent_activity_rows)
             if error_text and not self.balance_loaded:
                 self.dashboard_status = error_text
+        self._finish_pull_refresh()
 
     def load_dashboard_data(self):
         if self._is_loading:

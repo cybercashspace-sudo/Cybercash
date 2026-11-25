@@ -38,9 +38,15 @@ class RefreshableScreenMixin:
         indicator = self._get_widget(self.refresh_indicator_id)
         if indicator is not None and hasattr(indicator, "finish_refresh"):
             indicator.finish_refresh(message)
+        finish_pull_refresh = getattr(self, "_finish_pull_refresh", None)
+        if callable(finish_pull_refresh):
+            finish_pull_refresh()
 
     def _fail_refresh(self, message: str | None = None) -> None:
         self._set_refresh_busy(False)
         indicator = self._get_widget(self.refresh_indicator_id)
         if indicator is not None and hasattr(indicator, "fail_refresh"):
             indicator.fail_refresh(message)
+        finish_pull_refresh = getattr(self, "_finish_pull_refresh", None)
+        if callable(finish_pull_refresh):
+            finish_pull_refresh()
