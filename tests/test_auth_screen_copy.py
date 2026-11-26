@@ -40,6 +40,14 @@ def test_app_has_no_fingerprint_authentication_path():
     assert "use_biometric" not in auth_sources
 
 
+def test_auth_loading_keeps_navigation_touchable():
+    login_py = _read("screens/login.py")
+    overlay_py = _read("core/responsive_screen.py")
+
+    assert "block_interaction_while_loading = False" in login_py
+    assert 'getattr(self.owner_screen, "block_interaction_while_loading", True)' in overlay_py
+
+
 def test_registration_form_keeps_required_details_without_repeated_helper_copy():
     register_kv = _read("screens/register.kv")
     register_py = _read("screens/register.py")

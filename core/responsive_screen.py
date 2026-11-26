@@ -23,6 +23,7 @@ from core.navigation import navigate_back
 class _RequestLoadingOverlay(FloatLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.owner_screen = None
         self.size_hint = (1, 1)
         self.opacity = 0
         self.disabled = True
@@ -66,17 +67,29 @@ class _RequestLoadingOverlay(FloatLayout):
         self.spinner.active = bool(active)
 
     def on_touch_down(self, touch):
-        if self.opacity and self.collide_point(*touch.pos):
+        if (
+            self.opacity
+            and bool(getattr(self.owner_screen, "block_interaction_while_loading", True))
+            and self.collide_point(*touch.pos)
+        ):
             return True
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
-        if self.opacity and self.collide_point(*touch.pos):
+        if (
+            self.opacity
+            and bool(getattr(self.owner_screen, "block_interaction_while_loading", True))
+            and self.collide_point(*touch.pos)
+        ):
             return True
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
-        if self.opacity and self.collide_point(*touch.pos):
+        if (
+            self.opacity
+            and bool(getattr(self.owner_screen, "block_interaction_while_loading", True))
+            and self.collide_point(*touch.pos)
+        ):
             return True
         return super().on_touch_up(touch)
 
@@ -85,6 +98,7 @@ def install_request_overlay(screen, property_names=()):
     if getattr(screen, "_request_overlay", None) is not None:
         return screen._request_overlay
     overlay = _RequestLoadingOverlay()
+    overlay.owner_screen = screen
     screen._request_overlay = overlay
     screen.add_widget(overlay)
 

@@ -17,6 +17,10 @@ from utils.network import normalize_ghana_number
 
 
 class LoginScreen(ResponsiveScreen):
+    # Keep auth navigation responsive while network sign-in is pending. The
+    # sign-in button itself remains disabled to prevent duplicate requests.
+    block_interaction_while_loading = False
+
     password_visible = BooleanProperty(False)
     loading = BooleanProperty(False)
     remember_me = BooleanProperty(True)
