@@ -283,7 +283,7 @@ KV = """
                                                 disabled: True
 
                                     MDLabel:
-                                        text: "Paystack Deposit"
+                                        text: "Add money"
                                         theme_text_color: "Custom"
                                         text_color: GOLD
                                         bold: True
@@ -302,7 +302,7 @@ KV = """
                                         halign: "right"
 
                                 MDLabel:
-                                    text: "Amount (GHS)"
+                                    text: "Amount"
                                     theme_text_color: "Custom"
                                     text_color: TEXT_MAIN
                                     bold: True
@@ -310,7 +310,7 @@ KV = """
 
                                 MDTextField:
                                     id: deposit_amount
-                                    hint_text: "Amount in GHS (e.g. 15.50)"
+                                    hint_text: "Enter amount (GHS)"
                                     mode: "rectangle"
                                     input_filter: "float"
                                     on_text: root.update_deposit_preview(self.text)
@@ -323,16 +323,7 @@ KV = """
                                     adaptive_height: True
 
                                 MDLabel:
-                                    text: "Wallet credits after Paystack confirms."
-                                    theme_text_color: "Custom"
-                                    text_color: TEXT_SUB
-                                    font_size: sp(11.25 * root.text_scale)
-                                    size_hint_y: None
-                                    height: self.texture_size[1] if root.screen_mode != "all" else 0
-                                    opacity: 1 if root.screen_mode != "all" else 0
-
-                                MDLabel:
-                                    text: "Quick Amounts"
+                                    text: "Choose amount"
                                     theme_text_color: "Custom"
                                     text_color: TEXT_MAIN
                                     bold: True
@@ -399,7 +390,7 @@ KV = """
                                     disabled: root.deposit_busy or not root.deposit_ready
 
                                 MDFillRoundFlatIconButton:
-                                    text: "Check Status"
+                                    text: "Check payment"
                                     icon: "refresh-circle"
                                     md_bg_color: SURFACE_SOFT
                                     text_color: TEXT_MAIN
@@ -417,6 +408,16 @@ KV = """
                                     height: self.texture_size[1] if self.text else 0
                                     shorten: True
                                     shorten_from: "right"
+
+                                MDTextButton:
+                                    text: "Need help?"
+                                    size_hint_x: None
+                                    width: self.texture_size[0] + dp(16 * root.layout_scale)
+                                    size_hint_y: None
+                                    height: dp(34 * root.layout_scale)
+                                    theme_text_color: "Custom"
+                                    text_color: GOLD
+                                    on_release: root.show_deposit_help()
 
                         MDCard:
                             id: deposit_summary_section
@@ -629,107 +630,6 @@ KV = """
                                     on_release: root.transfer_funds()
                                     disabled: root.transfer_busy or not transfer_recipient.text or not transfer_amount.text
 
-                MDBoxLayout:
-                    orientation: "vertical"
-                    size_hint_y: None
-                    height: self.minimum_height if root.screen_mode == "deposit" else 0
-                    opacity: 1 if root.screen_mode == "deposit" else 0
-                    disabled: True if root.screen_mode != "deposit" else False
-                    spacing: dp(12 * root.layout_scale)
-
-                    MDLabel:
-                        text: "Quick Actions"
-                        theme_text_color: "Custom"
-                        text_color: GOLD
-                        bold: True
-                        adaptive_height: True
-
-                    MDGridLayout:
-                        cols: 4
-                        spacing: dp(10 * root.layout_scale)
-                        size_hint_y: None
-                        height: self.minimum_height
-
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            adaptive_height: True
-
-                            MDIconButton:
-                                icon: "pencil-outline"
-                                icon_size: str(26 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: GOLD
-                                on_release: root.focus_deposit_amount()
-
-                            MDLabel:
-                                text: "Amount"
-                                halign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-                                font_size: sp(11.5 * root.text_scale)
-                                adaptive_height: True
-
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            adaptive_height: True
-
-                            MDIconButton:
-                                icon: "refresh-circle"
-                                icon_size: str(26 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: 0.54, 0.82, 0.67, 1
-                                on_release: root.check_last_deposit_status()
-
-                            MDLabel:
-                                text: "Status"
-                                halign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-                                font_size: sp(11.5 * root.text_scale)
-                                adaptive_height: True
-
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            adaptive_height: True
-
-                            MDIconButton:
-                                icon: "history"
-                                icon_size: str(26 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: GOLD_SOFT
-                                on_release: root.go_to_transactions()
-
-                            MDLabel:
-                                text: "History"
-                                halign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-                                font_size: sp(11.5 * root.text_scale)
-                                adaptive_height: True
-
-                        MDBoxLayout:
-                            orientation: "vertical"
-                            adaptive_height: True
-
-                            MDIconButton:
-                                icon: "help-circle-outline"
-                                icon_size: str(26 * root.icon_scale) + "sp"
-                                pos_hint: {"center_x": 0.5}
-                                theme_text_color: "Custom"
-                                text_color: TEXT_SUB
-                                on_release: root.show_deposit_help()
-
-                            MDLabel:
-                                text: "Help"
-                                halign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-                                font_size: sp(11.5 * root.text_scale)
-                                adaptive_height: True
-
                     MDBoxLayout:
                         adaptive_height: True
 
@@ -828,8 +728,8 @@ class WalletScreen(ActionScreen):
     deposit_ready = BooleanProperty(False)
     deposit_busy = BooleanProperty(False)
     transfer_busy = BooleanProperty(False)
-    deposit_button_text = StringProperty("Pay with Paystack")
-    deposit_preview = StringProperty("Enter an amount (minimum GHS 1.00).")
+    deposit_button_text = StringProperty("Continue to Paystack")
+    deposit_preview = StringProperty("Enter at least GHS 1.00.")
     deposit_summary_text = StringProperty(
         "Complete the Paystack payment (in-app or in your browser). Your wallet is credited after confirmation."
     )
@@ -1091,13 +991,13 @@ class WalletScreen(ActionScreen):
         )
         if amount < MIN_PAYSTACK_DEPOSIT_GHS:
             self.deposit_ready = False
-            self.deposit_button_text = "Pay with Paystack"
-            self.deposit_preview = "Enter an amount (minimum GHS 1.00)."
+            self.deposit_button_text = "Continue to Paystack"
+            self.deposit_preview = "Enter at least GHS 1.00."
             return
 
         self.deposit_ready = True
-        self.deposit_button_text = f"Pay GHS {amount:,.2f} with Paystack"
-        self.deposit_preview = f"You'll pay GHS {amount:,.2f} via Paystack."
+        self.deposit_button_text = "Continue to Paystack"
+        self.deposit_preview = "Credited after Paystack confirms."
 
     def set_deposit_amount(self, amount: float) -> None:
         field = self.ids.get("deposit_amount")

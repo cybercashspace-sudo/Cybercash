@@ -51,8 +51,8 @@ def test_deposit_quick_amount_updates_field_preview_and_selection():
 
     assert screen.ids["deposit_amount"].text == "50"
     assert screen.deposit_ready is True
-    assert screen.deposit_button_text == "Pay GHS 50.00 with Paystack"
-    assert screen.deposit_preview == "You'll pay GHS 50.00 via Paystack."
+    assert screen.deposit_button_text == "Continue to Paystack"
+    assert screen.deposit_preview == "Credited after Paystack confirms."
     assert screen.selected_deposit_quick_amount == "50"
 
 
@@ -74,7 +74,7 @@ def test_manual_amount_edit_clears_quick_amount_highlight():
     WalletScreen.update_deposit_preview(screen, "10.50")
 
     assert screen.selected_deposit_quick_amount == ""
-    assert "GHS 10.50" in screen.deposit_preview
+    assert screen.deposit_preview == "Credited after Paystack confirms."
 
 
 def test_manual_withdraw_amount_edit_updates_preview_and_clears_selection():
@@ -125,3 +125,11 @@ def test_every_withdraw_quick_amount_updates_the_amount_and_fee_preview():
 def test_wallet_modes_share_one_apk_dashboard_bottom_navigation():
     assert KV.count("BottomNavBar:") == 1
     assert 'nav_variant: "dashboard"' in KV
+
+
+def test_deposit_screen_uses_short_copy_and_one_status_action():
+    assert 'text: "Add money"' in KV
+    assert 'text: root.deposit_button_text' in KV
+    assert 'text: "Quick Actions"' not in KV
+    assert KV.count("root.check_last_deposit_status()") == 1
+    assert 'text: "Need help?"' in KV
