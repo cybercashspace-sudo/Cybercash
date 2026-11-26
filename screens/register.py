@@ -14,9 +14,9 @@ from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from utils.network import detect_network, normalize_ghana_number
 
-DEFAULT_NETWORK_TEXT = "Network: Enter your Ghana MoMo number to detect your network."
-DEFAULT_NAME_HINT_TEXT = "We will check whether this number already has a saved profile name."
-DEFAULT_FEEDBACK_TEXT = "Create your wallet with your MoMo number, email for OTP and notifications, first name, and a secure 4-digit PIN."
+DEFAULT_NETWORK_TEXT = ""
+DEFAULT_NAME_HINT_TEXT = ""
+DEFAULT_FEEDBACK_TEXT = ""
 
 
 
@@ -31,7 +31,6 @@ class RegisterScreen(ResponsiveScreen):
     card_art_source = StringProperty("")
     brand_tagline = StringProperty("YOUR MONEY. YOUR GOAL. YOUR WORLD.")
     pin_visible = BooleanProperty(False)
-    agent_mode = BooleanProperty(False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -58,11 +57,7 @@ class RegisterScreen(ResponsiveScreen):
             return parent_on_leave(*_args)
 
     def on_pre_enter(self, *_args):
-        self.agent_mode = False
         self.pin_visible = False
-        agent_checkbox = self.ids.get("agent_checkbox")
-        if agent_checkbox is not None:
-            agent_checkbox.active = False
         pin_input = self.ids.get("pin_input")
         if pin_input is not None:
             if hasattr(pin_input, "password_visible"):
@@ -96,17 +91,6 @@ class RegisterScreen(ResponsiveScreen):
             if hasattr(pin_input, "password"):
                 pin_input.password = not self.pin_visible
 
-    def toggle_agent_mode(self, *args):
-        active = False
-        for value in reversed(args):
-            if isinstance(value, bool):
-                active = value
-                break
-            if hasattr(value, "active"):
-                active = bool(getattr(value, "active"))
-                break
-        self.agent_mode = bool(active)
-
     def on_momo_input(self, text: str):
         if self._syncing_momo_input:
             return
@@ -130,7 +114,7 @@ class RegisterScreen(ResponsiveScreen):
                 self.network_text = DEFAULT_NETWORK_TEXT
                 self.name_hint_text = DEFAULT_NAME_HINT_TEXT
             else:
-                self.network_text = "Invalid number format..."
+                self.network_text = "Check MoMo number."
                 self.name_hint_text = DEFAULT_NAME_HINT_TEXT
             self.detected_first_name = ""
             return
@@ -160,28 +144,20 @@ class RegisterScreen(ResponsiveScreen):
         if seq != int(getattr(self, "_lookup_seq", 0)):
             return
         if not isinstance(response, dict):
-            self.name_hint_text = "We could not confirm the saved profile name right now. You can still continue."
+            self.name_hint_text = ""
             return
 
         registered = bool(response.get("registered"))
         first_name = str(response.get("first_name") or "").strip()
-        network = str(response.get("network") or detect_network(momo)).strip()
-        network_display = network.title() if network and network != "UNKNOWN" else "Unknown"
-
         if registered and first_name:
             self.detected_first_name = first_name
             if not self.ids.first_name_input.text.strip():
                 self.ids.first_name_input.text = first_name
-            self.name_hint_text = f"We found an existing profile name: {first_name}. You can keep it or update it."
+            self.name_hint_text = f"Profile: {first_name}"
             return
 
         self.detected_first_name = ""
-        if not self.ids.first_name_input.text.strip():
-            self.ids.first_name_input.text = ""
-        self.name_hint_text = (
-            f"No saved profile name was found on {network_display}. "
-            "Enter the first name you want to use for this wallet."
-        )
+        self.name_hint_text = ""
 
     def register_account(self):
         if self._registering:
@@ -192,7 +168,7 @@ class RegisterScreen(ResponsiveScreen):
         email = self.ids.email_input.text.strip().lower()
         first_name = self.ids.first_name_input.text.strip() or self.detected_first_name.strip() or "Customer"
         pin = self.ids.pin_input.text.strip()
-        agent_mode = bool(self.agent_mode)
+        agent_mode = False
 
         if not momo or len(momo) != 10 or not momo.startswith("0"):
             self._set_feedback("Enter a valid 10-digit Ghana MoMo number.", "error")
@@ -211,7 +187,7 @@ class RegisterScreen(ResponsiveScreen):
 
         self.ids.momo_input.text = momo
         self.ids.email_input.text = email
-        self._set_feedback("Creating your agent account..." if agent_mode else "Creating your account...", "info")
+        self._set_feedback("Creating your account...", "info")
 
         self._registering = True
         self._register_generation += 1
@@ -270,7 +246,6 @@ class RegisterScreen(ResponsiveScreen):
             app.user_name = display_name
             app.user_email = email
             app.pending_momo = momo
-            self._set_feedback("OTP sent to your email. Verify your account to continue.", "success")
             if self.manager and self.manager.has_screen("otp"):
                 otp_screen = self.manager.get_screen("otp")
                 otp_screen.momo_number = momo

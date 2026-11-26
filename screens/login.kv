@@ -97,7 +97,7 @@
                                     size: self.size
 
                         MDLabel:
-                            text: "Sign in to your wallet, transfers, cards, and agent tools."
+                            text: "Sign in to your account."
                             theme_text_color: "Custom"
                             text_color: TEXT_MAIN
 
@@ -115,32 +115,11 @@
 
                         MDTextField:
                             id: momo_input
-                            hint_text: "MoMo number"
+                            hint_text: "Ghana MoMo number"
                             mode: "rectangle"
                             icon_right: "phone"
                             line_color_focus: GOLD
                             on_text: root.on_momo_input(self.text)
-
-                        MDLabel:
-                            text: "Use your 10-digit registered Ghana MoMo number, for example 0241234567."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDTextField:
-                            id: first_name_input
-                            hint_text: "First name"
-                            mode: "rectangle"
-                            icon_right: "account-outline"
-                            line_color_focus: GOLD
-
-                        MDLabel:
-                            text: "We auto-fill this when we find your saved profile name for the number above."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDTextField:
                             id: pin_input
@@ -150,13 +129,6 @@
                             line_color_focus: GOLD
                             password: True
                             max_text_length: 4
-
-                        MDLabel:
-                            text: "Enter the same 4-digit PIN linked to this wallet."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDBoxLayout:
                             adaptive_height: True
@@ -194,27 +166,6 @@
                                 valign: "center"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
-
-                        MDLabel:
-                            text: "Use your enrolled fingerprint for quick sign-in. Face unlock is not used, and your fingerprint stays on your device. Your PIN remains available."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            size_hint_y: None
-                            height: self.texture_size[1] if root.biometric_available else 0
-                            opacity: 1 if root.biometric_available else 0
-
-                        MDLabel:
-                            text: root.network_text
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: root.name_hint_text
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            adaptive_height: True
 
                         MDLabel:
                             text: root.feedback_text

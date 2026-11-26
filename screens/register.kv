@@ -97,7 +97,7 @@
                                     size: self.size
 
                         MDLabel:
-                            text: "Open your wallet in minutes and verify your email with a one-time code."
+                            text: "Create an account and verify your email."
                             theme_text_color: "Custom"
                             text_color: TEXT_MAIN
 
@@ -115,32 +115,18 @@
 
                         MDTextField:
                             id: momo_input
-                            hint_text: "MoMo number"
+                            hint_text: "Ghana MoMo number"
                             mode: "rectangle"
                             icon_right: "phone"
                             line_color_focus: GOLD
                             on_text: root.on_momo_input(self.text)
 
-                        MDLabel:
-                            text: "Use the Ghana MoMo number linked to your account. We will send the OTP to your email."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
                         MDTextField:
                             id: email_input
-                            hint_text: "Email address"
+                            hint_text: "Email for OTPs and receipts"
                             mode: "rectangle"
                             icon_right: "email-outline"
                             line_color_focus: GOLD
-
-                        MDLabel:
-                            text: "We will use this email for receipts and account recovery."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDTextField:
                             id: first_name_input
@@ -148,13 +134,6 @@
                             mode: "rectangle"
                             icon_right: "account-outline"
                             line_color_focus: GOLD
-
-                        MDLabel:
-                            text: "We auto-fill this if the number already has a saved profile."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDTextField:
                             id: pin_input
@@ -164,30 +143,6 @@
                             line_color_focus: GOLD
                             password: True
                             max_text_length: 4
-
-                        MDLabel:
-                            text: "Create a secure 4-digit PIN you can remember easily."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDBoxLayout:
-                            adaptive_height: True
-                            spacing: "8dp"
-
-                            MDCheckbox:
-                                id: agent_checkbox
-                                active: False
-                                disabled: True
-                                size_hint: None, None
-                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-
-                            MDLabel:
-                                text: "Create your wallet first; agent onboarding opens after verification."
-                                valign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
 
                         MDLabel:
                             text: root.network_text

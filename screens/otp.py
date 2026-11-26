@@ -14,7 +14,7 @@ from core.responsive_screen import ResponsiveScreen
 from core.session import session
 from utils.network import normalize_ghana_number
 
-DEFAULT_OTP_FEEDBACK_TEXT = "Enter the 6-digit OTP we sent to your email to complete secure access."
+DEFAULT_OTP_FEEDBACK_TEXT = ""
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -112,7 +112,7 @@ KV = """
                                     size: self.size
 
                         MDLabel:
-                            text: "Verify your email to continue securely."
+                            text: "Enter the code sent to your email."
                             theme_text_color: "Custom"
                             text_color: TEXT_MAIN
 
@@ -128,27 +128,13 @@ KV = """
                         adaptive_height: True
                         spacing: dp(10 * root.layout_scale)
 
-                        MDLabel:
-                            text: "Enter the 6-digit code sent to your registered email."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(12 * root.text_scale)
-                            adaptive_height: True
-
                         MDTextField:
                             id: momo_input
-                            hint_text: "MoMo number"
+                            hint_text: "Registered MoMo number"
                             mode: "rectangle"
                             icon_right: "phone"
                             line_color_focus: GOLD
                             multiline: False
-
-                        MDLabel:
-                            text: "Use the same number linked to your account."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
 
                         MDTextField:
                             id: otp_input
@@ -279,7 +265,7 @@ class OTPScreen(ResponsiveScreen):
         if self.momo_number:
             self.ids.momo_input.text = self.momo_number
             self._set_feedback(
-                "We sent a 6-digit OTP to your email. Enter it below to continue.",
+                "Code sent to your email.",
                 "info",
             )
         else:
