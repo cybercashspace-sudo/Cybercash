@@ -1,3 +1,4 @@
+#:import BottomNavBar components.bottom_nav.BottomNavBar
 #:import GlassCard widgets.GlassCard
 #:import AppButton components.app_button.AppButton
 #:import TransactionCard components.transaction_card.TransactionCard
@@ -9,9 +10,9 @@
 
         MDBoxLayout:
             size_hint_y: None
-            height: "72dp"
-            padding: "18dp", "12dp"
-            spacing: "12dp"
+            height: "52dp"
+            padding: "16dp", "8dp"
+            spacing: "8dp"
 
             MDLabel:
                 text: "Bitcoin Wallet"
@@ -21,6 +22,12 @@
                 text_color: 1, 0.76, 0.12, 1
 
             Widget:
+
+            MDTextButton:
+                text: "Back"
+                theme_text_color: "Custom"
+                text_color: 1, 0.76, 0.12, 1
+                on_release: root.go_back()
 
             MDIconButton:
                 icon: "refresh"
@@ -157,3 +164,13 @@
                             size_hint_y: None
                             height: self.minimum_height
                             orientation: "vertical"
+
+        BottomNavBar:
+            nav_variant: "default"
+            active_target: ""
+            layout_scale: root.layout_scale
+            text_scale: root.text_scale
+            icon_scale: root.icon_scale
+            bar_color: app.ui_surface
+            active_color: app.gold
+            inactive_color: app.ui_text_secondary
