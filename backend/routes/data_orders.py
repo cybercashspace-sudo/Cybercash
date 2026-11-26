@@ -223,35 +223,33 @@ async def purchase_data_as_agent(
 
         provider_response: dict
         try:
-            balance_response = await idata_service.wallet_balance()
-            provider_balance = float(balance_response.get("balance") or 0.0)
-            provider_cost = float(_safe_json_load(getattr(bundle, "metadata_json", None)).get("idata_provider_cost") or selling_price)
-            if provider_balance < provider_cost:
-                raise IDataApiError("iData wallet balance is too low to deliver this bundle.")
             provider_response = await idata_service.place_order(
                 network=idata_network,
                 beneficiary=phone,
                 bundle_package_id=int(provider_package_id),
             )
         except IDataApiError as exc:
-            data_order.status = "failed"
-            try:
-                data_order.provider_response_json = json.dumps(
-                    {"error": str(exc), "provider_response": getattr(exc, "response", None)}
-                )
-            except Exception:
-                data_order.provider_response_json = json.dumps({"error": str(exc)})
-
-            if funding_source == "agent_float":
-                agent.float_balance = float(agent.float_balance or 0.0) + amount_to_deduct
+            if exc.outcome_unknown:
+                # Keep the order pending and the debit reserved: retrying here
+                # could place the same bundle twice if iData accepted it.
+                provider_response = {"status": "pending"}
             else:
-                user_wallet.balance = float(user_wallet.balance or 0.0) + amount_to_deduct
+                data_order.status = "failed"
+                data_order.provider_response_json = json.dumps({"error": "Data provider order request failed."})
 
-            db.add(agent)
-            db.add(user_wallet)
-            db.add(data_order)
-            await db.commit()
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+                if funding_source == "agent_float":
+                    agent.float_balance = float(agent.float_balance or 0.0) + amount_to_deduct
+                else:
+                    user_wallet.balance = float(user_wallet.balance or 0.0) + amount_to_deduct
+
+                db.add(agent)
+                db.add(user_wallet)
+                db.add(data_order)
+                await db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="We couldn't submit this data order. Your balance has been refunded. Please try again shortly.",
+                ) from exc
 
         provider_reference = None
         for key in ("transaction_id", "order_id", "reference", "id"):
@@ -260,16 +258,15 @@ async def purchase_data_as_agent(
                 provider_reference = str(value)
                 break
         provider_status = str(provider_response.get("status", "") or "").strip().lower()
-        pending_statuses = {"pending", "processing", "queued", "ordered"}
+        pending_statuses = {"pending", "processing", "queued", "ordered", "submitted", "received"}
         success_statuses = {"success", "successful", "completed", "ok"}
-        if provider_status and provider_status not in pending_statuses and provider_status not in success_statuses:
+        provider_receipt = idata_service.order_receipt(provider_response)
+        if provider_status in success_statuses and not provider_reference:
+            provider_status = "pending"
+            provider_receipt["status"] = "pending"
+        if provider_status not in pending_statuses and provider_status not in success_statuses:
             data_order.status = "failed"
-            try:
-                data_order.provider_response_json = json.dumps(
-                    {"provider_response": provider_response, "provider_status": provider_status}
-                )
-            except Exception:
-                data_order.provider_response_json = json.dumps(provider_response)
+            data_order.provider_response_json = json.dumps({"provider_response": provider_receipt})
 
             if funding_source == "agent_float":
                 agent.float_balance = float(agent.float_balance or 0.0) + amount_to_deduct
@@ -282,7 +279,7 @@ async def purchase_data_as_agent(
             await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=str(provider_response.get("message") or "iData bundle delivery failed."),
+                detail="The provider couldn't confirm this data order. Your balance has been refunded. Please try again later.",
             )
 
         order_status = "pending" if provider_status in pending_statuses else "completed"
@@ -293,7 +290,7 @@ async def purchase_data_as_agent(
 
         data_order.status = order_status
         data_order.provider_reference = provider_reference
-        data_order.provider_response_json = json.dumps(provider_response)
+        data_order.provider_response_json = json.dumps(provider_receipt)
         db.add(data_order)
         await db.flush()
 
@@ -400,9 +397,17 @@ async def purchase_data_as_agent(
 
         await notification_service.send_to_user(
             current_user,
-            "CyberCash: Your data bundle has been delivered successfully.",
+            (
+                "CyberCash: Your data bundle was delivered successfully."
+                if order_status == "completed"
+                else "CyberCash: Your data bundle order is processing. Check the app for its latest status."
+            ),
             subject="Data bundle purchase update",
-            idempotency_key=f"data-order:{data_order.id}:user:{current_user.id}:success",
+            idempotency_key=(
+                f"data-order:{data_order.id}:user:{current_user.id}:success"
+                if order_status == "completed"
+                else f"data-order:{data_order.id}:user:{current_user.id}:processing"
+            ),
         )
 
         # Refresh response models.
@@ -415,7 +420,7 @@ async def purchase_data_as_agent(
             order=DataOrderResponse.model_validate(order_row).model_copy(update={"status_label": status_label}),
             transaction_id=transaction.id,
             payment_id=payment.id,
-            provider_response=provider_response,
+            provider_response=provider_receipt,
         )
     finally:
         await db.close()

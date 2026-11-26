@@ -1,3 +1,5 @@
+import time
+
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.properties import BooleanProperty, ColorProperty, NumericProperty, StringProperty
@@ -314,6 +316,18 @@ class DataBundleScreen(ActionScreen):
         self._selected_bundle_id: int | None = None
         self._selected_bundle_price: float = 0.0
         self._suspend_network_sync = False
+        self._purchase_in_flight = False
+        self._purchase_blocked_until = 0.0
+
+    def _submit_purchase_request(self, payload: dict) -> tuple[bool, object]:
+        if self._purchase_in_flight or time.monotonic() < self._purchase_blocked_until:
+            return False, {"detail": "This order was just submitted. Check its status before trying again."}
+        self._purchase_in_flight = True
+        try:
+            return self._request("POST", self.purchase_path, payload=payload)
+        finally:
+            self._purchase_in_flight = False
+            self._purchase_blocked_until = time.monotonic() + 1.25
 
     def _reset_selection_state(self) -> None:
         self.selected_network = ""
@@ -842,6 +856,9 @@ class DataBundleScreen(ActionScreen):
         self._show_popup("Catalog Error", detail)
 
     def purchase_bundle(self):
+        if self.screen_loading or self._purchase_in_flight or time.monotonic() < self._purchase_blocked_until:
+            self._set_feedback("This order was just submitted. Check its status before trying again.", "warning")
+            return
         phone_input = self.ids.get("phone_input")
         bundle_input = self.ids.get("bundle_input")
         phone = normalize_ghana_number(phone_input.text.strip() if phone_input is not None else "")
@@ -889,10 +906,8 @@ class DataBundleScreen(ActionScreen):
 
             self._set_feedback("Submitting live iData bundle...", "info")
             self._set_order_status("ordered")
-            ok, payload = self._request(
-                "POST",
-                self.purchase_path,
-                payload={"network": network, "phone": phone, "bundle_id": int(bundle_id)},
+            ok, payload = self._submit_purchase_request(
+                {"network": network, "phone": phone, "bundle_id": int(bundle_id)}
             )
             if ok and isinstance(payload, dict):
                 order = payload.get("order") if isinstance(payload.get("order"), dict) else {}
@@ -910,12 +925,17 @@ class DataBundleScreen(ActionScreen):
                     fallback="Complete",
                 )
                 self._set_order_status(status_label or order_status_raw, fallback="Complete")
-                msg = (
-                    f"{status_label}. Live iData bundle sold successfully. User price GHS {user_price:,.2f}; "
-                    f"agent price GHS {charged_amount:,.2f}; save GHS {saved_amount:,.2f}."
-                )
-                self._set_feedback(msg, "success")
-                self._show_popup("Sale Successful", msg)
+                if status_label in {"Pending", "Ordered"}:
+                    msg = "Your data bundle order is processing. Check its status before trying again."
+                    self._set_feedback(msg, "warning")
+                    self._show_popup("Order Processing", msg)
+                else:
+                    msg = (
+                        f"{status_label}. Live iData bundle sold successfully. User price GHS {user_price:,.2f}; "
+                        f"agent price GHS {charged_amount:,.2f}; save GHS {saved_amount:,.2f}."
+                    )
+                    self._set_feedback(msg, "success")
+                    self._show_popup("Sale Successful", msg)
                 return
 
             detail = self._extract_detail(payload) or "Unable to complete live iData bundle sale."
@@ -939,10 +959,8 @@ class DataBundleScreen(ActionScreen):
 
         self._set_feedback("Submitting bundle purchase...", "info")
         self._set_order_status("ordered")
-        ok, payload = self._request(
-            "POST",
-            self.purchase_path,
-            payload={"network": network, "bundle_code": bundle_code, "phone": phone},
+        ok, payload = self._submit_purchase_request(
+            {"network": network, "bundle_code": bundle_code, "phone": phone}
         )
         if ok and isinstance(payload, dict):
             tx_id = payload.get("id")
@@ -950,18 +968,21 @@ class DataBundleScreen(ActionScreen):
             order_row = payload.get("order") if isinstance(payload.get("order"), dict) else {}
             if isinstance(order_row, dict):
                 order_status_raw = str(order_row.get("status") or "").strip()
+            if not order_status_raw:
+                order_status_raw = str(payload.get("status") or "").strip()
             status_label = self._extract_status_label(order_row, payload.get("provider_response")) or self._friendly_order_status(
                 order_status_raw,
                 fallback="Complete",
             )
             self._set_order_status(status_label or order_status_raw, fallback="Complete")
-            msg = "Data bundle purchased successfully."
-            if tx_id:
-                msg = f"{status_label}. Data bundle purchased successfully. Transaction #{tx_id}."
+            if status_label in {"Pending", "Ordered"}:
+                msg = "Your data bundle order is processing. Check its status before trying again."
             else:
-                msg = f"{status_label}. Data bundle purchased successfully."
-            self._set_feedback(msg, "success")
-            self._show_popup("Purchase Successful", msg)
+                msg = "Data bundle purchased successfully."
+                if tx_id:
+                    msg = f"{status_label}. Data bundle purchased successfully. Transaction #{tx_id}."
+            self._set_feedback(msg, "warning" if status_label in {"Pending", "Ordered"} else "success")
+            self._show_popup("Order Processing" if status_label in {"Pending", "Ordered"} else "Purchase Successful", msg)
             return
 
         detail = self._extract_detail(payload) or "Unable to complete bundle purchase."

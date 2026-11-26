@@ -45,13 +45,16 @@ def test_user_can_purchase_idata_bundle_via_bundles_route(client, db_session, mo
         assert network == "mtn"
         assert beneficiary == "0241234567"
         assert bundle_package_id == 5
-        return {"status": "success", "order_id": "IDATA_ORDER_ABC"}
-
-    async def _fake_wallet_balance() -> dict:
-        return {"balance": 1000.0}
+        return {
+            "status": "success",
+            "order_id": 1669242,
+            "amount": 8.3,
+            "network": "MTN",
+            "beneficiary": "0241234567",
+            "provider_debug": "must not be persisted",
+        }
 
     monkeypatch.setattr(bundles_route.idata_service, "place_order", _fake_place_order, raising=True)
-    monkeypatch.setattr(bundles_route.idata_service, "wallet_balance", _fake_wallet_balance, raising=True)
 
     async def _fake_sync_idata_catalog(db, *, network: str) -> list:
         return []
@@ -71,6 +74,10 @@ def test_user_can_purchase_idata_bundle_via_bundles_route(client, db_session, mo
     assert payload["status"] == "completed"
     assert payload["type"].lower() == "data"
     assert float(payload["amount"]) == 5.0
+    public_metadata = json.loads(payload["metadata_json"])
+    assert public_metadata["provider_order_id"] == "1669242"
+    assert "idata_package_id" not in public_metadata
+    assert "provider_debug" not in public_metadata
 
     db_session.refresh(wallet)
     assert wallet.balance == 15.0
@@ -80,4 +87,7 @@ def test_user_can_purchase_idata_bundle_via_bundles_route(client, db_session, mo
     assert tx_row.status == "completed"
     assert tx_row.provider == "idata"
     assert tx_row.provider_reference
+    stored = json.loads(tx_row.metadata_json)
+    assert stored["provider_response"]["order_id"] == 1669242
+    assert "provider_debug" not in stored["provider_response"]
 

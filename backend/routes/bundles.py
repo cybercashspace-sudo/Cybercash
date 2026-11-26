@@ -187,6 +187,51 @@ def _extract_provider_order_id(*sources: Any) -> str:
     return ""
 
 
+def _user_transaction_response(transaction: Transaction) -> TransactionResponse:
+    """Return transaction details needed by the app without provider internals."""
+    metadata = _safe_json_load(getattr(transaction, "metadata_json", None))
+    receipt = metadata.get("provider_response") if isinstance(metadata.get("provider_response"), dict) else {}
+    safe_metadata = {
+        key: metadata[key]
+        for key in ("network", "bundle_code", "phone", "provider")
+        if metadata.get(key) not in (None, "")
+    }
+    order_id = _extract_provider_order_id(receipt)
+    if order_id:
+        safe_metadata["provider_order_id"] = order_id
+    return TransactionResponse.model_validate(transaction).model_copy(
+        update={"metadata_json": json.dumps(safe_metadata)}
+    )
+
+
+async def _find_matching_pending_idata_order(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    network_filters: list[str],
+    bundle_code: str,
+    phone: str,
+) -> Transaction | None:
+    result = await db.execute(
+        select(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.type == TransactionType.DATA,
+            Transaction.provider == "idata",
+            Transaction.status == "pending",
+        )
+    )
+    network_set = {value.upper() for value in network_filters}
+    for transaction in result.scalars().all():
+        metadata = _safe_json_load(getattr(transaction, "metadata_json", None))
+        if (
+            str(metadata.get("phone") or "") == phone
+            and str(metadata.get("bundle_code") or "").upper() == bundle_code.upper()
+            and str(metadata.get("network") or "").upper() in network_set
+        ):
+            return transaction
+    return None
+
+
 async def _sync_idata_catalog(db: AsyncSession, *, network: str) -> list[BundleCatalog]:
     idata_network = _normalize_idata_network(network)
     if idata_network not in SUPPORTED_NETWORKS_IDATA:
@@ -353,7 +398,16 @@ async def get_data_bundle_order_status(
         provider_response = metadata.get("provider_response") if isinstance(metadata.get("provider_response"), dict) else {}
         order_id = _extract_provider_order_id(provider_response, getattr(transaction, "provider_reference", ""))
         if not order_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="iData order reference not found.")
+            return {
+                "transaction_id": transaction.id,
+                "status": str(transaction.status or "pending").lower(),
+                "provider_order_id": None,
+                "message": (
+                    "The provider is still confirming this order. Please check again shortly."
+                    if str(transaction.status or "").lower() == "pending"
+                    else "This order has no provider status reference."
+                ),
+            }
         if not idata_service.is_configured():
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -368,7 +422,7 @@ async def get_data_bundle_order_status(
             transaction.status = "failed"
         else:
             transaction.status = "pending"
-        metadata["latest_order_status"] = provider_status
+        metadata["latest_order_status"] = idata_service.order_receipt(provider_status)
         transaction.metadata_json = json.dumps(metadata)
         db.add(transaction)
         await db.commit()
@@ -377,7 +431,7 @@ async def get_data_bundle_order_status(
             "transaction_id": transaction.id,
             "status": transaction.status,
             "provider_order_id": order_id,
-            "provider_response": provider_status,
+            "provider_response": idata_service.order_receipt(provider_status),
         }
     except IDataApiError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -400,6 +454,18 @@ async def purchase_data_bundle(
         network_filters = _bundle_network_filters(request.network)
         if not network_filters:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Select a valid network.")
+        pending_order = await _find_matching_pending_idata_order(
+            db,
+            user_id=current_user.id,
+            network_filters=network_filters,
+            bundle_code=request.bundle_code,
+            phone=phone,
+        )
+        if pending_order:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A matching data bundle order is still processing. Check its status before placing it again.",
+            )
         prefer_idata = idata_service.is_configured()
         if prefer_idata:
             try:
@@ -496,53 +562,62 @@ async def purchase_data_bundle(
 
         if provider == "idata":
             try:
-                balance_response = await idata_service.wallet_balance()
-                provider_balance = float(balance_response.get("balance") or 0.0)
                 provider_cost = float(_safe_json_load(getattr(bundle, "metadata_json", None)).get("idata_provider_cost") or amount)
                 idata_provider_cost = round(provider_cost, 2)
                 cybercash_profit = round(max(float(amount) - idata_provider_cost, 0.0), 2)
-                if provider_balance < provider_cost:
-                    raise IDataApiError("iData wallet balance is too low to deliver this bundle.")
                 provider_response = await idata_service.place_order(
                     network=idata_network,
                     beneficiary=phone,
                     bundle_package_id=int(idata_package_id),
                 )
             except IDataApiError as exc:
-                wallet.balance = Decimal(str(wallet.balance or 0)) + amount
-                db.add(wallet)
+                if exc.outcome_unknown:
+                    # Do not refund and trigger a second provider order when the
+                    # network failed after the order may have reached iData.
+                    provider_response = {"status": "pending"}
+                else:
+                    wallet.balance = Decimal(str(wallet.balance or 0)) + amount
+                    db.add(wallet)
 
-                transaction.status = "failed"
-                transaction.provider_reference = f"IDATA_{uuid.uuid4().hex}"
-                transaction.metadata_json = json.dumps(
-                    {
-                        "network": bundle.network,
-                        "bundle_code": bundle.bundle_code,
-                        "phone": phone,
-                        "bundle_catalog_id": bundle.id,
-                        "provider": provider,
-                        "idata_network": idata_network,
-                        "idata_package_id": int(idata_package_id),
-                        "idata_provider_cost": idata_provider_cost,
-                        "cybercash_profit": cybercash_profit,
-                        "provider_error": str(exc),
-                        "provider_response": getattr(exc, "response", None),
-                    }
-                )
-                db.add(transaction)
-                await db.commit()
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+                    transaction.status = "failed"
+                    transaction.provider_reference = f"IDATA_{uuid.uuid4().hex}"
+                    transaction.metadata_json = json.dumps(
+                        {
+                            "network": bundle.network,
+                            "bundle_code": bundle.bundle_code,
+                            "phone": phone,
+                            "bundle_catalog_id": bundle.id,
+                            "provider": provider,
+                            "idata_network": idata_network,
+                            "idata_package_id": int(idata_package_id),
+                            "idata_provider_cost": idata_provider_cost,
+                            "cybercash_profit": cybercash_profit,
+                            "provider_error": "Data provider order request failed.",
+                        }
+                    )
+                    db.add(transaction)
+                    await db.commit()
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="We couldn't submit this data order. Your wallet has been refunded. Please try again shortly.",
+                    ) from exc
 
             provider_status = str(provider_response.get("status", "") or "").strip().lower()
+            provider_receipt = idata_service.order_receipt(provider_response)
+            success_statuses = {"success", "successful", "completed", "ok"}
+            pending_statuses = {"pending", "processing", "queued", "ordered", "submitted", "received"}
             for key in ("transaction_id", "order_id", "reference", "id"):
                 value = provider_response.get(key) if isinstance(provider_response, dict) else None
                 if value:
                     provider_ref = str(value)
                     break
-            if not provider_ref:
+            if provider_status in success_statuses and not provider_ref:
+                provider_status = "pending"
+                provider_receipt["status"] = "pending"
+            if not provider_ref and provider_status not in pending_statuses:
                 provider_ref = f"IDATA_{uuid.uuid4().hex}"
 
-            if provider_status and provider_status not in {"success", "successful", "completed", "ok"}:
+            if provider_status not in success_statuses | pending_statuses:
                 wallet.balance = Decimal(str(wallet.balance or 0)) + amount
                 db.add(wallet)
                 transaction.status = "failed"
@@ -558,14 +633,14 @@ async def purchase_data_bundle(
                         "idata_package_id": int(idata_package_id),
                         "idata_provider_cost": idata_provider_cost,
                         "cybercash_profit": cybercash_profit,
-                        "provider_response": provider_response,
+                        "provider_response": provider_receipt,
                     }
                 )
                 db.add(transaction)
                 await db.commit()
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=str(provider_response.get("message") or "iData bundle delivery failed."),
+                    detail="The provider couldn't confirm this data order. Your wallet has been refunded. Please try again later.",
                 )
         else:
             # Call provider API (simulated MoMo fallback).
@@ -593,11 +668,13 @@ async def purchase_data_bundle(
                 "idata_package_id": int(idata_package_id) if idata_package_id is not None else None,
                 "idata_provider_cost": idata_provider_cost if provider == "idata" else None,
                 "cybercash_profit": cybercash_profit if provider == "idata" else None,
-                "provider_response": provider_response,
+                "provider_response": idata_service.order_receipt(provider_response) if provider == "idata" else provider_response,
             }
         )
 
-        if provider == "idata" or provider_status in {"successful", "success", "completed", "ok"}:
+        if (provider == "idata" and provider_status in {"success", "successful", "completed", "ok"}) or (
+            provider != "idata" and provider_status in {"successful", "success", "completed", "ok"}
+        ):
             transaction.status = "completed"
             await db.commit()
             await db.refresh(transaction)
@@ -614,7 +691,19 @@ async def purchase_data_bundle(
                 idempotency_key=f"transaction:{transaction.id}:user:{current_user.id}:success",
             )
 
-            return transaction
+            return _user_transaction_response(transaction)
+
+        if provider == "idata" and provider_status in {"pending", "processing", "queued", "ordered", "submitted", "received"}:
+            transaction.status = "pending"
+            await db.commit()
+            await db.refresh(transaction)
+            await notification_service.send_to_user(
+                current_user,
+                "CyberCash: Your data bundle order is processing. Check the app for its latest status.",
+                subject="Data bundle order processing",
+                idempotency_key=f"transaction:{transaction.id}:user:{current_user.id}:processing",
+            )
+            return _user_transaction_response(transaction)
 
         # Provider failure -> refund wallet and persist failed transaction.
         wallet.balance = Decimal(str(wallet.balance or 0)) + amount
@@ -624,7 +713,11 @@ async def purchase_data_bundle(
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(provider_response.get("message") or "Data bundle provider request failed."),
+            detail=(
+                "The data provider couldn't confirm this order. Your wallet has been refunded. Please try again later."
+                if provider == "idata"
+                else str(provider_response.get("message") or "Data bundle provider request failed.")
+            ),
         )
     finally:
         await db.close()
