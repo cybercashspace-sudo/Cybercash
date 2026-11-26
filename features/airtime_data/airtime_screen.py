@@ -6,6 +6,7 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
+from core.navigation import navigate_back
 from components.app_snackbar import show_app_snackbar
 
 from features.airtime_data.airtime_controller import AirtimeController
@@ -23,14 +24,7 @@ class AirtimeScreen(PullToRefreshMixin, RequestGuardMixin, MDScreen):
         self._last_network = "Unknown"
 
     def go_back(self):
-        app = MDApp.get_running_app()
-        if app is not None and hasattr(app, "go_to_screen"):
-            if app.go_to_screen("home", fallback="login", transition_style="fade"):
-                return True
-        if self.manager is not None and self.manager.has_screen("home"):
-            self.manager.current = "home"
-            return True
-        return False
+        return navigate_back(self)
 
     def on_enter(self):
         self._set_wallet_balance()

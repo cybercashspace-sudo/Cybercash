@@ -8,7 +8,7 @@ from kivymd.app import MDApp
 from api.auth import resend_otp, verify_account
 from components.app_snackbar import show_app_snackbar
 from core.message_sanitizer import extract_backend_message
-from core.navigation import navigate
+from core.navigation import navigate, navigate_back
 from core.popup_manager import show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from core.session import session
@@ -208,13 +208,7 @@ class OTPScreen(ResponsiveScreen):
         self._dashboard_route_attempts = 0
 
     def go_back(self):
-        app = MDApp.get_running_app()
-        if app is not None and hasattr(app, "go_to_screen"):
-            if app.go_to_screen("login", fallback="", transition_style="slide_right"):
-                return True
-        if self.manager and self.manager.has_screen("login"):
-            return navigate(self.manager, "login", fallback="", transition_style="slide_right")
-        return False
+        return navigate_back(self)
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {

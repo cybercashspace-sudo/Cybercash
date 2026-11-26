@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from kivy.clock import Clock
 from kivy.properties import ColorProperty, StringProperty
 from kivymd.app import MDApp
 
@@ -26,10 +27,41 @@ class ActionScreen(ResponsiveScreen):
             "warning": [0.94, 0.79, 0.46, 1],
             "error": [0.96, 0.47, 0.42, 1],
         }
-        self.feedback_text = str(message or "").strip()
-        self.feedback_color = palette.get(level, palette["info"])
+        message = str(message or "").strip()
+        normalized_level = str(level or "info").strip().lower()
+        self.feedback_color = palette.get(normalized_level, palette["info"])
+        if normalized_level in {"success", "warning", "error"} and message:
+            self.feedback_text = ""
+            pending = getattr(self, "_feedback_popup_event", None)
+            if pending is not None:
+                pending.cancel()
+            generation = int(getattr(self, "_feedback_popup_generation", 0)) + 1
+            self._feedback_popup_generation = generation
+            self._feedback_popup_event = Clock.schedule_once(
+                lambda _dt, gen=generation, msg=message, lvl=normalized_level: self._show_feedback_popup(gen, msg, lvl)
+            )
+            return
+        self.feedback_text = message
+
+    def _show_feedback_popup(self, generation: int, message: str, level: str) -> None:
+        if generation != getattr(self, "_feedback_popup_generation", 0):
+            return
+        self._feedback_popup_event = None
+        title = {"success": "Completed", "warning": "Please check", "error": "Unable to complete"}.get(level, "Update")
+        self._show_popup(title, message)
+
+    def _cancel_feedback_popup(self) -> None:
+        event = getattr(self, "_feedback_popup_event", None)
+        if event is not None:
+            try:
+                event.cancel()
+            except Exception:
+                pass
+        self._feedback_popup_event = None
+        self._feedback_popup_generation = int(getattr(self, "_feedback_popup_generation", 0)) + 1
 
     def _show_popup(self, title: str, message: str, on_close=None) -> None:
+        self._cancel_feedback_popup()
         show_message_dialog(
             self,
             title=str(title or "Notice"),
@@ -115,14 +147,18 @@ class ActionScreen(ResponsiveScreen):
                 return False, {"detail": "Please sign in to continue.", "_auth_required": True}
             headers.update(auth_headers)
 
-        result = api_client.request(
-            method=method,
-            path=path,
-            payload=payload,
-            params=params,
-            headers=headers,
-            timeout=timeout,
-        )
+        self._begin_request_activity()
+        try:
+            result = api_client.request(
+                method=method,
+                path=path,
+                payload=payload,
+                params=params,
+                headers=headers,
+                timeout=timeout,
+            )
+        finally:
+            self._end_request_activity()
         payload = result.get("data", {})
         status_code = result.get("status_code", 0)
         if isinstance(payload, dict):
@@ -136,31 +172,5 @@ class ActionScreen(ResponsiveScreen):
             return False, payload
         return bool(result.get("ok")), payload
 
-    def go_back(self) -> None:
-        manager = self.manager
-        if not manager:
-            return
-
-        previous = str(getattr(manager, "previous_screen", "") or "").strip()
-        disallow = {"splash"}
-        if previous and previous != self.name and previous not in disallow and manager.has_screen(previous):
-            app = MDApp.get_running_app()
-            if app is not None and hasattr(app, "go_to_screen"):
-                if app.go_to_screen(previous, fallback="login", transition_style="slide_right"):
-                    return
-            navigate(manager, previous, fallback="login", transition_style="slide_right")
-            return
-
-        app = MDApp.get_running_app()
-        token = str(getattr(app, "access_token", "") or "").strip()
-        if token and manager.has_screen("home"):
-            if app is not None and hasattr(app, "go_to_screen"):
-                if app.go_to_screen("home", fallback="login", transition_style="slide_right"):
-                    return
-            navigate(manager, "home", fallback="login", transition_style="slide_right")
-            return
-        if manager.has_screen("login"):
-            if app is not None and hasattr(app, "go_to_screen"):
-                if app.go_to_screen("login", fallback=""):
-                    return
-            navigate(manager, "login", fallback="")
+    def go_back(self) -> bool:
+        return super().go_back()

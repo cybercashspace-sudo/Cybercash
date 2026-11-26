@@ -122,12 +122,12 @@ def test_every_withdraw_quick_amount_updates_the_amount_and_fee_preview():
         assert f"Total debit: GHS {total:,.2f}" in screen.withdraw_fee_preview
 
 
-def test_deposit_uses_the_four_button_airtime_navigation():
+def test_deposit_and_withdraw_use_the_four_button_airtime_navigation():
     from core.bottom_nav import BottomNavBar
 
     assert KV.count("BottomNavBar:") == 1
-    assert 'nav_variant: "default" if root.screen_mode == "deposit" else "dashboard"' in KV
-    assert 'active_target: "" if root.screen_mode == "deposit" else "wallet"' in KV
+    assert 'nav_variant: "default" if root.screen_mode != "all" else "dashboard"' in KV
+    assert 'active_target: "" if root.screen_mode != "all" else "wallet"' in KV
     default_items = BottomNavBar._variants["default"]
     assert len(default_items) == 4
     cards = next(item for item in default_items if item["label"] == "Cards")

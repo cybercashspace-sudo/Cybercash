@@ -11,6 +11,14 @@ class RequestGuardMixin:
         self._requests_invalidated = False
         super().__init__(**kwargs)
 
+    def on_kv_post(self, base_widget):
+        parent = getattr(super(), "on_kv_post", None)
+        if callable(parent):
+            parent(base_widget)
+        from core.responsive_screen import install_request_overlay
+
+        install_request_overlay(self, ("loading",))
+
     def _next_request_generation(self) -> int:
         self._request_generation += 1
         self._requests_invalidated = False

@@ -89,8 +89,22 @@ def smooth_switch_screen(
     manager.transition = transition
     transition_duration = max(0.0, float(getattr(transition, "duration", 0.0) or 0.0))
 
+    history = list(getattr(manager, "_cybercash_screen_history", []) or [])
+    if bool(getattr(manager, "_cybercash_back_navigation", False)):
+        while history and history[-1] != target:
+            history.pop()
+        if history and history[-1] == target:
+            history.pop()
+    else:
+        current_name = str(getattr(current, "name", "") or "").strip()
+        if current_name and (not history or history[-1] != current_name):
+            history.append(current_name)
+            history = history[-32:]
+        manager._cybercash_back_fallback_target = ""
+
     try:
         manager.current = target
+        manager._cybercash_screen_history = history
     except Exception:
         manager._cybercash_nav_busy = False
         manager._cybercash_pending_target = ""

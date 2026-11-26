@@ -9,13 +9,6 @@ from features.airtime_data.request_guard import RequestGuardMixin
 from utils.network import detect_network, normalize_ghana_number
 
 DEFAULT_PAYOUT_RATE = 0.8
-MERCHANT_NUMBERS = {
-    "MTN": "0559000000",
-    "TELECEL": "0209000000",
-    "AIRTELTIGO": "0279000000",
-    "DEFAULT": "0559000000",
-}
-
 KV = """
 #:import dp kivy.metrics.dp
 #:import sp kivy.metrics.sp
@@ -69,60 +62,6 @@ KV = """
                         theme_text_color: "Custom"
                         text_color: GOLD
                         on_release: root.go_back()
-
-                MDLabel:
-                    text: "Sell airtime and receive Mobile Money payout after verification."
-                    theme_text_color: "Custom"
-                    text_color: TEXT_SUB
-                    font_size: sp(12.5 * root.text_scale)
-                    adaptive_height: True
-
-                MDCard:
-                    radius: [dp(18 * root.layout_scale)]
-                    md_bg_color: SURFACE_SOFT
-                    elevation: 0
-                    padding: [dp(12 * root.layout_scale)] * 4
-                    adaptive_height: True
-
-                    MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: dp(6 * root.layout_scale)
-                        adaptive_height: True
-
-                        MDLabel:
-                            text: "How it works"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(13 * root.text_scale)
-                            bold: True
-
-                        MDLabel:
-                            text: "1. Generate a merchant number"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "2. Send airtime from your line"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "3. Tap Airtime Sent and wait for verification"
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-
-                        MDLabel:
-                            text: "Payout is sent to your MoMo after verification."
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11 * root.text_scale)
-                            adaptive_height: True
 
                 MDCard:
                     radius: [dp(20 * root.layout_scale)]
@@ -219,12 +158,6 @@ KV = """
                                     font_size: sp(13 * root.text_scale)
                                     bold: True
 
-                        MDTextField:
-                            id: network_input
-                            hint_text: "Network (auto)"
-                            mode: "rectangle"
-                            on_text: root.on_manual_network(self.text)
-
                         MDLabel:
                             text: "Airtime amount"
                             theme_text_color: "Custom"
@@ -275,20 +208,6 @@ KV = """
                                     font_size: sp(10.5 * root.text_scale)
                                     adaptive_height: True
 
-                                MDLabel:
-                                    text: root.rate_hint
-                                    theme_text_color: "Custom"
-                                    text_color: TEXT_SUB
-                                    font_size: sp(10 * root.text_scale)
-                                    adaptive_height: True
-
-                                MDLabel:
-                                    text: "Large amounts may need review."
-                                    theme_text_color: "Custom"
-                                    text_color: TEXT_SUB
-                                    font_size: sp(10 * root.text_scale)
-                                    adaptive_height: True
-
                         MDGridLayout:
                             cols: 1 if root.compact_mode else 2
                             adaptive_height: True
@@ -325,11 +244,11 @@ KV = """
                         adaptive_height: True
 
                         MDLabel:
-                            text: "Transfer instructions"
+                            text: "Send airtime to this number"
                             theme_text_color: "Custom"
-                            text_color: TEXT_MAIN
-                            font_size: sp(13 * root.text_scale)
-                            bold: True
+                            text_color: TEXT_SUB
+                            font_size: sp(11 * root.text_scale)
+                            adaptive_height: True
 
                         MDLabel:
                             text: "Merchant number"
@@ -360,22 +279,6 @@ KV = """
                             font_size: sp(12.5 * root.text_scale)
                             adaptive_height: True
 
-                        MDLabel:
-                            text: root.transfer_instructions
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11.5 * root.text_scale)
-                            adaptive_height: True
-                            text_size: self.width, None
-
-                        MDLabel:
-                            text: root.flow_hint
-                            theme_text_color: "Custom"
-                            text_color: TEXT_SUB
-                            font_size: sp(11 * root.text_scale)
-                            adaptive_height: True
-                            text_size: self.width, None
-
                 MDLabel:
                     text: root.feedback_text
                     theme_text_color: "Custom"
@@ -404,20 +307,12 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     payout_rate = NumericProperty(DEFAULT_PAYOUT_RATE)
     payout_estimate = StringProperty("GHS 0.00")
     fee_estimate = StringProperty("GHS 0.00")
-    rate_hint = StringProperty("Payout rate: 80%")
-    merchant_number = StringProperty("Tap Generate Number to get a merchant number.")
-    transfer_instructions = StringProperty(
-        "Tap Generate Number, send the airtime, then tap Airtime Sent."
-    )
-    flow_hint = StringProperty(
-        "Flow: 1) Generate merchant number 2) Send airtime 3) We verify receipt 4) MoMo payout sent."
-    )
+    merchant_number = StringProperty("Generate a number to begin.")
     sale_id = StringProperty("")
     sale_status = StringProperty("")
     sale_status_display = StringProperty("Not submitted")
-    _syncing_network_input = False
 
-    def _set_selected_network(self, network: str, helper_text: str | None = None, sync_input: bool = True) -> None:
+    def _set_selected_network(self, network: str, helper_text: str | None = None) -> None:
         self.selected_network = str(network or "").strip().upper()
         if helper_text is not None:
             self.network_helper_text = helper_text
@@ -425,16 +320,10 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             self.network_helper_text = f"{self.selected_network} selected."
         else:
             self.network_helper_text = "We will auto-detect the network from the phone number."
-        if sync_input:
-            self._sync_network_input()
-
     def _reset_submission_state(self) -> None:
         self.sale_id = ""
         self._set_sale_status(None)
-        self.merchant_number = "Tap Generate Number to get a merchant number."
-        self.transfer_instructions = (
-            "Tap Generate Number, send the airtime, then tap Airtime Sent."
-        )
+        self.merchant_number = "Generate a number to begin."
         self._set_feedback("", "info")
 
     def on_pre_enter(self, *_args):
@@ -442,7 +331,6 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         if callable(parent_on_pre_enter):
             parent_on_pre_enter(*_args)
 
-        self._syncing_network_input = False
         phone_field = self.ids.get("phone_input")
         phone_value = str(phone_field.text if phone_field is not None else "").strip()
         if phone_value:
@@ -453,7 +341,6 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         self._update_estimate(amount_field.text if amount_field is not None else "")
 
     def on_leave(self, *_args):
-        self._syncing_network_input = False
         parent_on_leave = getattr(super(), "on_leave", None)
         if callable(parent_on_leave):
             parent_on_leave(*_args)
@@ -462,18 +349,6 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
         self._update_estimate()
-        self._update_rate_hint()
-
-    def _sync_network_input(self) -> None:
-        if getattr(self, "_syncing_network_input", False):
-            return
-        field = self.ids.get("network_input")
-        if field is not None:
-            try:
-                self._syncing_network_input = True
-                field.text = self.selected_network or ""
-            finally:
-                self._syncing_network_input = False
 
     def _parse_amount(self, raw: str | None = None) -> float:
         if raw is None:
@@ -490,16 +365,18 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         fee = max(amount - payout, 0.0)
         self.payout_estimate = f"GHS {payout:,.2f}"
         self.fee_estimate = f"GHS {fee:,.2f}"
-        self._update_rate_hint()
-
-    def _update_rate_hint(self) -> None:
-        rate = float(self.payout_rate or DEFAULT_PAYOUT_RATE)
-        self.rate_hint = f"Payout rate: {rate * 100:.0f}%"
 
     def _set_sale_status(self, status: str | None) -> None:
         self.sale_status = str(status or "").strip()
-        if self.sale_status:
+        allowed = {
+            "pending", "manual_review", "submitted", "processing", "verified",
+            "payout_pending", "paid", "failed", "cancelled",
+        }
+        if self.sale_status.lower() in allowed:
             self.sale_status_display = self.sale_status.replace("_", " ").title()
+        elif self.sale_status:
+            self.sale_status = "pending"
+            self.sale_status_display = "Pending"
         else:
             self.sale_status_display = "Not submitted"
 
@@ -514,27 +391,11 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         else:
             self._set_selected_network("", "Enter a valid Ghana number to auto-detect the network.")
 
-    def on_manual_network(self, value: str) -> None:
-        if getattr(self, "_syncing_network_input", False):
-            return
-        raw = str(value or "").strip().upper()
-        if not raw:
-            self._set_selected_network("", "We will auto-detect the network from the phone number.", sync_input=False)
-            return
-        if "MTN" in raw:
-            self._set_selected_network("MTN", "MTN selected.", sync_input=False)
-        elif "TELECEL" in raw or "VODAFONE" in raw:
-            self._set_selected_network("TELECEL", "TELECEL selected.", sync_input=False)
-        elif "AIRTEL" in raw or "TIGO" in raw:
-            self._set_selected_network("AIRTELTIGO", "AIRTELTIGO selected.", sync_input=False)
-        else:
-            self._set_selected_network(raw, f"Network set to {raw}.", sync_input=False)
-
     def is_network_selected(self, network: str) -> bool:
         return self.selected_network == network
 
     def select_network(self, network: str) -> None:
-        self._set_selected_network(network, sync_input=True)
+        self._set_selected_network(network)
 
     def generate_merchant_number(self) -> None:
         if self.loading:
@@ -553,7 +414,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             self._set_feedback("Select a valid network to continue.", "error")
             return
 
-        self._set_selected_network(network, sync_input=True)
+        self._set_selected_network(network)
         self._update_estimate(str(amount))
         self._start_request(
             "Requesting merchant number...",
@@ -625,7 +486,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         if not self._is_current_request(request_id):
             return
         self._set_loading(False)
-        self._set_feedback(message, "error")
+        self._set_feedback("Couldn't complete that request. Check your connection and try again.", "error")
 
     def _apply_merchant_number_result(self, request_id, ok, payload, amount, phone, network) -> None:
         if not self._is_current_request(request_id):
@@ -634,9 +495,10 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             if ok and isinstance(payload, dict):
                 self.sale_id = str(payload.get("sale_id") or "")
                 self._set_sale_status(payload.get("status"))
-                self.merchant_number = payload.get("merchant_number") or MERCHANT_NUMBERS.get(
-                    network, MERCHANT_NUMBERS["DEFAULT"]
-                )
+                self.merchant_number = str(payload.get("merchant_number") or "").strip()
+                if not self.merchant_number:
+                    self._set_feedback("A merchant number was not returned. Please try again.", "error")
+                    return
                 payout_rate = payload.get("payout_rate")
                 if payout_rate is not None:
                     try:
@@ -644,14 +506,12 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
                     except Exception:
                         pass
                 self._update_estimate(str(amount))
-                self.transfer_instructions = payload.get("instructions") or (
-                    f"Send GHS {amount:,.2f} airtime from {phone} to {self.merchant_number}. "
-                    f"We will verify the transfer and pay out about {self.payout_estimate} to your MoMo."
+                self._set_feedback("Merchant number generated.", "success")
+                message = (
+                    f"Send GHS {amount:,.2f} airtime to {self.merchant_number}.\n"
+                    f"Estimated MoMo payout: {self.payout_estimate}"
                 )
-                self._set_feedback(
-                    "Merchant number generated. Send the airtime, then tap Airtime Sent.",
-                    "success",
-                )
+                self._show_popup("Merchant number ready", message)
                 return
 
             detail = self._extract_detail(payload) or "Unable to generate a merchant number."
@@ -666,10 +526,9 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             if ok and isinstance(payload, dict):
                 self._set_sale_status(payload.get("status"))
                 status_text = self.sale_status_display or "Submitted"
-                self._set_feedback(
-                    f"Transfer noted. Status: {status_text}. Verification is in progress.",
-                    "success",
-                )
+                message = f"Airtime submitted. Status: {status_text}. We will verify it before payout."
+                self._set_feedback("Airtime submitted for verification.", "success")
+                self._show_popup("Airtime sent", message)
                 return
 
             detail = self._extract_detail(payload) or "Unable to confirm the transfer."

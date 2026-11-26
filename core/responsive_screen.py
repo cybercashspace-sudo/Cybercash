@@ -1,14 +1,106 @@
 from __future__ import annotations
 
+import threading
+import time
+
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
+from kivy.graphics import Color, RoundedRectangle
 from kivy.properties import BooleanProperty, NumericProperty
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from kivymd.uix.screen import MDScreen
 
 from core.bottom_nav import BottomNavBar  # noqa: F401
 from core.pull_refresh import PullToRefreshMixin
+from core.ui_effects import FintechSpinner
+from core.navigation import navigate_back
+
+
+class _RequestLoadingOverlay(FloatLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint = (1, 1)
+        self.opacity = 0
+        self.disabled = True
+        with self.canvas.before:
+            self._shade = Color(0.02, 0.03, 0.05, 0.0)
+            self._shade_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(16)])
+        self.bind(pos=self._update_shade, size=self._update_shade)
+
+        content = BoxLayout(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(dp(112), dp(96)),
+            spacing=dp(8),
+            padding=dp(12),
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+        )
+        with content.canvas.before:
+            Color(0.08, 0.10, 0.14, 0.98)
+            self._card = RoundedRectangle(pos=content.pos, size=content.size, radius=[dp(16)])
+        content.bind(pos=lambda widget, _value: setattr(self._card, "pos", widget.pos))
+        content.bind(size=lambda widget, _value: setattr(self._card, "size", widget.size))
+        self.spinner = FintechSpinner(
+            size_hint=(None, None),
+            size=(dp(30), dp(30)),
+            active=False,
+            color=[0.94, 0.79, 0.46, 1],
+            pos_hint={"center_x": 0.5},
+        )
+        content.add_widget(self.spinner)
+        content.add_widget(Label(text="Please wait", color=(0.95, 0.95, 0.95, 1), font_size="13sp"))
+        self.add_widget(content)
+
+    def _update_shade(self, *_args):
+        self._shade_rect.pos = self.pos
+        self._shade_rect.size = self.size
+
+    def set_active(self, active: bool):
+        self.opacity = 1 if active else 0
+        self.disabled = not active
+        self._shade.rgba = (0.02, 0.03, 0.05, 0.38 if active else 0.0)
+        self.spinner.active = bool(active)
+
+    def on_touch_down(self, touch):
+        if self.opacity and self.collide_point(*touch.pos):
+            return True
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if self.opacity and self.collide_point(*touch.pos):
+            return True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if self.opacity and self.collide_point(*touch.pos):
+            return True
+        return super().on_touch_up(touch)
+
+
+def install_request_overlay(screen, property_names=()):
+    if getattr(screen, "_request_overlay", None) is not None:
+        return screen._request_overlay
+    overlay = _RequestLoadingOverlay()
+    screen._request_overlay = overlay
+    screen.add_widget(overlay)
+
+    def sync_overlay(*_args):
+        active = bool(getattr(screen, "screen_loading", False))
+        active = active or any(bool(getattr(screen, name, False)) for name in property_names)
+        overlay.set_active(active)
+
+    available = screen.properties() if callable(getattr(screen, "properties", None)) else {}
+    for name in property_names:
+        if name in available:
+            screen.bind(**{name: sync_overlay})
+    if "screen_loading" in available:
+        screen.bind(screen_loading=sync_overlay)
+    sync_overlay()
+    return overlay
 
 
 class ResponsiveScreen(PullToRefreshMixin, MDScreen):
@@ -25,10 +117,21 @@ class ResponsiveScreen(PullToRefreshMixin, MDScreen):
     compact_mode = BooleanProperty(False)
     tablet_mode = BooleanProperty(False)
     quick_action_cols = NumericProperty(4)
+    screen_loading = BooleanProperty(False)
+    _REQUEST_BUSY_PROPERTIES = (
+        "loading", "processing", "deposit_busy", "transfer_busy", "escrow_busy",
+        "loan_refresh_busy", "loan_submit_busy", "repayment_busy", "card_refresh_busy",
+        "card_request_busy", "card_action_busy", "email_change_loading", "dashboard_syncing",
+    )
 
     def __init__(self, **kwargs):
         self._layout_refresh_event = None
         self._window_bound = False
+        self._request_activity_count = 0
+        self._request_activity_lock = threading.RLock()
+        self._request_activity_visible_until = 0.0
+        self._request_overlay_hide_event = None
+        self._request_overlay = None
         super().__init__(**kwargs)
         # ScreenManager retains visited screens for fast navigation. Keep the
         # global Window binding active only while this screen is on-screen.
@@ -77,7 +180,67 @@ class ResponsiveScreen(PullToRefreshMixin, MDScreen):
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)
+        self._install_request_overlay()
         self._schedule_layout_refresh()
+
+    def _install_request_overlay(self):
+        if self._request_overlay is not None:
+            return
+        install_request_overlay(self, self._REQUEST_BUSY_PROPERTIES)
+        self.bind(screen_loading=lambda _instance, _value: self._sync_request_overlay())
+        self._sync_request_overlay()
+
+    def _sync_request_overlay(self, *_args):
+        with self._request_activity_lock:
+            request_active = self._request_activity_count > 0
+            visible_until = self._request_activity_visible_until
+        local_active = any(bool(getattr(self, name, False)) for name in self._REQUEST_BUSY_PROPERTIES)
+        active = bool(request_active or local_active or time.monotonic() < visible_until)
+        self.screen_loading = active
+        if active:
+            event = self._request_overlay_hide_event
+            if event is not None:
+                event.cancel()
+                self._request_overlay_hide_event = None
+        elif visible_until > time.monotonic():
+            self._schedule_request_overlay_sync(visible_until - time.monotonic())
+
+    def _schedule_request_overlay_sync(self, delay=0.0):
+        event = self._request_overlay_hide_event
+        if event is not None:
+            event.cancel()
+        self._request_overlay_hide_event = Clock.schedule_once(self._finish_request_overlay_sync, max(0.0, delay))
+
+    def _finish_request_overlay_sync(self, _dt):
+        self._request_overlay_hide_event = None
+        self._sync_request_overlay()
+
+    def _begin_request_activity(self):
+        with self._request_activity_lock:
+            self._request_activity_count += 1
+            self._request_activity_visible_until = max(
+                self._request_activity_visible_until,
+                time.monotonic() + 0.14,
+            )
+        if threading.current_thread() is threading.main_thread():
+            self._sync_request_overlay()
+        else:
+            with self._request_activity_lock:
+                delay = max(0.0, self._request_activity_visible_until - time.monotonic())
+            Clock.schedule_once(lambda _dt: self._sync_request_overlay())
+            if delay:
+                Clock.schedule_once(lambda _dt: self._sync_request_overlay(), delay)
+
+    def _end_request_activity(self):
+        with self._request_activity_lock:
+            self._request_activity_count = max(0, self._request_activity_count - 1)
+        if threading.current_thread() is threading.main_thread():
+            self._sync_request_overlay()
+        else:
+            Clock.schedule_once(lambda _dt: self._sync_request_overlay())
+
+    def go_back(self):
+        return navigate_back(self)
 
     def on_size(self, *_args):
         if self._is_screen_active():

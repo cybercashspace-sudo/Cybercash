@@ -48,19 +48,33 @@ def test_otp_screen_has_one_short_email_code_prompt():
     assert 'def go_back(self):' in otp
 
 
-def test_otp_back_returns_to_login_once(monkeypatch):
-    from kivymd.app import MDApp
+def test_otp_back_returns_to_its_previous_screen(monkeypatch):
     from screens.otp import OTPScreen
+    from core import navigation
 
     calls = []
-    app = type("_App", (), {
-        "go_to_screen": lambda self, target, **kwargs: calls.append((target, kwargs)) or True,
-    })()
-    monkeypatch.setattr(MDApp, "get_running_app", staticmethod(lambda: app))
 
-    assert OTPScreen.go_back(type("_Harness", (), {"manager": None})()) is True
-    assert calls and calls[0][0] == "login"
-    assert calls[0][1]["transition_style"] == "slide_right"
+    class _Manager:
+        current = "otp"
+        previous_screen = "login"
+        _cybercash_screen_history = ["register"]
+        _cybercash_nav_busy = False
+
+        @staticmethod
+        def has_screen(name):
+            return name in {"otp", "login", "register"}
+
+    manager = _Manager()
+    monkeypatch.setattr(
+        navigation,
+        "navigate",
+        lambda _manager, target, **kwargs: calls.append((target, kwargs)) or True,
+    )
+    owner = type("_Harness", (), {"manager": manager, "_active_dialog": None})()
+
+    assert OTPScreen.go_back(owner) is True
+    assert calls and calls[0][0] == "register"
+    assert calls[0][1]["fallback"] == ""
 
 
 def test_login_momo_input_normalizes_without_network_lookup(monkeypatch):

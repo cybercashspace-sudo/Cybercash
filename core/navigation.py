@@ -37,3 +37,55 @@ def navigate(
     if fallback:
         return smooth_switch_screen(manager, fallback, style="fade")
     return False
+
+
+def navigate_back(owner) -> bool:
+    """Dismiss the active popup, or return to the actual previous screen."""
+    dialog = getattr(owner, "_active_dialog", None)
+    if dialog is not None:
+        try:
+            dialog.dismiss()
+        except Exception:
+            pass
+        return True
+
+    manager = getattr(owner, "manager", None)
+    if manager is None or getattr(manager, "_cybercash_nav_busy", False):
+        return False
+
+    current = str(getattr(manager, "current", "") or "").strip()
+    history = list(getattr(manager, "_cybercash_screen_history", []) or [])
+    target = ""
+    fallback_target = str(getattr(manager, "_cybercash_back_fallback_target", "") or "").strip()
+    if not history and fallback_target and current == fallback_target:
+        return False
+    while history:
+        candidate = str(history[-1] or "").strip()
+        if candidate and candidate != current and candidate != "splash" and manager.has_screen(candidate):
+            target = candidate
+            break
+        history.pop()
+    target_from_history = bool(target)
+    if target:
+        manager._cybercash_screen_history = history
+    else:
+        candidate = str(getattr(manager, "previous_screen", "") or "").strip()
+        if candidate and candidate != current and candidate != "splash" and manager.has_screen(candidate):
+            target = candidate
+
+    if not target:
+        return False
+
+    manager._cybercash_back_navigation = True
+    try:
+        navigated = navigate(
+            manager,
+            target,
+            fallback="",
+            transition_style="slide_right",
+        )
+        if navigated and not target_from_history:
+            manager._cybercash_back_fallback_target = target
+        return navigated
+    finally:
+        manager._cybercash_back_navigation = False

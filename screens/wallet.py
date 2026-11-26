@@ -703,8 +703,8 @@ KV = """
                     height: dp((8 if root.screen_mode == "all" else 0) * root.layout_scale)
 
         BottomNavBar:
-            nav_variant: "default" if root.screen_mode == "deposit" else "dashboard"
-            active_target: "" if root.screen_mode == "deposit" else "wallet"
+            nav_variant: "default" if root.screen_mode != "all" else "dashboard"
+            active_target: "" if root.screen_mode != "all" else "wallet"
             layout_scale: root.layout_scale
             text_scale: root.text_scale
             icon_scale: root.icon_scale

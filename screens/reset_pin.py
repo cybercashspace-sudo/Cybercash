@@ -81,7 +81,7 @@ KV = """
         MDTextButton:
             text: "Back to Login"
             pos_hint: {"center_x": .5}
-            on_release: app.go_to_screen("login")
+            on_release: root.go_back()
 """
 
 class ResetPinScreen(ResponsiveScreen):

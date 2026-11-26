@@ -20,7 +20,7 @@ from kivymd.uix.textfield import MDTextField
 
 from api.client import API_URL
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
-from core.navigation import navigate
+from core.navigation import navigate, navigate_back
 from core.popup_manager import show_custom_dialog, show_message_dialog
 from core.responsive_screen import ResponsiveScreen
 from utils.network import detect_network, normalize_ghana_number
@@ -2439,21 +2439,7 @@ class AgentScreen(ResponsiveScreen):
         )
 
     def go_back(self):
-        if not self.manager:
-            return
-        previous = str(getattr(self.manager, "previous_screen", "") or "").strip()
-        if previous and previous != self.name and previous != "splash" and self.manager.has_screen(previous):
-            app = MDApp.get_running_app()
-            if app is not None and hasattr(app, "go_to_screen"):
-                app.go_to_screen(previous, fallback="home", transition_style="slide_right")
-                return
-            navigate(self.manager, previous, fallback="home", transition_style="slide_right")
-            return
-        app = MDApp.get_running_app()
-        if app is not None and hasattr(app, "go_to_screen"):
-            app.go_to_screen("home", fallback="login", transition_style="slide_right")
-            return
-        navigate(self.manager, "home", fallback="login", transition_style="slide_right")
+        return navigate_back(self)
 
 
 Builder.load_string(KV)

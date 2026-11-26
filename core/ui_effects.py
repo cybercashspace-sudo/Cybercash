@@ -83,7 +83,7 @@ class FintechSpinner(Widget):
     def _start(self) -> None:
         if self._tick_event is not None:
             return
-        self._tick_event = Clock.schedule_interval(self._tick, 1 / 60)
+        self._tick_event = Clock.schedule_interval(self._tick, 1 / 30)
 
     def _stop(self) -> None:
         if self._tick_event is not None:
