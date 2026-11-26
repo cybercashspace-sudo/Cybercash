@@ -11,6 +11,7 @@ from kivy_app import SCREEN_SPECS
 def test_send_screen_uses_short_copy_and_single_shared_bottom_navigation():
     from screens.p2p_transfer import KV as send_kv
 
+    assert SCREEN_SPECS["p2p_transfer"] == ("screens.p2p_transfer", "P2PTransferScreen")
     assert 'text: "Send Money"' in send_kv
     assert 'text: "GHS 100 daily free; 0.5% fee above the limit."' in send_kv
     assert 'root.feedback_hint' not in send_kv

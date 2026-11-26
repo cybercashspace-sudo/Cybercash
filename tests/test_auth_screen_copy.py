@@ -42,6 +42,25 @@ def test_otp_screen_has_one_short_email_code_prompt():
     assert 'hint_text: "6-digit OTP"' in otp
     assert 'Enter the 6-digit code sent to your registered email.' not in otp
     assert 'text: "Use the same number linked to your account."' not in otp
+    assert 'text: "Back"' in otp
+    assert 'on_release: root.go_back()' in otp
+    assert 'text: "Back to Login"' not in otp
+    assert 'def go_back(self):' in otp
+
+
+def test_otp_back_returns_to_login_once(monkeypatch):
+    from kivymd.app import MDApp
+    from screens.otp import OTPScreen
+
+    calls = []
+    app = type("_App", (), {
+        "go_to_screen": lambda self, target, **kwargs: calls.append((target, kwargs)) or True,
+    })()
+    monkeypatch.setattr(MDApp, "get_running_app", staticmethod(lambda: app))
+
+    assert OTPScreen.go_back(type("_Harness", (), {"manager": None})()) is True
+    assert calls and calls[0][0] == "login"
+    assert calls[0][1]["transition_style"] == "slide_right"
 
 
 def test_login_momo_input_normalizes_without_network_lookup(monkeypatch):

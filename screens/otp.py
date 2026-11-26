@@ -101,6 +101,15 @@ KV = """
                                 theme_text_color: "Custom"
                                 text_color: GOLD
 
+                            MDTextButton:
+                                text: "Back"
+                                size_hint_x: None
+                                width: dp(48 * root.layout_scale)
+                                font_size: sp(12 * root.text_scale)
+                                theme_text_color: "Custom"
+                                text_color: GOLD
+                                on_release: root.go_back()
+
                         MDBoxLayout:
                             size_hint_y: None
                             height: "1dp"
@@ -173,12 +182,6 @@ KV = """
                             pos_hint: {"center_x": 0.5}
                             on_release: root.resend()
 
-                        MDTextButton:
-                            text: "Back to Login"
-                            theme_text_color: "Custom"
-                            text_color: GOLD
-                            pos_hint: {"center_x": 0.5}
-                            on_release: app.go_to_screen("login")
 """
 
 
@@ -203,6 +206,15 @@ class OTPScreen(ResponsiveScreen):
         self._screen_generation = 0
         self._dashboard_route_event = None
         self._dashboard_route_attempts = 0
+
+    def go_back(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            if app.go_to_screen("login", fallback="", transition_style="slide_right"):
+                return True
+        if self.manager and self.manager.has_screen("login"):
+            return navigate(self.manager, "login", fallback="", transition_style="slide_right")
+        return False
 
     def _set_feedback(self, message: str, level: str = "info"):
         palette = {
