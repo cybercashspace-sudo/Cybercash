@@ -121,6 +121,26 @@ def test_request_overlay_blocks_taps_only_while_a_request_runs():
     assert overlay.spinner.active is False
 
 
+def test_pull_refresh_screens_show_overlay_from_existing_busy_flags():
+    from core.pull_refresh import PullToRefreshMixin
+
+    states = []
+
+    class _Overlay:
+        def set_active(self, active):
+            states.append(bool(active))
+
+    class _Harness:
+        screen_loading = False
+        loading = True
+        _pull_request_overlay = _Overlay()
+        _sync_pull_request_overlay = PullToRefreshMixin._sync_pull_request_overlay
+        _screen_refresh_is_busy = lambda self: bool(self.loading)
+
+    PullToRefreshMixin._sync_pull_request_overlay(_Harness())
+    assert states == [True]
+
+
 def test_terminal_action_feedback_becomes_one_popup_not_page_text(monkeypatch):
     from core import screen_actions
 

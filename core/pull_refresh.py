@@ -75,9 +75,40 @@ class PullToRefreshMixin:
         self._pull_refresh_event = None
         self._pull_refresh_busy = False
         self._pull_refresh_done_callback = None
+        self._pull_request_overlay = None
+        self._pull_request_watch_event = None
         super().__init__(**kwargs)
         self.bind(on_leave=self._on_pull_refresh_leave)
         self.bind(on_parent=self._on_pull_refresh_parent)
+        self.bind(on_enter=self._start_request_overlay_watch)
+
+    def on_kv_post(self, base_widget):
+        parent = getattr(super(), "on_kv_post", None)
+        if callable(parent):
+            parent(base_widget)
+        from core.responsive_screen import install_request_overlay
+
+        watched = (
+            "loading", "is_loading", "_is_loading", "_loading", "_loading_settings",
+            "processing", "_busy", "_refreshing", "_refresh_in_progress",
+            "loan_refresh_busy", "loan_submit_busy", "repayment_busy", "card_refresh_busy",
+            "card_request_busy", "card_action_busy", "escrow_busy", "deposit_busy",
+            "transfer_busy", "dashboard_syncing",
+        )
+        self._pull_request_overlay = install_request_overlay(self, watched)
+        self._sync_pull_request_overlay()
+
+    def _start_request_overlay_watch(self, *_args):
+        if self._pull_request_watch_event is None:
+            self._pull_request_watch_event = Clock.schedule_interval(self._sync_pull_request_overlay, 0.08)
+        self._sync_pull_request_overlay()
+
+    def _sync_pull_request_overlay(self, *_args):
+        overlay = getattr(self, "_pull_request_overlay", None)
+        if overlay is None:
+            return
+        busy = bool(getattr(self, "screen_loading", False)) or self._screen_refresh_is_busy()
+        overlay.set_active(busy)
 
     def pull_to_refresh(self, done=None, *_args):
         if self._pull_refresh_busy:
@@ -165,9 +196,20 @@ class PullToRefreshMixin:
     def _on_pull_refresh_parent(self, _instance, parent):
         if parent is None:
             self._finish_pull_refresh()
+            self._stop_request_overlay_watch()
 
     def _on_pull_refresh_leave(self, *_args):
         self._finish_pull_refresh()
+        self._stop_request_overlay_watch()
+
+    def _stop_request_overlay_watch(self):
+        event = self._pull_request_watch_event
+        self._pull_request_watch_event = None
+        if event is not None:
+            event.cancel()
+        overlay = getattr(self, "_pull_request_overlay", None)
+        if overlay is not None:
+            overlay.set_active(False)
 
     def _finish_pull_refresh(self, *_args):
         event = self._pull_refresh_event
