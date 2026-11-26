@@ -173,25 +173,24 @@ def test_verify_agent_registration_success(test_db: Session, client: TestClient)
 
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "active"
+    assert data["status"] == "pending_kyc"
     assert data["user_id"] == user.id
 
     test_db.expire_all()
     updated_user = test_db.query(User).filter(User.id == 200).first()
-    assert updated_user.is_agent is True
+    assert updated_user.is_agent is False
     completed_transaction = test_db.query(Transaction).filter(Transaction.provider_reference == "verify_agent_ref").first()
     assert completed_transaction.status == "completed"
     activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
-    assert activated_agent.status == "active"
-    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert activated_agent.status == "pending_kyc"
+    assert activated_agent.float_balance == 0.0
 
     startup_tx = test_db.query(Transaction).filter(
         Transaction.agent_id == activated_agent.id,
         Transaction.type == "agent_startup_loan_credit",
         Transaction.status == "completed",
     ).first()
-    assert startup_tx is not None
-    assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert startup_tx is None
 
 
 def test_verify_agent_registration_repairs_completed_payment_with_pending_agent(test_db: Session, client: TestClient):
@@ -219,23 +218,22 @@ def test_verify_agent_registration_repairs_completed_payment_with_pending_agent(
     assert response.status_code == 200
     mocked_verify.assert_not_awaited()
     payload = response.json()
-    assert payload["status"] == "active"
+    assert payload["status"] == "pending_kyc"
     assert payload["user_id"] == user.id
 
     test_db.expire_all()
     updated_user = test_db.query(User).filter(User.id == 200).first()
-    assert updated_user.is_agent is True
+    assert updated_user.is_agent is False
     activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
-    assert activated_agent.status == "active"
-    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert activated_agent.status == "pending_kyc"
+    assert activated_agent.float_balance == 0.0
 
     startup_tx = test_db.query(Transaction).filter(
         Transaction.agent_id == activated_agent.id,
         Transaction.type == "agent_startup_loan_credit",
         Transaction.status == "completed",
     ).first()
-    assert startup_tx is not None
-    assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert startup_tx is None
 
 
 def test_verify_agent_registration_failed_payment(test_db: Session, client: TestClient):

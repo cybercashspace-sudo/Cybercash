@@ -65,8 +65,8 @@ def test_create_agent_profile_success(client: TestClient, db_session: Session, t
     assert response.status_code == 201
     response_json = response.json()
     assert response_json["user_id"] == test_user.id
-    assert response_json["status"] == "pending"
-    assert response_json["float_balance"] == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert response_json["status"] == "pending_kyc"
+    assert response_json["float_balance"] == 0.0
     assert "id" in response_json
 
     # Verify registration fee deduction from wallet

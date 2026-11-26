@@ -283,6 +283,73 @@ class APIClient:
             "data": {"detail": "Backend connection failed. Please check your internet connection and try again."},
         }
 
+    def request_multipart(
+        self,
+        method: str,
+        path: str,
+        *,
+        data: dict,
+        files: dict,
+        headers: dict | None = None,
+        timeout=DEFAULT_TIMEOUT,
+        failover: bool = True,
+    ) -> dict:
+        """Send authenticated multipart uploads without exposing file bytes in logs."""
+        request_headers = dict(headers or {})
+        if session.authenticated() and not self._has_auth_header(request_headers):
+            request_headers["Authorization"] = f"Bearer {session.token}"
+        has_auth_header = self._has_auth_header(request_headers)
+        last_result = None
+        urls = self._ordered_base_urls() if failover else self._ordered_base_urls()[:1]
+        transport_error_seen = False
+        for index, base_url in enumerate(urls):
+            try:
+                for file_spec in files.values():
+                    stream = file_spec[1] if isinstance(file_spec, tuple) and len(file_spec) > 1 else file_spec
+                    if hasattr(stream, "seek"):
+                        stream.seek(0)
+                with self._request_lock:
+                    response = self.session.request(
+                        method=str(method or "POST").upper(),
+                        url=f"{base_url}{path}",
+                        data=data,
+                        files=files,
+                        headers=request_headers,
+                        timeout=_coerce_timeout(timeout),
+                    )
+                result = {
+                    "ok": response.status_code < 400,
+                    "status_code": response.status_code,
+                    "data": self._safe_json(response),
+                }
+                if response.status_code < 400:
+                    self.base_url = base_url
+                    return result
+                last_result = result
+                retryable = response.status_code in FAILOVER_STATUS_CODES or (
+                    has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES
+                )
+                if not failover or not retryable:
+                    return result
+                if has_auth_header and response.status_code in AUTH_FAILOVER_STATUS_CODES and (transport_error_seen or index > 0):
+                    return {
+                        "ok": False,
+                        "status_code": 0,
+                        "data": {"detail": "Backend connection failed. Please check your internet connection and try again."},
+                    }
+            except Exception as exc:
+                transport_error_seen = True
+                last_result = {
+                    "ok": False,
+                    "status_code": 0,
+                    "data": {"detail": self._timeout_message(exc)},
+                }
+        return last_result or {
+            "ok": False,
+            "status_code": 0,
+            "data": {"detail": "Backend connection failed. Please check your internet connection and try again."},
+        }
+
     def warmup(self) -> None:
         self.request("GET", "/health", timeout=FAST_TIMEOUT, failover=False)
 

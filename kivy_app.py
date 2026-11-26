@@ -130,6 +130,7 @@ SCREEN_SPECS = {
     "admin_dashboard": ("screens.admin_dashboard", "AdminDashboardScreen"),
     "admin_withdrawals": ("screens.admin_withdrawals", "AdminWithdrawalsScreen"),
     "admin_agents": ("screens.admin_agents", "AdminAgentsScreen"),
+    "admin_agent_approvals": ("screens.admin_agent_approvals", "AdminAgentApprovalsScreen"),
     "admin_users": ("screens.admin_users", "AdminUsersScreen"),
     "admin_transactions": ("screens.admin_transactions", "AdminTransactionsScreen"),
     "admin_revenue": ("screens.admin_revenue", "AdminRevenueScreen"),

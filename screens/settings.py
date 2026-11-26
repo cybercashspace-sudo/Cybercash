@@ -396,8 +396,24 @@ class SettingsScreen(ActionScreen):
                 on_release=lambda *_args: self.open_pin_reset(),
             )
         )
+        content.add_widget(
+            MDRaisedButton(
+                text="Verify identity to become an Agent",
+                size_hint_x=1,
+                on_release=lambda *_args: self.open_agent_kyc(),
+            )
+        )
 
         show_custom_dialog(self, title="Security", content_cls=content)
+
+    def open_agent_kyc(self) -> None:
+        dialog = getattr(self, "_active_dialog", None)
+        if dialog is not None:
+            try:
+                dialog.dismiss()
+            except Exception:
+                pass
+        self._go_to_screen("agent_kyc")
 
     def open_pin_reset(self) -> None:
         dialog = getattr(self, "_active_dialog", None)

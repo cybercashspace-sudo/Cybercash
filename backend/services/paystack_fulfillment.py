@@ -9,7 +9,6 @@ from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
 from backend.models import Agent, JournalEntry, Transaction, User, Wallet
-from backend.services.agent_startup_loan import grant_startup_loan_credit
 from backend.services.ledger_service import LedgerService
 from backend.services.settings_service import get_or_create_platform_settings
 
@@ -124,13 +123,15 @@ async def complete_paid_agent_registration(db: AsyncSession, transaction: Transa
         transaction.wallet_id = wallet.id
 
     agent = await _get_or_create_agent(db, user_id)
-    agent.status = "active"
+    # Registration payment is not an identity approval. Keep the account
+    # pending until a human administrator approves its KYC submission.
+    agent.status = "pending_kyc"
     db.add(agent)
 
     result = await db.execute(select(User).filter(User.id == user_id).with_for_update())
     user = result.scalars().first()
     if user:
-        user.is_agent = True
+        user.is_agent = False
         db.add(user)
 
     transaction.status = "completed"
@@ -138,15 +139,6 @@ async def complete_paid_agent_registration(db: AsyncSession, transaction: Transa
     await db.flush()
 
     await _ensure_agent_registration_fee_journal(db, transaction)
-
-    await grant_startup_loan_credit(
-        db,
-        user_id=user_id,
-        wallet_id=wallet.id,
-        agent=agent,
-        amount=settings.AGENT_STARTUP_LOAN_AMOUNT,
-        currency=currency,
-    )
 
     await db.commit()
     result = await db.execute(

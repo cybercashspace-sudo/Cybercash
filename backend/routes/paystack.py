@@ -301,10 +301,10 @@ async def _render_agent_registration_checkout_status(
             content=_checkout_status_page(
                 result="success",
                 reference=reference,
-                headline_override="Agent registration active",
+                headline_override="Agent payment confirmed",
                 message_override=(
                     f"Your GHS {expected_amount:.2f} agent registration fee was confirmed. "
-                    "Return to CyberCash to open your Agent Dashboard."
+                    "Open Settings > Security and submit your identity documents. Agent access starts after approval."
                 ),
             )
         )
@@ -325,10 +325,10 @@ async def _render_agent_registration_checkout_status(
             content=_checkout_status_page(
                 result="success",
                 reference=reference,
-                headline_override="Agent registration active",
+                headline_override="Agent payment confirmed",
                 message_override=(
                     f"GHS {expected_amount:.2f} agent registration fee was confirmed. "
-                    "Your Agent Dashboard is now active."
+                    "Open Settings > Security and submit your identity documents. Agent access starts after approval."
                 ),
             )
         )
@@ -840,7 +840,7 @@ async def paystack_webhook(
             if status_paystack == "success" and amount_ghs == expected_amount and currency_ok:
                 if transaction.type == AGENT_REGISTRATION_TX_TYPE:
                     await complete_paid_agent_registration(db, transaction)
-                    return {"message": "Webhook processed: Agent registration completed."}
+                    return {"message": "Webhook processed: agent registration payment confirmed; identity review is still required."}
 
                 if transaction.type != TransactionType.FUNDING:
                     return {"message": f"Webhook processed: Unsupported Paystack transaction type {transaction.type}."}

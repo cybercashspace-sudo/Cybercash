@@ -18,6 +18,8 @@ Werkzeug
 google-auth
 email-validator
 python-multipart
+Pillow
+cryptography
 
 # Email and configuration
 fastapi-mail

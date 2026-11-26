@@ -8,9 +8,6 @@ class AgentService(BaseApiService):
     def apply(self, payload):
         return self.post_json("/agent/apply", payload)
 
-    def kyc(self, payload):
-        return self.post_json("/agent/kyc", payload)
-
     def commissions(self):
         return self.get_json("/agent/commissions")
 

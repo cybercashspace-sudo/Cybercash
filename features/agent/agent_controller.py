@@ -85,16 +85,6 @@ class AgentController:
         }
         return self.service.apply(payload)
 
-    def submit_kyc(self, name, phone, id_number, document_ref="", selfie_ref=""):
-        payload = {
-            "name": validate_name(name),
-            "phone": validate_phone(phone),
-            "id_number": validate_id_number(id_number),
-            "document_ref": (document_ref or "").strip(),
-            "selfie_ref": (selfie_ref or "").strip(),
-        }
-        return self.service.kyc(payload)
-
     def commission_summary(self):
         return self.normalize_commissions(self._safe_call(self.service.commissions, default={}))
 

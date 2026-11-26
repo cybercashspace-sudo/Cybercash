@@ -3490,7 +3490,7 @@ class HomeScreen(ResponsiveScreen):
 
                 if response.status_code < 400 and isinstance(payload, dict):
                     status_value = str(payload.get("status", "") or "").strip().lower()
-                    if status_value == "active":
+                    if status_value in {"active", "pending_kyc", "pending_kyc_review"}:
                         Clock.schedule_once(lambda _dt, p=payload: self._on_agent_registration_success(p))
                         return
                     detail = self._extract_detail(payload)
@@ -3511,16 +3511,19 @@ class HomeScreen(ResponsiveScreen):
         if verify_sequence == self._agent_verify_sequence:
             Clock.schedule_once(lambda _dt: self._on_agent_registration_timeout(reference))
 
-    def _on_agent_registration_success(self, _payload: dict) -> None:
-        self._set_agent_action_state(True)
+    def _on_agent_registration_success(self, payload: dict) -> None:
+        if str(payload.get("status", "") or "").strip().lower() == "active":
+            self._set_agent_action_state(True)
+            show_message_dialog(self, title="Agent Approved", message="Your Agent account is active. You can now open the Agent Dashboard.", close_label="Open Dashboard", on_close=lambda: self.go_to("agent"))
+            self.load_home_data()
+            return
+        self._set_agent_action_state(False)
         show_message_dialog(
             self,
-            title="Agent Activated",
-            message=(
-                f"Payment confirmed.\nGH¢ {AGENT_STARTUP_LOAN_GHS:,.2f} startup float credited."
-            ),
-            close_label="Open Dashboard",
-            on_close=lambda: self.go_to("agent"),
+            title="Payment Confirmed",
+            message="Your registration payment is confirmed. Submit your identity documents from Settings > Security. Agent access will be enabled after administrator review.",
+            close_label="Verify Identity",
+            on_close=lambda: self.go_to("agent_kyc"),
         )
         self.load_home_data()
 
@@ -3581,8 +3584,11 @@ class HomeScreen(ResponsiveScreen):
             return
 
         self._set_agent_action_state(False)
-        if status_value == "pending":
-            message = "Registration pending. Complete payment to activate."
+        if status_value in {"pending_kyc", "pending_kyc_review"}:
+            message = "Your registration payment is confirmed. Submit your identity details in Settings > Security. Agent access begins after administrator approval."
+            title = "Identity Verification Required"
+        elif status_value == "pending":
+            message = "Registration pending. Complete payment to continue."
             title = "Agent Pending"
         elif status_value:
             readable = status_value.replace("_", " ")

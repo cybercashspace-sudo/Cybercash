@@ -312,15 +312,15 @@ def test_paystack_checkout_status_success_completes_agent_registration(test_db: 
         response = client.get("/paystack/checkout/status?result=success&reference=agent_callback_ref")
 
     assert response.status_code == 200
-    assert "Agent registration active" in response.text
+    assert "Agent payment confirmed" in response.text
     assert "GHS 100.00 agent registration fee was confirmed" in response.text
 
     test_db.expire_all()
     updated_user = test_db.query(User).filter(User.id == user.id).first()
-    assert updated_user.is_agent is True
+    assert updated_user.is_agent is False
     activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
-    assert activated_agent.status == "active"
-    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert activated_agent.status == "pending_kyc"
+    assert activated_agent.float_balance == 0.0
 
     completed_transaction = test_db.query(Transaction).filter(
         Transaction.provider_reference == "agent_callback_ref"
@@ -707,14 +707,14 @@ def test_paystack_webhook_completes_agent_registration(test_db: Session, client:
     )
 
     assert response.status_code == 200
-    assert "Agent registration completed" in response.json()["message"]
+    assert "identity review is still required" in response.json()["message"]
 
     test_db.expire_all()
     updated_user = test_db.query(User).filter(User.id == user.id).first()
-    assert updated_user.is_agent is True
+    assert updated_user.is_agent is False
     activated_agent = test_db.query(Agent).filter(Agent.user_id == user.id).first()
-    assert activated_agent.status == "active"
-    assert activated_agent.float_balance == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert activated_agent.status == "pending_kyc"
+    assert activated_agent.float_balance == 0.0
 
     completed_transaction = test_db.query(Transaction).filter(
         Transaction.provider_reference == "agent_webhook_ref"
@@ -726,8 +726,7 @@ def test_paystack_webhook_completes_agent_registration(test_db: Session, client:
         Transaction.type == "agent_startup_loan_credit",
         Transaction.status == "completed",
     ).first()
-    assert startup_tx is not None
-    assert startup_tx.amount == settings.AGENT_STARTUP_LOAN_AMOUNT
+    assert startup_tx is None
 
 
 def test_paystack_webhook_invalid_signature(test_db: Session, client: TestClient):

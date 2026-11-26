@@ -397,6 +397,29 @@ KV = """
                         elevation: 0
                         ripple_behavior: True
                         padding: [dp(8 * root.layout_scale)] * 4
+                        on_release: root.open_agent_approvals()
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            spacing: dp(2 * root.layout_scale)
+                            MDIconButton:
+                                icon: "account-check"
+                                theme_text_color: "Custom"
+                                text_color: app.gold
+                                pos_hint: {"center_x": 0.5}
+                                disabled: True
+                            MDLabel:
+                                text: "Agent\nApprovals"
+                                halign: "center"
+                                theme_text_color: "Custom"
+                                text_color: app.ui_text_primary
+                                bold: True
+
+                    MDCard:
+                        radius: [dp(16 * root.layout_scale)]
+                        md_bg_color: app.ui_surface_soft
+                        elevation: 0
+                        ripple_behavior: True
+                        padding: [dp(8 * root.layout_scale)] * 4
                         on_release: root.open_agents()
                         MDBoxLayout:
                             orientation: "vertical"
@@ -799,6 +822,9 @@ class AdminDashboardScreen(ActionScreen):
 
     def open_agents(self):
         self._goto("admin_agents", title="Agents")
+
+    def open_agent_approvals(self):
+        self._goto("admin_agent_approvals", title="Agent Approvals")
 
     def open_users(self):
         self._goto("admin_users", title="Users")

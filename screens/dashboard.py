@@ -1435,7 +1435,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             or (
                 f"Agent registration initialized. Pay GHS {AGENT_REGISTRATION_FEE_GHS:,.2f} with Paystack in the in-app checkout. "
                 "If the window takes a few seconds to appear on a slow device, please wait. "
-                f"After payment we will activate your Agent Dashboard and credit GHS {AGENT_STARTUP_LOAN_GHS:,.2f} startup float."
+                "After payment, complete identity verification. An administrator must approve your application before Agent access is enabled."
             )
         )
         self.dashboard_status = "Agent payment initialized. Waiting for confirmation..."
@@ -1489,7 +1489,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
 
                 if result.get("ok") and isinstance(payload, dict):
                     status_value = str(payload.get("status", "") or "").strip().lower()
-                    if status_value == "active":
+                    if status_value in {"active", "pending_kyc", "pending_kyc_review"}:
                         Clock.schedule_once(lambda _dt, p=payload: self._on_agent_registration_success(p))
                         return
                 else:
@@ -1512,19 +1512,23 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             Clock.schedule_once(lambda _dt: self._on_agent_registration_timeout(reference))
 
     def _on_agent_registration_success(self, payload: dict):
-        self.is_agent_valid = True
-        self.agent_quick_label = "Agent Dashboard"
-        self.dashboard_status = "Agent registration completed. Opening Agent Dashboard..."
+        status_value = str(payload.get("status", "") or "").strip().lower()
+        if status_value == "active":
+            self.is_agent_valid = True
+            self.agent_quick_label = "Agent Dashboard"
+            self.dashboard_status = "Agent status confirmed. Opening Agent Dashboard..."
+            show_message_dialog(self, title="Agent Approved", message="Your Agent account is active. You can now open the Agent Dashboard.", close_label="Open Dashboard", on_close=self._open_agent_dashboard)
+            self.load_dashboard_data()
+            return
+        self.is_agent_valid = False
+        self.agent_quick_label = "Become Agent"
+        self.dashboard_status = "Payment confirmed. Identity verification is required."
         show_message_dialog(
             self,
-            title="Agent Activated",
-            message=(
-                "Payment confirmed successfully.\n"
-                f"GHS {AGENT_STARTUP_LOAN_GHS:,.2f} startup float was credited instantly "
-                "as non-withdrawable agent capital."
-            ),
-            close_label="Open Dashboard",
-            on_close=self._open_agent_dashboard,
+            title="Payment Confirmed",
+            message="Your registration payment is confirmed. Submit your identity documents from Settings > Security. Agent access will be enabled after administrator review.",
+            close_label="Verify Identity",
+            on_close=lambda: self._go_to_screen("agent_kyc"),
         )
         self.load_dashboard_data()
 
@@ -1596,8 +1600,11 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
 
         self.is_agent_valid = False
         self.agent_quick_label = "Become Agent"
-        if status_value == "pending":
-            message = "Your agent registration is pending. Complete the Paystack payment to activate your Agent Dashboard."
+        if status_value in {"pending_kyc", "pending_kyc_review"}:
+            message = "Your registration payment is confirmed. Submit your identity details in Settings > Security. Agent access begins after administrator approval."
+            self.dashboard_status = "Identity verification required."
+        elif status_value == "pending":
+            message = "Your agent registration is pending. Complete the Paystack payment to continue."
             self.dashboard_status = "Agent registration pending."
         elif status_value:
             readable = status_value.replace("_", " ")

@@ -7,6 +7,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
+from kivymd.app import MDApp
 
 from core.screen_actions import ActionScreen
 
@@ -264,9 +265,9 @@ class AdminAgentsScreen(ActionScreen):
         if (status or "").lower() != "active":
             actions.add_widget(
                 MDRaisedButton(
-                    text="Approve",
+                    text="Review KYC",
                     md_bg_color=[0.54, 0.82, 0.67, 1],
-                    on_release=lambda _btn, aid=agent_id: self.approve_agent(aid),
+                    on_release=lambda *_args: self.open_agent_approvals(),
                 )
             )
         else:
@@ -328,15 +329,12 @@ class AdminAgentsScreen(ActionScreen):
         self._show_popup("Agents", detail)
 
     def approve_agent(self, agent_id: int) -> None:
-        self._set_feedback("Approving agent...", "info")
-        ok, payload = self._request("PUT", f"/admin/agents/{int(agent_id)}/approve")
-        if ok:
-            self._set_feedback("Agent approved.", "success")
-            self.load_agents()
-            return
-        detail = self._extract_detail(payload) or "Unable to approve agent."
-        self._set_feedback(detail, "error")
-        self._show_popup("Agent Approval", detail)
+        self.open_agent_approvals()
+
+    def open_agent_approvals(self):
+        app = MDApp.get_running_app()
+        if app is not None and hasattr(app, "go_to_screen"):
+            app.go_to_screen("admin_agent_approvals", fallback="admin_agents", transition_style="slide_left")
 
     def toggle_borrowing_freeze(self, agent_id: int, currently_frozen: bool) -> None:
         decision = not bool(currently_frozen)

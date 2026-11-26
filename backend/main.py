@@ -198,6 +198,18 @@ def _apply_schema_patches(sync_conn) -> None:
                     text(f"ALTER TABLE loan_applications ADD COLUMN {column} {definition}")
                 )
 
+    # -------- ENCRYPTED AGENT KYC MATERIAL PATCH --------
+    if "agent_profiles" in inspector.get_table_names():
+        profile_cols = {c["name"] for c in inspector.get_columns("agent_profiles")}
+        for column in (
+            "identity_data_encrypted",
+            "ghana_card_front_encrypted",
+            "ghana_card_back_encrypted",
+            "selfie_encrypted",
+        ):
+            if column not in profile_cols:
+                sync_conn.execute(text(f"ALTER TABLE agent_profiles ADD COLUMN {column} TEXT"))
+
     # -------- LOANS PATCH --------
     if "loans" in inspector.get_table_names():
         loan_cols = {c["name"] for c in inspector.get_columns("loans")}

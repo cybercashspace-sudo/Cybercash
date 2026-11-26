@@ -1,23 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List
+from datetime import date
+import html
 
 from backend.database import get_db
 from backend.models import User, Agent, Wallet, Transaction, Payment, AgentProfile # Import Payment model
 from backend.schemas.agent import AgentCreate, AgentUpdate, AgentResponse, AgentAirtimeSaleRequest, AgentDataBundleSaleRequest, AgentRegistrationRequest, AgentRegistrationResponse # Corrected import
 from backend.schemas.transaction import TransactionCreate # Corrected import
-from backend.schemas.agent_profile import AgentKYCSubmitSchema, AgentProfileResponse
 from backend.dependencies.auth import get_current_user
 from backend.core.config import settings # Import settings
 from backend.services.ledger_service import LedgerService, get_ledger_service # Import LedgerService
 from backend.services.momo import MomoService # Import MomoService
 from backend.services.paystack_service import PaystackService, get_paystack_service # Import PaystackService
 from backend.services.agent_service import AgentService, get_agent_service # Import AgentService
-from backend.services.kyc_service import process_agent_kyc
+from backend.services.kyc_storage import (
+    MAX_UPLOAD_BYTES,
+    decrypt_identity,
+    encrypt_identity,
+    encrypt_image,
+    normalize_image,
+)
+from backend.core.mailer import send_email
 from backend.services.commission_service import record_commission
-from backend.services.agent_startup_loan import grant_startup_loan_credit
 from backend.services.paystack_fulfillment import (
     AGENT_REGISTRATION_TX_TYPE,
     PAYSTACK_PENDING_STATUSES,
@@ -39,6 +46,8 @@ router = APIRouter(
     prefix="/agents",
     tags=["Agents"]
 )
+
+KYC_REVIEW_EMAIL = "Cybercashspace360@gmail.com"
 
 momo_service = MomoService() # Initialize MomoService
 
@@ -109,7 +118,7 @@ async def create_agent_profile(
     user_wallet.balance = Decimal(str(user_wallet.balance or 0)) - registration_fee_amount
     db_agent = Agent(
         user_id=agent_data.user_id,
-        status=agent_data.status,
+        status="pending_kyc",
         commission_rate=agent_data.commission_rate,
         float_balance=agent_data.float_balance,
     )
@@ -136,15 +145,6 @@ async def create_agent_profile(
             {"account_name": "Revenue - Agent Fees", "debit": 0.0, "credit": registration_fee_amount},
         ],
         transaction=fee_txn,
-    )
-
-    await grant_startup_loan_credit(
-        db,
-        user_id=agent_data.user_id,
-        wallet_id=user_wallet.id,
-        agent=db_agent,
-        amount=settings.AGENT_STARTUP_LOAN_AMOUNT,
-        currency=user_wallet.currency or "GHS",
     )
 
     await db.commit()
@@ -178,10 +178,11 @@ async def register_agent(
 
         result = await db.execute(select(Agent).filter(Agent.user_id == current_user.id))
         existing_agent_any = result.scalars().first()
-        if existing_agent_any and str(existing_agent_any.status or "").strip().lower() == "active":
+        existing_status = str(getattr(existing_agent_any, "status", "") or "").strip().lower()
+        if existing_agent_any and existing_status in {"active", "pending_kyc", "pending_kyc_review"}:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is already an active agent.",
+                detail="Agent registration is already paid. Submit or await identity review in Settings > Security.",
             )
         
         # Check if a pending agent registration exists for this user
@@ -753,45 +754,147 @@ async def delete_agent(
         await db.close()
 
 
-@router.post("/me/kyc/submit", response_model=AgentProfileResponse, status_code=status.HTTP_200_OK)
-async def submit_agent_kyc(
-    payload: AgentKYCSubmitSchema,
+async def _read_kyc_image(upload: UploadFile) -> bytes:
+    raw = await upload.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Each identity photo must be smaller than 4 MB.")
+    try:
+        normalized, _mime = normalize_image(raw)
+        return normalized
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _get_paid_agent_for_kyc(db: AsyncSession, user_id: int) -> Agent:
+    agent_result = await db.execute(select(Agent).filter(Agent.user_id == user_id))
+    agent = agent_result.scalars().first()
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Complete the agent registration payment before submitting identity documents.",
+        )
+    payment_result = await db.execute(
+        select(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.type == AGENT_REGISTRATION_TX_TYPE,
+            Transaction.status == "completed",
+        ).order_by(Transaction.id.desc())
+    )
+    if not payment_result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your agent registration payment has not been confirmed yet.",
+        )
+    return agent
+
+
+@router.get("/me/kyc", status_code=status.HTTP_200_OK)
+async def get_my_agent_kyc_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        result = await db.execute(select(Agent).filter(Agent.user_id == current_user.id))
-        agent = result.scalars().first()
-        if not agent:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent profile not found.")
-
-        kyc_result = process_agent_kyc(
-            ghana_card_front_ref=payload.ghana_card_front_ref,
-            ghana_card_back_ref=payload.ghana_card_back_ref,
-            selfie_ref=payload.selfie_ref,
-        )
-
+        agent = await _get_paid_agent_for_kyc(db, current_user.id)
         result = await db.execute(select(AgentProfile).filter(AgentProfile.user_id == current_user.id))
         profile = result.scalars().first()
+        return {
+            "agent_id": agent.id,
+            "agent_status": agent.status,
+            "kyc_status": profile.kyc_status if profile else "not_submitted",
+            "submitted_at": profile.created_at.isoformat() if profile and profile.created_at else None,
+        }
+    finally:
+        await db.close()
+
+
+@router.post("/me/kyc/submit", status_code=status.HTTP_200_OK)
+async def submit_agent_kyc(
+    full_name: str = Form(..., min_length=2, max_length=120),
+    date_of_birth: str = Form(...),
+    ghana_card_number: str = Form(..., min_length=13, max_length=15),
+    consent: bool = Form(...),
+    ghana_card_front: UploadFile = File(...),
+    ghana_card_back: UploadFile = File(...),
+    selfie_with_id: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        agent = await _get_paid_agent_for_kyc(db, current_user.id)
+        name = " ".join(str(full_name or "").split())
+        if len(name) < 2 or any(ord(character) < 32 for character in name):
+            raise HTTPException(status_code=400, detail="Enter your full legal name.")
+        try:
+            dob = date.fromisoformat(str(date_of_birth or "").strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Enter your date of birth in YYYY-MM-DD format.") from exc
+        if dob >= date.today():
+            raise HTTPException(status_code=400, detail="Date of birth must be in the past.")
+        card_number = str(ghana_card_number or "").strip().upper()
+        if not re.fullmatch(r"GHA-\d{9}-\d", card_number):
+            raise HTTPException(status_code=400, detail="Enter the full Ghana Card number, for example GHA-123456789-0.")
+        if not consent:
+            raise HTTPException(status_code=400, detail="Confirm that the details and photos are yours before submitting.")
+
+        profile_result = await db.execute(select(AgentProfile).filter(AgentProfile.user_id == current_user.id))
+        profile = profile_result.scalars().first()
+        if profile and profile.kyc_status in {"pending_admin_review", "approved"}:
+            raise HTTPException(status_code=409, detail="Your identity submission is already under review or approved.")
+        if agent.status == "active":
+            raise HTTPException(status_code=409, detail="This agent account is already active.")
+
+        front_bytes, back_bytes, selfie_bytes = await _read_kyc_image(ghana_card_front), await _read_kyc_image(ghana_card_back), await _read_kyc_image(selfie_with_id)
+        # Fail before changing the record if the deployment has no usable key.
+        identity_encrypted = encrypt_identity(name, dob.isoformat(), card_number)
+        front_encrypted, back_encrypted, selfie_encrypted = (
+            encrypt_image(front_bytes), encrypt_image(back_bytes), encrypt_image(selfie_bytes)
+        )
         if not profile:
             profile = AgentProfile(user_id=current_user.id)
-
-        profile.ghana_card_number = kyc_result.ghana_card_number
-        profile.kyc_status = kyc_result.kyc_status
-        profile.face_match_score = kyc_result.face_match_score
-        profile.ghana_card_front_ref = payload.ghana_card_front_ref
-        profile.ghana_card_back_ref = payload.ghana_card_back_ref
-        profile.selfie_ref = payload.selfie_ref
-        profile.extracted_full_name = kyc_result.full_name
-        profile.extracted_dob = kyc_result.date_of_birth
-        profile.extracted_expiry_date = kyc_result.expiry_date
+        profile.kyc_status = "pending_admin_review"
+        profile.face_match_score = None
+        profile.ghana_card_number = None
+        profile.extracted_full_name = None
+        profile.extracted_dob = None
+        profile.extracted_expiry_date = None
+        profile.identity_data_encrypted = identity_encrypted
+        profile.ghana_card_front_encrypted = front_encrypted
+        profile.ghana_card_back_encrypted = back_encrypted
+        profile.selfie_encrypted = selfie_encrypted
+        # Legacy plaintext/reference fields are intentionally cleared.
+        profile.ghana_card_front_ref = None
+        profile.ghana_card_back_ref = None
+        profile.selfie_ref = None
+        agent.status = "pending_kyc_review"
         db.add(profile)
-
-        # Keep agent pending until admin review.
-        agent.status = "pending_kyc_review" if kyc_result.kyc_status == "pending_admin_review" else "kyc_failed"
         db.add(agent)
         await db.commit()
         await db.refresh(profile)
-        return profile
+
+        reference = f"AGENT-KYC-{agent.id}-{profile.created_at.strftime('%Y%m%d') if profile.created_at else 'NEW'}"
+        try:
+            mail_result = await send_email(
+                "CyberCash agent identity review requested",
+                [KYC_REVIEW_EMAIL],
+                (
+                    "<p>A new agent identity submission is ready for review in the CyberCash Admin Dashboard.</p>"
+                    f"<p>Reference: <strong>{html.escape(reference)}</strong></p>"
+                    "<p>For security, identity numbers and photos are available only through the authenticated admin review screen.</p>"
+                ),
+                idempotency_key=f"agent-kyc-submission-{agent.id}-{profile.id}",
+            )
+        except Exception:
+            mail_result = {"status": "error"}
+        return {
+            "agent_id": agent.id,
+            "kyc_status": profile.kyc_status,
+            "reference": reference,
+            "notification_sent": str((mail_result or {}).get("status", "")).lower() in {"queued", "sent", "delivered"},
+        }
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=503, detail="Secure identity storage is not available. Please try again later.") from exc
     finally:
         await db.close()

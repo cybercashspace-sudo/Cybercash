@@ -51,6 +51,9 @@ from backend.services.settings_service import get_or_create_platform_settings
 from backend.services.idata_service import IDataApiError, IDataService
 from backend.services.reconciliation_service import repair_wallet_balance
 from backend.services import loan_service # New Import
+from backend.services.agent_startup_loan import grant_startup_loan_credit
+from backend.services.kyc_storage import decrypt_identity, decrypt_image, image_data_url
+from backend.services.paystack_fulfillment import AGENT_REGISTRATION_TX_TYPE
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -618,6 +621,67 @@ async def get_all_agents_admin(
     finally:
         await db.close()
 
+
+@router.get("/agents/kyc-pending")
+async def list_pending_agent_kyc(
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+):
+    try:
+        result = await db.execute(
+            select(AgentProfile, Agent)
+            .join(Agent, Agent.user_id == AgentProfile.user_id)
+            .filter(AgentProfile.kyc_status == "pending_admin_review", Agent.status == "pending_kyc_review")
+            .order_by(AgentProfile.created_at.asc())
+        )
+        return [
+            {
+                "agent_id": agent.id,
+                "user_id": agent.user_id,
+                "kyc_status": profile.kyc_status,
+                "submitted_at": profile.created_at.isoformat() if profile.created_at else None,
+            }
+            for profile, agent in result.all()
+        ]
+    finally:
+        await db.close()
+
+
+@router.get("/agents/{agent_id}/kyc-review")
+async def get_agent_kyc_review(
+    agent_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+):
+    try:
+        agent_result = await db.execute(select(Agent).filter(Agent.id == agent_id))
+        agent = agent_result.scalars().first()
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent onboarding request not found.")
+        profile_result = await db.execute(select(AgentProfile).filter(AgentProfile.user_id == agent.user_id))
+        profile = profile_result.scalars().first()
+        if not profile or profile.kyc_status != "pending_admin_review":
+            raise HTTPException(status_code=404, detail="Pending identity documents were not found.")
+        try:
+            identity = decrypt_identity(profile.identity_data_encrypted or "")
+            front = decrypt_image(profile.ghana_card_front_encrypted or "")
+            back = decrypt_image(profile.ghana_card_back_encrypted or "")
+            selfie = decrypt_image(profile.selfie_encrypted or "")
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="Secure identity records are temporarily unavailable.") from exc
+        return {
+            "agent_id": agent.id,
+            "user_id": agent.user_id,
+            "status": agent.status,
+            "submitted_at": profile.created_at.isoformat() if profile.created_at else None,
+            **identity,
+            "ghana_card_front": image_data_url(front),
+            "ghana_card_back": image_data_url(back),
+            "selfie_with_id": image_data_url(selfie),
+        }
+    finally:
+        await db.close()
+
 @router.put("/agents/{agent_id}/approve", response_model=AgentResponse)
 async def approve_agent(
     agent_id: int,
@@ -625,18 +689,15 @@ async def approve_agent(
     admin_user: User = Depends(get_admin_user)
 ):
     try:
-        result = await db.execute(select(Agent).filter(Agent.id == agent_id))
+        result = await db.execute(select(Agent).options(selectinload(Agent.user)).filter(Agent.id == agent_id))
         db_agent = result.scalars().first()
         if db_agent is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
         
-        if db_agent.status == "active":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent is already active")
-
-        db_agent.status = "active"
-        await db.commit()
-        await db.refresh(db_agent)
-        return db_agent
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Agent activation requires completed identity review. Use the KYC approval action.",
+        )
     finally:
         await db.close()
 
@@ -648,7 +709,7 @@ async def approve_agent_kyc_and_activate(
     admin_user: User = Depends(get_admin_user),
 ):
     try:
-        result = await db.execute(select(Agent).filter(Agent.id == agent_id))
+        result = await db.execute(select(Agent).options(selectinload(Agent.user)).filter(Agent.id == agent_id))
         db_agent = result.scalars().first()
         if not db_agent:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
@@ -657,8 +718,25 @@ async def approve_agent_kyc_and_activate(
         profile = result.scalars().first()
         if not profile:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent KYC profile missing.")
-        if float(profile.face_match_score or 0.0) < 90.0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Face match score below threshold.")
+        if profile.kyc_status != "pending_admin_review" or not all((
+            profile.identity_data_encrypted,
+            profile.ghana_card_front_encrypted,
+            profile.ghana_card_back_encrypted,
+            profile.selfie_encrypted,
+        )):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Complete identity records are required before approval.")
+        if db_agent.status == "active":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Agent is already active.")
+        if db_agent.status != "pending_kyc_review":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Agent is not waiting for identity approval.")
+
+        try:
+            decrypt_identity(profile.identity_data_encrypted)
+            decrypt_image(profile.ghana_card_front_encrypted)
+            decrypt_image(profile.ghana_card_back_encrypted)
+            decrypt_image(profile.selfie_encrypted)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="Secure identity records are temporarily unavailable.") from exc
 
         profile.kyc_status = "approved"
         profile.reviewed_by_admin_id = admin_user.id
@@ -675,6 +753,29 @@ async def approve_agent_kyc_and_activate(
             linked_user.kyc_tier = 3
             linked_user.daily_limit = max(float(linked_user.daily_limit or 0.0), 50000.0)
             db.add(linked_user)
+
+        payment_result = await db.execute(
+            select(Transaction).filter(
+                Transaction.user_id == db_agent.user_id,
+                Transaction.type == AGENT_REGISTRATION_TX_TYPE,
+                Transaction.status == "completed",
+            ).order_by(Transaction.id.desc())
+        )
+        registration_payment = payment_result.scalars().first()
+        if not registration_payment:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Confirmed agent registration payment is required.")
+        wallet_result = await db.execute(select(Wallet).filter(Wallet.user_id == db_agent.user_id).with_for_update())
+        linked_wallet = wallet_result.scalars().first()
+        if not linked_wallet:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Agent wallet is unavailable. Contact support.")
+        await grant_startup_loan_credit(
+            db,
+            user_id=db_agent.user_id,
+            wallet_id=linked_wallet.id,
+            agent=db_agent,
+            amount=settings.AGENT_STARTUP_LOAN_AMOUNT,
+            currency=str(linked_wallet.currency or "GHS"),
+        )
 
         await db.commit()
         await db.refresh(db_agent)

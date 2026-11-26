@@ -1,68 +1,177 @@
 <AgentKycScreen>:
     MDBoxLayout:
         orientation: "vertical"
-        md_bg_color: 0.03, 0.03, 0.03, 1
-
-        MDBoxLayout:
-            size_hint_y: None
-            height: "72dp"
-            padding: "18dp", "12dp"
-
-            MDLabel:
-                text: "Agent KYC"
-                bold: True
-                font_size: "22sp"
-                theme_text_color: "Custom"
-                text_color: 1, 0.76, 0.12, 1
-
-            Widget:
+        md_bg_color: app.ui_background
 
         PullRefreshScrollView:
             root_layout: root
             refresh_callback: root.pull_to_refresh
             spinner_color: app.gold
             circle_color: app.ui_background
+            do_scroll_x: False
+            bar_width: 0
+
             MDBoxLayout:
                 orientation: "vertical"
-                adaptive_height: True
-                spacing: "16dp"
-                padding: "16dp"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: [dp(18), dp(14), dp(18), dp(22)]
+                spacing: dp(12)
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: dp(48)
+                    MDLabel:
+                        text: "Agent identity verification"
+                        font_style: "Title"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                    MDTextButton:
+                        text: "Back"
+                        theme_text_color: "Custom"
+                        text_color: app.gold
+                        on_release: root.go_back()
 
                 MDCard:
                     size_hint_y: None
-                    height: "360dp"
-                    radius: [24, 24, 24, 24]
-                    elevation: 6
-                    md_bg_color: 0.09, 0.09, 0.09, 1
-                    padding: "16dp"
+                    height: dp(82)
+                    radius: [dp(16)]
+                    md_bg_color: app.ui_surface
+                    elevation: 0
+                    padding: dp(14)
+                    MDLabel:
+                        text: root.status_text
+                        theme_text_color: "Custom"
+                        text_color: app.ui_text_primary
+                        adaptive_height: True
+                        text_size: self.width, None
 
+                MDLabel:
+                    text: "Your details"
+                    theme_text_color: "Custom"
+                    text_color: app.gold
+                    bold: True
+                    adaptive_height: True
+
+                MDTextField:
+                    id: full_name
+                    hint_text: "Full legal name"
+                    mode: "rectangle"
+                    disabled: root.loading or not root.can_submit
+
+                MDTextField:
+                    id: date_of_birth
+                    hint_text: "Date of birth (YYYY-MM-DD)"
+                    mode: "rectangle"
+                    disabled: root.loading or not root.can_submit
+
+                MDTextField:
+                    id: ghana_card_number
+                    hint_text: "Ghana Card ID (GHA-000000000-0)"
+                    mode: "rectangle"
+                    disabled: root.loading or not root._is_submit_allowed()
+
+                MDLabel:
+                    text: "Required photos"
+                    theme_text_color: "Custom"
+                    text_color: app.gold
+                    bold: True
+                    adaptive_height: True
+
+                MDCard:
+                    size_hint_y: None
+                    height: dp(60)
+                    radius: [dp(14)]
+                    md_bg_color: app.ui_surface
+                    elevation: 0
+                    padding: [dp(12), 0, dp(8), 0]
                     MDBoxLayout:
-                        orientation: "vertical"
-                        spacing: "12dp"
-
-                        MDTextField:
-                            id: full_name
-                            hint_text: "Full Name"
-
-                        MDTextField:
-                            id: phone
-                            hint_text: "Phone Number"
-
-                        MDTextField:
-                            id: id_number
-                            hint_text: "Ghana Card / ID Number"
-
-                        MDTextField:
-                            id: document_ref
-                            hint_text: "Document Ref / Upload ID"
-
-                        MDTextField:
-                            id: selfie_ref
-                            hint_text: "Selfie Ref / Face Match"
-
+                        spacing: dp(8)
+                        MDLabel:
+                            text: root.front_photo_name
+                            theme_text_color: "Secondary"
+                            shorten: True
+                            shorten_from: "middle"
                         MDRaisedButton:
-                            text: "SUBMIT VERIFICATION"
-                            md_bg_color: 1, 0.76, 0.12, 1
-                            text_color: 0, 0, 0, 1
-                            on_release: root.submit_kyc()
+                            text: "Choose front"
+                            disabled: root.loading or not root.can_submit
+                            on_release: root.choose_photo("front")
 
+                MDCard:
+                    size_hint_y: None
+                    height: dp(60)
+                    radius: [dp(14)]
+                    md_bg_color: app.ui_surface
+                    elevation: 0
+                    padding: [dp(12), 0, dp(8), 0]
+                    MDBoxLayout:
+                        spacing: dp(8)
+                        MDLabel:
+                            text: root.back_photo_name
+                            theme_text_color: "Secondary"
+                            shorten: True
+                            shorten_from: "middle"
+                        MDRaisedButton:
+                            text: "Choose back"
+                            disabled: root.loading or not root.can_submit
+                            on_release: root.choose_photo("back")
+
+                MDCard:
+                    size_hint_y: None
+                    height: dp(60)
+                    radius: [dp(14)]
+                    md_bg_color: app.ui_surface
+                    elevation: 0
+                    padding: [dp(12), 0, dp(8), 0]
+                    MDBoxLayout:
+                        spacing: dp(8)
+                        MDLabel:
+                            text: root.selfie_photo_name
+                            theme_text_color: "Secondary"
+                            shorten: True
+                            shorten_from: "middle"
+                        MDRaisedButton:
+                            text: "Choose selfie"
+                            disabled: root.loading or not root.can_submit
+                            on_release: root.choose_photo("selfie")
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: dp(52)
+                    spacing: dp(8)
+                    CheckBox:
+                        size_hint: None, None
+                        size: dp(36), dp(36)
+                        active: root.consent_accepted
+                        disabled: root.loading or not root.can_submit
+                        on_active: root.consent_accepted = self.active
+                    MDLabel:
+                        text: "I confirm these details and photos are mine and can be reviewed for Agent onboarding."
+                        theme_text_color: "Secondary"
+                        font_size: "12sp"
+                        text_size: self.width, None
+
+                MDLabel:
+                    text: "Your Ghana Card number and photos are encrypted in the app database. Only authenticated administrators can open them for review; email alerts contain a reference only."
+                    theme_text_color: "Hint"
+                    font_size: "11sp"
+                    adaptive_height: True
+                    text_size: self.width, None
+
+                MDRaisedButton:
+                    text: "Submit for approval"
+                    size_hint_y: None
+                    height: dp(52)
+                    disabled: root.loading or not root.can_submit
+                    on_release: root.submit_kyc()
+
+        BottomNavBar:
+            nav_variant: "default"
+            active_target: ""
+            layout_scale: 1
+            text_scale: 1
+            icon_scale: 1
+            bar_color: app.ui_surface
+            active_color: app.gold
+            inactive_color: app.ui_text_secondary

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -21,6 +21,13 @@ class AgentProfile(Base):
     extracted_full_name = Column(String, nullable=True)
     extracted_dob = Column(String, nullable=True)
     extracted_expiry_date = Column(String, nullable=True)
+
+    # Identity material is encrypted before it reaches the database. These
+    # fields are returned only by the admin-only KYC review endpoint.
+    identity_data_encrypted = Column(Text, nullable=True)
+    ghana_card_front_encrypted = Column(Text, nullable=True)
+    ghana_card_back_encrypted = Column(Text, nullable=True)
+    selfie_encrypted = Column(Text, nullable=True)
 
     reviewed_by_admin_id = Column(Integer, nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
