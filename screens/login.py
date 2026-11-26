@@ -55,9 +55,18 @@ class LoginScreen(ResponsiveScreen):
     def on_pre_enter(self, *_args):
         self._active = True
         self._login_generation += 1
+        generation = self._login_generation
         app = MDApp.get_running_app()
         availability_check = getattr(app, "is_biometric_available", None) if app else None
-        self.biometric_available = bool(availability_check()) if callable(availability_check) else False
+        # Android/JNI hardware checks can stall on older devices. Never run them
+        # while Kivy is drawing the auth screen.
+        self.biometric_available = False
+        if callable(availability_check) and platform == "android":
+            Thread(
+                target=self._check_biometric_availability,
+                args=(availability_check, generation),
+                daemon=True,
+            ).start()
         self.biometric_login_enabled = False
         self.password_visible = False
         self._set_text("", "momo_input", "pin_input")
@@ -69,6 +78,24 @@ class LoginScreen(ResponsiveScreen):
         if pin_input is not None and hasattr(pin_input, "password_visible"):
             pin_input.password_visible = False
         self._set_loading(self._login_inflight)
+        self._sync_auth_controls()
+
+    def _check_biometric_availability(self, availability_check, generation: int) -> None:
+        try:
+            available = bool(availability_check())
+        except Exception:
+            available = False
+        Clock.schedule_once(
+            lambda _dt, value=available, gen=generation: self._apply_biometric_availability(value, gen),
+            0,
+        )
+
+    def _apply_biometric_availability(self, available: bool, generation: int) -> None:
+        if not self._active or generation != self._login_generation:
+            return
+        self.biometric_available = bool(available)
+        self._restore_remembered_identity()
+        self._update_biometric_login_ready()
         self._sync_auth_controls()
 
     def on_enter(self):

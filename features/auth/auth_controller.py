@@ -54,20 +54,6 @@ class AuthController:
                     current_role = str(profile_payload.get("role") or current_role).strip().lower()
             except Exception:
                 pass
-            if (
-                not profile_payload.get("is_admin")
-                and not profile_payload.get("is_agent")
-                and current_role not in {"admin", "super_admin", "agent"}
-            ):
-                try:
-                    agent_response = api_client.get("/agents/me", headers=auth_headers, timeout=FAST_TIMEOUT)
-                    agent_payload = self._response_data(agent_response)
-                    if agent_payload:
-                        profile_payload = {**profile_payload, **agent_payload}
-                        current_role = str(profile_payload.get("role") or current_role).strip().lower()
-                except Exception:
-                    pass
-
         is_admin = bool(profile_payload.get("is_admin") or current_role in {"admin", "super_admin"})
         is_agent = bool(
             profile_payload.get("is_agent")
