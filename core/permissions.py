@@ -56,9 +56,3 @@ class PermissionManager:
     def request_notifications(self) -> bool:
         permission = getattr(Permission, "POST_NOTIFICATIONS", "android.permission.POST_NOTIFICATIONS")
         return self.request([permission])
-
-    def request_biometrics(self) -> bool:
-        permissions = [
-            getattr(Permission, "USE_FINGERPRINT", "android.permission.USE_FINGERPRINT"),
-        ]
-        return self.request(permissions)

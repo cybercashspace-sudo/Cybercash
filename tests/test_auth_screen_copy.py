@@ -16,9 +16,28 @@ def test_login_screen_has_only_required_credentials_and_compact_copy():
     assert 'id: pin_input' in login_kv
     assert 'text: "Forgot PIN?"' in login_kv
     assert 'text: "Create New Account"' in login_kv
+    assert "fingerprint" not in login_kv.lower()
+    assert "biometric" not in login_py.lower()
     assert 'id: first_name_input' not in login_kv
     assert 'lookup_registered_name' not in login_py
     assert "Use your 10-digit registered Ghana MoMo number" not in login_kv
+
+
+def test_app_has_no_fingerprint_authentication_path():
+    auth_sources = "\n".join(
+        _read(path)
+        for path in (
+            "kivy_app.py",
+            "screens/login.py",
+            "screens/investments.py",
+            "screens/settings.py",
+            "buildozer.spec",
+        )
+    ).lower()
+
+    assert "request_biometric_auth" not in auth_sources
+    assert "fingerprint" not in auth_sources
+    assert "use_biometric" not in auth_sources
 
 
 def test_registration_form_keeps_required_details_without_repeated_helper_copy():

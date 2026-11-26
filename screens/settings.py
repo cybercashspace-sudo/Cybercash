@@ -158,7 +158,7 @@ KV = """
 
                 SettingsItem:
                     text: "Security"
-                    secondary: "PIN, Fingerprint & Privacy"
+                    secondary: "PIN & Privacy"
                     icon: "shield-lock-outline"
                     on_release: root.open_section("Security")
 
@@ -380,8 +380,7 @@ class SettingsScreen(ActionScreen):
         content.add_widget(
             MDLabel(
                 text=(
-                    "Use your enrolled fingerprint for quick sign-in. Enable it from the login screen. "
-                    "Reset your PIN using an email verification code."
+                    "Protect transactions with your PIN. Reset it using an email verification code."
                 ),
                 theme_text_color="Secondary",
                 font_size=sp(13),
@@ -508,7 +507,6 @@ class SettingsScreen(ActionScreen):
         seq = self._save_seq
 
         user_payload = {
-            "biometric": self._read_bool("biometric_switch"),
             "otp": self._read_bool("otp_switch"),
             "auto_settle": self._read_bool("auto_settle_switch"),
             "sms_alerts": self._read_bool("sms_alerts_switch"),

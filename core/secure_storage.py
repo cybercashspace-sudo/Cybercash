@@ -67,13 +67,8 @@ class SecureStorage:
     def clear_session_expiry(self) -> None:
         clear_session_expiry()
 
-    def save_remember_me(
-        self,
-        momo: str,
-        first_name: str = "",
-        biometric_enabled: bool = False,
-    ) -> None:
-        save_remember_me(momo, first_name=first_name, biometric_enabled=biometric_enabled)
+    def save_remember_me(self, momo: str, first_name: str = "") -> None:
+        save_remember_me(momo, first_name=first_name)
 
     def get_remember_me(self) -> dict | None:
         return get_remember_me()

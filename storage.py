@@ -182,20 +182,16 @@ def clear_session_expiry():
     save_session_expiry(None)
 
 
-def save_remember_me(
-    momo: str,
-    first_name: str = "",
-    biometric_enabled: bool = False,
-):
+def save_remember_me(momo: str, first_name: str = ""):
     try:
         data = _read_secure_data()
         data["remember_me"] = {
             "momo": str(momo or "").strip(),
             "first_name": str(first_name or "").strip(),
-            "biometric_enabled": bool(biometric_enabled),
         }
         # Remove credentials left by older versions.
         data.pop("pin", None)
+        data["remember_me"].pop("biometric_enabled", None)
         _write_secure_data(data)
     except Exception:
         pass
@@ -215,11 +211,10 @@ def get_remember_me() -> dict:
     result = {
         "momo": str(remembered.get("momo", legacy["momo"]) or "").strip(),
         "first_name": str(remembered.get("first_name", legacy["first_name"]) or "").strip(),
-        # Legacy PIN markers do not count as explicit biometric consent.
-        "biometric_enabled": bool(remembered.get("biometric_enabled", False)),
     }
-    if "pin" in remembered or "pin" in data:
+    if "pin" in remembered or "pin" in data or "biometric_enabled" in remembered:
         remembered.pop("pin", None)
+        remembered.pop("biometric_enabled", None)
         data.pop("pin", None)
         if isinstance(data.get("remember_me"), dict):
             data["remember_me"] = remembered

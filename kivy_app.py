@@ -25,7 +25,6 @@ from kivymd.app import MDApp
 from kivy.utils import platform
 
 from core.silent_touch import install_silent_touch
-from core.biometric_auth import FingerprintAuthenticator
 from core.config import config as app_config
 from core.logger import get_logger
 from core.session import session
@@ -80,7 +79,6 @@ from features.notifications.notification_manager import notification_manager
 from screens.splash_screen import SplashScreen
 from storage import (
     get_token,
-    get_remember_me,
     clear_token,
     get_privacy_mode,
     save_privacy_mode,
@@ -467,42 +465,8 @@ class CyberCashApp(MDApp):
             logging.exception("Failed to apply Android Privacy Mode flags")
 
     def on_pause(self):
-        # Ignore the pause caused by the Android biometric sheet itself.
-        if not getattr(self, "_biometric_prompt_active", False):
-            self._biometric_unlocked_for_session = False
+        # Keep the Android process alive while it is in the background.
         return True
-
-    def on_resume(self):
-        if not getattr(self, "_startup_complete", False) or not self.access_token:
-            return
-        if self._biometric_opted_in() and not getattr(self, "_biometric_unlocked_for_session", False):
-            manager = getattr(self, "root", None)
-            resume_target = str(getattr(manager, "current", "") or self.get_authenticated_target())
-            if resume_target in {"login", "splash"}:
-                resume_target = self.get_authenticated_target()
-            self.go_to_screen("login", fallback="login")
-            self.request_biometric_auth(
-                reason="Unlock your session",
-                on_success=lambda: self.go_to_screen(resume_target, fallback="login"),
-                on_failure=self._lock_app_to_login,
-            )
-
-    def _biometric_opted_in(self) -> bool:
-        try:
-            return bool(get_remember_me().get("biometric_enabled", False))
-        except Exception:
-            return False
-
-    def is_biometric_available(self) -> bool:
-        """Return whether Android has an enrolled fingerprint for this device."""
-        return FingerprintAuthenticator.is_available()
-
-    def _lock_app_to_login(self, message="Session Locked"):
-        self._biometric_unlocked_for_session = False
-        self.reset_session_state(clear_wallet_state=False)
-        self.go_to_screen("login")
-        if message:
-            show_app_snackbar("Sign in with your PIN to continue. Fingerprint sign-in remains available for next time.")
 
     def reset_session_state(self, *, clear_wallet_state: bool = False) -> None:
         self.stop_background_services()
@@ -542,128 +506,6 @@ class CyberCashApp(MDApp):
         except Exception:
             pass
 
-    def request_biometric_auth(self, reason="Confirm Identity", on_success=None, on_failure=None, *, require_opt_in=True):
-        """Require Android fingerprint authentication for an existing session."""
-        if getattr(self, "_biometric_prompt_active", False):
-            if on_failure:
-                on_failure("Fingerprint check is already in progress. Please wait.")
-            return False
-        if not self.access_token or not session.authenticated():
-            if on_failure:
-                on_failure("Sign in with your PIN before using fingerprint unlock.")
-            return False
-        if require_opt_in and not self._biometric_opted_in():
-            if on_failure:
-                on_failure("Fingerprint unlock is not enabled for this device.")
-            return False
-        if platform != "android":
-            if on_failure:
-                on_failure("Fingerprint unlock is available in the Android app.")
-            return False
-
-        self._biometric_prompt_active = True
-        self._biometric_unlocked_for_session = False
-        request_id = int(getattr(self, "_biometric_request_id", 0)) + 1
-        self._biometric_request_id = request_id
-        settled = {"value": False}
-        settled_lock = threading.Lock()
-        fingerprint_dialog = {"popup": None}
-
-        def finish(success, message=""):
-            with settled_lock:
-                if settled["value"]:
-                    return
-                settled["value"] = True
-
-            def apply_result(_dt):
-                if request_id != getattr(self, "_biometric_request_id", 0):
-                    return
-                self._biometric_prompt_active = False
-                self._biometric_dialog = None
-                authenticator = self._fingerprint_authenticator
-                self._fingerprint_authenticator = None
-                if authenticator is not None:
-                    authenticator.release()
-                popup = fingerprint_dialog.get("popup")
-                if popup is not None:
-                    popup.dismiss()
-                if success:
-                    self._biometric_unlocked_for_session = True
-                    if on_success:
-                        on_success()
-                elif on_failure:
-                    on_failure(str(message or "Fingerprint check was not completed."))
-
-            Clock.schedule_once(apply_result, 0)
-
-        try:
-            from kivy.metrics import dp
-            from kivy.uix.popup import Popup
-            from kivymd.uix.boxlayout import MDBoxLayout
-            from kivymd.uix.button import MDRaisedButton
-            from kivymd.uix.label import MDLabel
-
-            prompt_content = MDBoxLayout(
-                orientation="vertical",
-                spacing=dp(16),
-                padding=dp(18),
-            )
-            status_label = MDLabel(
-                text=f"{str(reason or 'Unlock your account')}\nTouch the fingerprint sensor to continue.",
-                halign="center",
-                valign="middle",
-                adaptive_height=True,
-            )
-            prompt_content.add_widget(status_label)
-
-            def cancel_fingerprint(*_args):
-                authenticator = self._fingerprint_authenticator
-                if authenticator is not None:
-                    authenticator.cancel()
-                finish(False, "Fingerprint sign-in cancelled. Enter your PIN to continue.")
-
-            cancel_button = MDRaisedButton(
-                text="Use PIN",
-                size_hint_x=1,
-                on_release=cancel_fingerprint,
-            )
-            prompt_content.add_widget(cancel_button)
-            popup = Popup(
-                title="Fingerprint sign-in",
-                content=prompt_content,
-                size_hint=(0.88, None),
-                height=dp(220),
-                auto_dismiss=False,
-            )
-            fingerprint_dialog["popup"] = popup
-            self._biometric_dialog = popup
-            popup.open()
-            authenticator = FingerprintAuthenticator()
-            self._fingerprint_authenticator = authenticator
-
-            def show_retry_hint():
-                Clock.schedule_once(
-                    lambda _dt: setattr(
-                        status_label,
-                        "text",
-                        "Fingerprint not recognized. Touch the sensor and try again.",
-                    ),
-                    0,
-                )
-
-            started = authenticator.authenticate(
-                on_success=lambda: finish(True),
-                on_error=lambda message: finish(False, message),
-                on_failed=show_retry_hint,
-            )
-            if not started:
-                finish(False, "Fingerprint unlock is unavailable right now. Sign in with your PIN.")
-            return started
-        except Exception:
-            logging.exception("Android fingerprint prompt could not be started")
-            finish(False, "Fingerprint unlock is unavailable right now. Sign in with your PIN.")
-            return False
-
     def _open_authenticated_start_screen(self, *_args) -> None:
         if self.access_token:
             self.go_to_screen(self.get_authenticated_target(), fallback="login")
@@ -691,10 +533,8 @@ class CyberCashApp(MDApp):
             return False
 
         target = self.get_authenticated_target() if self.access_token else "login"
-        biometric_required = bool(self.access_token and self._biometric_opted_in())
-        initial_target = "login" if biometric_required else target
-        if not self.go_to_screen(initial_target, fallback="login"):
-            logger.warning("Startup route to %s is not ready yet; retrying.", initial_target)
+        if not self.go_to_screen(target, fallback="login"):
+            logger.warning("Startup route to %s is not ready yet; retrying.", target)
             return False
 
         self._startup_complete = True
@@ -706,20 +546,6 @@ class CyberCashApp(MDApp):
                 lambda _dt: threading.Thread(target=self._warm_backend, daemon=True).start(),
                 0.35,
             )
-
-        if biometric_required:
-            def open_after_biometric():
-                if self.go_to_screen(target, fallback="login"):
-                    self.start_background_services()
-                else:
-                    self._lock_app_to_login("Please sign in with your PIN to continue.")
-
-            self.request_biometric_auth(
-                reason="Unlock your account",
-                on_success=open_after_biometric,
-                on_failure=self._lock_app_to_login,
-            )
-            return True
 
         if self.access_token:
             self.start_background_services()
@@ -978,11 +804,6 @@ class CyberCashApp(MDApp):
         self._startup_complete = False
         self._startup_attempts = 0
         self._startup_request_event = None
-        self._biometric_prompt_active = False
-        self._biometric_dialog = None
-        self._fingerprint_authenticator = None
-        self._biometric_request_id = 0
-        self._biometric_unlocked_for_session = False
         self._admin_dashboard_entry_authorized = False
         self.app_state.set_screen("splash", "")
 

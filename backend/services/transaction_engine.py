@@ -657,8 +657,19 @@ class TransactionEngine:
                 raise ValueError("Recipient registered number does not match recipient account.")
 
         biometric_threshold = _money(metadata.get("biometric_threshold", 2500.0))
-        if amount >= biometric_threshold and not metadata.get("biometric_verified", False):
-            raise ValueError("Biometric verification required for high-value transaction.")
+        # Investment endpoints verify the transaction PIN against the user record
+        # before entering the engine. That server-side PIN check is the supported
+        # high-value confirmation for the app, which does not use biometrics.
+        investment_pin_verified = (
+            tx_type in {TransactionType.INVESTMENT_CREATE, TransactionType.INVESTMENT_PAYOUT}
+            and bool(metadata.get("pin_verified", False))
+        )
+        if (
+            amount >= biometric_threshold
+            and not metadata.get("biometric_verified", False)
+            and not investment_pin_verified
+        ):
+            raise ValueError("Additional verification is required for this high-value transaction.")
 
         start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         total_today_query = await self.db.execute(

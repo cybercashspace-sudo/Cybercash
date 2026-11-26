@@ -163,6 +163,27 @@ def test_user_create_investment_stores_fixed_risk_free_projection(client, db_ses
         verify_db.close()
 
 
+def test_high_value_investment_uses_server_verified_pin_without_biometrics(client, db_session):
+    user_id = _create_user_and_wallet(db_session, "invest_high_value_pin@test.com", balance=3500.0)
+    db_session.close()
+
+    response = client.post(
+        "/transactions/investment/create",
+        json=_build_create_payload(amount=3000.0, duration_days=30),
+        headers=_auth_headers(user_id),
+    )
+
+    assert response.status_code == 201, response.text
+    verify_db = SessionLocal()
+    try:
+        wallet = verify_db.query(Wallet).filter(Wallet.user_id == user_id).first()
+        assert wallet is not None
+        assert wallet.balance == 500.0
+        assert wallet.investment_balance == 3000.0
+    finally:
+        verify_db.close()
+
+
 def test_investment_requires_correct_pin_even_if_client_claims_verified(client, db_session):
     user_id = _create_user_and_wallet(db_session, "invest_wrong_pin@test.com", balance=100.0)
     db_session.close()

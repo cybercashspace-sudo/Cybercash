@@ -6,7 +6,6 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import StringProperty
-from kivymd.app import MDApp
 
 from core.screen_actions import ActionScreen
 from core.popup_manager import show_confirm_dialog
@@ -480,22 +479,7 @@ class InvestmentScreen(ActionScreen):
         def _confirm():
             confirmed_pin = str(self.ids.investment_pin.text or "").strip()
             self.ids.investment_pin.text = ""
-            if amount >= 2500:
-                app = MDApp.get_running_app()
-                authenticate = getattr(app, "request_biometric_auth", None) if app else None
-                if not callable(authenticate):
-                    self.ids.investment_pin.text = ""
-                    self._set_feedback("Fingerprint confirmation is required for this amount.", "error")
-                    self._show_popup("Fingerprint Required", "Enable fingerprint sign-in on this device, then try again.")
-                    return
-                authenticate(
-                    reason="Confirm investment",
-                    require_opt_in=False,
-                    on_success=lambda: self._submit_investment(amount, duration, confirmed_pin, True),
-                    on_failure=lambda detail: self._investment_auth_failed(detail),
-                )
-                return
-            self._submit_investment(amount, duration, confirmed_pin, False)
+            self._submit_investment(amount, duration, confirmed_pin)
 
         def _cancel():
             self.ids.investment_pin.text = ""
@@ -510,18 +494,7 @@ class InvestmentScreen(ActionScreen):
             on_cancel=_cancel,
         )
 
-    def _investment_auth_failed(self, detail):
-        if "investment_pin" in self.ids:
-            self.ids.investment_pin.text = ""
-        if "payout_pin" in self.ids:
-            self.ids.payout_pin.text = ""
-        self._investment_busy = False
-        self._payout_busy = False
-        message = str(detail or "Fingerprint verification was not completed.")
-        self._set_feedback(message, "warning")
-        self._show_popup("Investment Not Confirmed", message)
-
-    def _submit_investment(self, amount, duration, pin, biometric_verified):
+    def _submit_investment(self, amount, duration, pin):
         if self._investment_busy:
             return
         terms = (round(float(amount), 2), int(duration))
@@ -544,11 +517,11 @@ class InvestmentScreen(ActionScreen):
         request_id = self._pending_investment_request_id
         Thread(
             target=self._create_investment_worker,
-            args=(float(amount), int(duration), str(pin), bool(biometric_verified), request_id),
+            args=(float(amount), int(duration), str(pin), request_id),
             daemon=True,
         ).start()
 
-    def _create_investment_worker(self, amount, duration, pin, biometric_verified, request_id):
+    def _create_investment_worker(self, amount, duration, pin, request_id):
         try:
             result = self._request(
                 "POST",
@@ -557,7 +530,6 @@ class InvestmentScreen(ActionScreen):
                     "amount": amount,
                     "duration_days": duration,
                     "pin": pin,
-                    "biometric_verified": bool(biometric_verified),
                     "request_id": request_id,
                 },
             )
@@ -691,36 +663,19 @@ class InvestmentScreen(ActionScreen):
             return
 
         self._payout_busy = True
-        if self._active_investment_amount >= 2500:
-            app = MDApp.get_running_app()
-            authenticate = getattr(app, "request_biometric_auth", None) if app else None
-            if not callable(authenticate):
-                self._payout_busy = False
-                self.ids.payout_pin.text = ""
-                self._set_feedback("Fingerprint confirmation is required for this payout.", "error")
-                self._show_popup("Fingerprint Required", "Enable fingerprint sign-in on this device, then try again.")
-                return
-            authenticate(
-                reason="Confirm investment payout",
-                require_opt_in=False,
-                on_success=lambda: self._submit_payout(investment_id, pin, True),
-                on_failure=lambda detail: self._investment_auth_failed(detail),
-            )
-            return
-        self._submit_payout(investment_id, pin, False)
+        self._submit_payout(investment_id, pin)
 
-    def _submit_payout(self, investment_id, pin, biometric_verified):
-        # payout_investment locks this flow before optional fingerprint auth;
-        # keep that lock while the request runs so repeated taps cannot pay twice.
+    def _submit_payout(self, investment_id, pin):
+        # Keep the request lock until the server confirms the payout, preventing duplicate taps.
         self._payout_busy = True
         self._set_feedback("Checking maturity and processing payout...", "info")
         Thread(
             target=self._payout_worker,
-            args=(int(investment_id), str(pin), bool(biometric_verified)),
+            args=(int(investment_id), str(pin)),
             daemon=True,
         ).start()
 
-    def _payout_worker(self, investment_id, pin, biometric_verified):
+    def _payout_worker(self, investment_id, pin):
         try:
             result = self._request(
                 "POST",
@@ -728,7 +683,6 @@ class InvestmentScreen(ActionScreen):
                 payload={
                     "investment_id": investment_id,
                     "pin": pin,
-                    "biometric_verified": bool(biometric_verified),
                 },
             )
         except Exception as exc:

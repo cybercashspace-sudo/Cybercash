@@ -147,26 +147,6 @@
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
 
-                        MDBoxLayout:
-                            size_hint_y: None
-                            height: self.minimum_height if root.biometric_available else 0
-                            spacing: "8dp"
-                            opacity: 1 if root.biometric_available else 0
-                            disabled: not root.biometric_available
-
-                            MDCheckbox:
-                                id: biometric_toggle
-                                size_hint: None, None
-                                size: dp(34 * root.layout_scale), dp(34 * root.layout_scale)
-                                active: root.biometric_login_enabled
-                                on_active: root.toggle_biometric_login(self, self.active)
-
-                            MDLabel:
-                                text: "Use this device's fingerprint"
-                                valign: "center"
-                                theme_text_color: "Custom"
-                                text_color: TEXT_MAIN
-
                         MDLabel:
                             text: root.feedback_text
                             theme_text_color: "Custom"
@@ -179,17 +159,6 @@
                             text_color: GOLD
                             pos_hint: {"center_x": 0.5}
                             on_release: app.go_to_screen("reset_pin")
-
-                        MDFillRoundFlatIconButton:
-                            text: "Unlock with Fingerprint"
-                            icon: "fingerprint"
-                            md_bg_color: SURFACE
-                            text_color: GOLD
-                            size_hint_y: None
-                            height: dp(52 * root.layout_scale) if root.biometric_login_ready else 0
-                            opacity: 1 if root.biometric_login_ready else 0
-                            disabled: not root.biometric_login_ready or root.loading
-                            on_release: root.biometric_login()
 
                         MDFillRoundFlatIconButton:
                             id: login_button
