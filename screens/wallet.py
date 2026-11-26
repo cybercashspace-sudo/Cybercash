@@ -561,7 +561,7 @@ KV = """
                                     hint_text: "Withdrawal amount"
                                     mode: "rectangle"
                                     input_filter: "float"
-                                    on_text: root.update_withdraw_preview(self.text)
+                                    on_text: root.on_withdraw_amount_changed(self.text)
 
                                 MDLabel:
                                     text: "Quick Amounts"
@@ -845,6 +845,7 @@ class WalletScreen(ActionScreen):
     _verify_sequence = 0
 
     def __init__(self, **kwargs):
+        self._setting_withdraw_quick_amount = False
         super().__init__(**kwargs)
         self._dashboard_sequence = 0
 
@@ -1035,6 +1036,11 @@ class WalletScreen(ActionScreen):
         except Exception:
             return 0.0
 
+    def on_withdraw_amount_changed(self, raw_amount: str) -> None:
+        if getattr(self, "_setting_withdraw_quick_amount", False):
+            return
+        self.update_withdraw_preview(raw_amount)
+
     def update_withdraw_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)
         self.selected_withdraw_quick_amount = (
@@ -1063,9 +1069,20 @@ class WalletScreen(ActionScreen):
         if not math.isfinite(value) or value not in self.WITHDRAW_QUICK_AMOUNTS:
             return
         if abs(value - int(value)) < 1e-9:
-            field.text = str(int(value))
+            formatted_value = str(int(value))
         else:
-            field.text = f"{value:.2f}"
+            formatted_value = f"{value:.2f}"
+
+        # Update field and preview as one operation. Kivy versions differ in
+        # how programmatic TextInput changes notify KV callbacks; the explicit
+        # preview update keeps quick taps reliable while suppressing duplicates.
+        self._setting_withdraw_quick_amount = True
+        try:
+            if field.text != formatted_value:
+                field.text = formatted_value
+        finally:
+            self._setting_withdraw_quick_amount = False
+        self.update_withdraw_preview(formatted_value)
 
     def update_deposit_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)

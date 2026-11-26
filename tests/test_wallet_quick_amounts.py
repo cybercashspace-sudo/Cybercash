@@ -23,12 +23,18 @@ class _QuickAmountHarness:
     MIN_PAYSTACK_DEPOSIT_GHS = 1.0
     _parse_amount = staticmethod(WalletScreen._parse_amount)
     update_deposit_preview = WalletScreen.update_deposit_preview
-    update_withdraw_preview = WalletScreen.update_withdraw_preview
+    on_withdraw_amount_changed = WalletScreen.on_withdraw_amount_changed
+
+    def update_withdraw_preview(self, raw_amount):
+        self.preview_update_count += 1
+        return WalletScreen.update_withdraw_preview(self, raw_amount)
 
     def __init__(self):
+        self._setting_withdraw_quick_amount = False
+        self.preview_update_count = 0
         self.ids = {
             "deposit_amount": _TextField(self.update_deposit_preview),
-            "transfer_amount": _TextField(self.update_withdraw_preview),
+            "transfer_amount": _TextField(self.on_withdraw_amount_changed),
         }
         self.deposit_ready = False
         self.deposit_button_text = "Pay with Paystack"
@@ -104,8 +110,10 @@ def test_every_withdraw_quick_amount_updates_the_amount_and_fee_preview():
     screen = _QuickAmountHarness()
 
     for amount in WalletScreen.WITHDRAW_QUICK_AMOUNTS:
+        screen.preview_update_count = 0
         WalletScreen.set_withdraw_amount(screen, amount)
 
+        assert screen.preview_update_count == 1
         fee = round(amount * 0.01, 2)
         total = round(amount + fee, 2)
         assert screen.ids["transfer_amount"].text == str(amount)
