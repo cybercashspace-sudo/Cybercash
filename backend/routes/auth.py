@@ -569,15 +569,6 @@ async def login(data: LoginSchema, request: Request, db: AsyncSession = Depends(
     if not user.first_login_fingerprint and fingerprint:
         user.first_login_fingerprint = fingerprint
 
-    if user.is_agent:
-        agent_result = await db.execute(select(Agent).filter(Agent.user_id == user.id))
-        agent = agent_result.scalars().first()
-        if not agent or str(agent.status).lower() != "active":
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "Agent account pending admin approval.",
-            )
-
     user.failed_pin_attempts = 0
     user.pin_locked_until = None
     ensure_daily_window(user)
@@ -669,13 +660,6 @@ async def access_account(
             return {
                 "status": "verify_required",
                 "message": _otp_send_response_message(send_result, "OTP sent. Verify to continue."),
-                "first_name": _safe_first_name_from_user(user),
-                "network": detect_network(identity),
-            }
-
-        if user.is_agent and str(user.status or "").lower() in {"pending_kyc", "pending", "pending_kyc_review"}:
-            return {
-                "status": "pending_kyc",
                 "first_name": _safe_first_name_from_user(user),
                 "network": detect_network(identity),
             }
@@ -902,13 +886,8 @@ async def change_pin(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).filter(User.id == current_user.id))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return current_user
 
 
 @router.post("/email/change/request")

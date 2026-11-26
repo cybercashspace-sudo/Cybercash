@@ -1,6 +1,6 @@
 import re
 
-from backend.models import User
+from backend.models import Agent, User, Wallet
 from backend.services import otp_service
 from utils.security import hash_pin
 
@@ -143,3 +143,62 @@ def test_auth_access_returns_verify_required_for_unverified_user(client, db_sess
     assert "debug_otp" not in access_payload
     assert emailed_codes[-1].isdigit()
     assert len(emailed_codes[-1]) == 6
+
+
+def test_pending_agent_can_sign_in_to_regular_user_account(client, db_session):
+    pin_hash = hash_pin("1234")
+    user = User(
+        momo_number="0247000015",
+        phone_number="0247000015",
+        email="pending-agent@example.com",
+        full_name="Ama Agent",
+        pin_hash=pin_hash,
+        password_hash=pin_hash,
+        is_active=True,
+        is_verified=True,
+        is_agent=True,
+        role="agent",
+        status="pending_kyc",
+    )
+    db_session.add(user)
+    db_session.flush()
+    db_session.add(Wallet(user_id=user.id, currency="GHS", balance=0.0))
+    agent = Agent(user_id=user.id, status="pending_kyc", float_balance=0.0)
+    db_session.add(agent)
+    db_session.commit()
+
+    response = client.post(
+        "/auth/access",
+        json={"momo_number": user.momo_number, "pin": "1234"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "login_success"
+    assert payload["access_token"]
+
+    profile = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+    )
+    assert profile.status_code == 200, profile.text
+    assert profile.json()["is_agent"] is False
+    assert profile.json()["role"] == "user"
+
+    owner_update = client.put(
+        f"/agents/{agent.id}",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+        json={"status": "active"},
+    )
+    assert owner_update.status_code == 403
+
+    sale = client.post(
+        "/agents/me/sell-airtime",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+        json={"phone_number": "0247000015", "amount": 1, "currency": "GHS", "network_provider": "MTN"},
+    )
+    assert sale.status_code == 403
+
+    db_session.expire_all()
+    stored_user = db_session.query(User).filter_by(id=user.id).one()
+    assert stored_user.is_agent is True

@@ -750,6 +750,8 @@ async def approve_agent_kyc_and_activate(
         linked_user = result.scalars().first()
         if linked_user:
             linked_user.is_agent = True
+            linked_user.role = "agent"
+            linked_user.status = "active"
             linked_user.kyc_tier = 3
             linked_user.daily_limit = max(float(linked_user.daily_limit or 0.0), 50000.0)
             db.add(linked_user)

@@ -120,7 +120,7 @@ async def create_agent_profile(
         user_id=agent_data.user_id,
         status="pending_kyc",
         commission_rate=agent_data.commission_rate,
-        float_balance=agent_data.float_balance,
+        float_balance=0.0,
     )
     db.add(db_agent)
     await db.flush()
@@ -418,7 +418,21 @@ async def update_agent(
                 detail="Not authorized to update this agent profile"
             )
 
-        for key, value in agent_update.model_dump(exclude_unset=True).items():
+        updates = agent_update.model_dump(exclude_unset=True)
+        if not current_user.is_admin:
+            protected_fields = set(updates) - {"business_name", "agent_location"}
+            if protected_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only an administrator can change Agent status, balance, or commission settings.",
+                )
+        if updates.get("status") == "active" and db_agent.status != "active":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Agent activation requires completed identity review. Use the KYC approval action.",
+            )
+
+        for key, value in updates.items():
             setattr(db_agent, key, value)
         
         await db.commit()
@@ -454,6 +468,8 @@ async def agent_sell_airtime(
     agent = result.scalars().first()
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent profile not found for current user.")
+    if str(agent.status or "").strip().lower() != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent services are available after identity approval.")
 
     result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
     user_wallet = result.scalars().first()
@@ -598,6 +614,8 @@ async def agent_sell_data_bundle(
     agent = result.scalars().first()
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent profile not found for current user.")
+    if str(agent.status or "").strip().lower() != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent services are available after identity approval.")
 
     result = await db.execute(select(Wallet).filter(Wallet.user_id == current_user.id))
     user_wallet = result.scalars().first()

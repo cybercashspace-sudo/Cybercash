@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import or_, select
 
 from backend.database import async_session
-from backend.models import User
+from backend.models import Agent, User
 from backend.config import settings  # Make sure you have SECRET_KEY here
 
 
@@ -74,6 +74,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         if user is None:
             raise credentials_exception
 
+        # Pending Agent applicants remain ordinary users until review. Keep
+        # their login usable while stripping the Agent role from this request's
+        # detached user object; Agent-only operations remain gated separately.
+        pending_agent_access = False
+        active_agent_access = False
+        if bool(getattr(user, "is_agent", False)):
+            agent_result = await session.execute(
+                select(Agent.status).where(Agent.user_id == user.id)
+            )
+            agent_status = str(agent_result.scalar_one_or_none() or "").strip().lower()
+            pending_agent_access = agent_status in {"pending", "pending_kyc", "pending_kyc_review"}
+            active_agent_access = agent_status == "active"
+            if agent_status != "active":
+                user.is_agent = False
+                if str(getattr(user, "role", "") or "").strip().lower() == "agent":
+                    user.role = "user"
+
         # Token revocation check via token_version.
         # - New app tokens carry "tv" and must match exactly.
         # - Legacy tokens without "tv" are accepted only while token_version == 0.
@@ -92,7 +109,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         # Optional: block inactive users, but keep admin/super_admin accounts usable.
         role = str(getattr(user, "role", "") or "").strip().lower()
         is_privileged_admin = bool(getattr(user, "is_admin", False)) or role in {"admin", "super_admin"}
-        if hasattr(user, "status") and user.status != "active" and not is_privileged_admin:
+        pending_user_states = {"pending", "pending_kyc", "pending_kyc_review"}
+        if (
+            hasattr(user, "status")
+            and user.status != "active"
+            and not (
+                (pending_agent_access or active_agent_access)
+                and str(user.status or "").strip().lower() in pending_user_states
+            )
+            and not is_privileged_admin
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account inactive",
