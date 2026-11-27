@@ -24,6 +24,11 @@
                 md_bg_color: 0.16, 0.16, 0.16, 1
                 on_release: root.apply_for_agent()
 
+            MDRaisedButton:
+                text: "API"
+                md_bg_color: 0.16, 0.16, 0.16, 1
+                on_release: root.manage_api_keys()
+
         PullRefreshScrollView:
             root_layout: root
             refresh_callback: root.pull_to_refresh

@@ -133,24 +133,15 @@ def test_request_overlay_spinner_has_been_removed():
     assert not hasattr(responsive_screen, "_RequestLoadingOverlay")
 
 
-def test_pull_refresh_screens_show_overlay_from_existing_busy_flags():
+def test_pull_refresh_busy_state_remains_without_an_overlay():
     from core.pull_refresh import PullToRefreshMixin
 
-    states = []
-
-    class _Overlay:
-        def set_active(self, active):
-            states.append(bool(active))
-
     class _Harness:
-        screen_loading = False
+        screen_loading = True
         loading = True
-        _pull_request_overlay = _Overlay()
-        _sync_pull_request_overlay = PullToRefreshMixin._sync_pull_request_overlay
-        _screen_refresh_is_busy = lambda self: bool(self.loading)
+        _screen_refresh_is_busy = PullToRefreshMixin._screen_refresh_is_busy
 
-    PullToRefreshMixin._sync_pull_request_overlay(_Harness())
-    assert states == [True]
+    assert PullToRefreshMixin._screen_refresh_is_busy(_Harness()) is True
 
 
 def test_terminal_action_feedback_becomes_one_popup_not_page_text(monkeypatch):

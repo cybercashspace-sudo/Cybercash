@@ -3,6 +3,7 @@ from .user import User
 from .wallet import Wallet
 from .virtualcard import VirtualCard
 from .agent import Agent
+from .agent_api_key import AgentAPIKey
 from .transaction import Transaction
 from .payment import Payment
 from .cryptowallet import CryptoWallet

@@ -91,6 +91,15 @@ class AgentController:
     def transaction_history(self):
         return self.normalize_transactions(self._safe_call(self.service.transactions, default=[]))
 
+    def api_keys(self):
+        return self.service.api_keys()
+
+    def create_api_key(self, name: str):
+        return self.service.create_api_key(name)
+
+    def revoke_api_key(self, key_id: int):
+        return self.service.revoke_api_key(key_id)
+
     def _safe_call(self, func, default):
         try:
             return func()

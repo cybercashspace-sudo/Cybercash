@@ -14,6 +14,7 @@ from backend.routes import (
     admin,
     binance_admin,
     agents,
+    agent_api,
     agent_transactions,
     payments,
     crypto,
@@ -365,6 +366,7 @@ app.include_router(virtualcards.router)
 app.include_router(admin.router)
 app.include_router(binance_admin.router)
 app.include_router(agents.router)
+app.include_router(agent_api.router)
 app.include_router(agent_transactions.router)
 app.include_router(payments.router)
 app.include_router(crypto.router)

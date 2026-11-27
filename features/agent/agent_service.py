@@ -13,3 +13,12 @@ class AgentService(BaseApiService):
 
     def transactions(self):
         return self.get_json("/agent/transactions")
+
+    def api_keys(self):
+        return self.get_json("/agents/me/api-keys")
+
+    def create_api_key(self, name: str):
+        return self.post_json("/agents/me/api-keys", {"name": name})
+
+    def revoke_api_key(self, key_id: int):
+        return self.request_json("DELETE", f"/agents/me/api-keys/{int(key_id)}")
