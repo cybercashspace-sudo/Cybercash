@@ -13,6 +13,7 @@ aiosqlite
 # Auth & Security
 
 python-jose[cryptography]
+cryptography
 passlib[bcrypt]
 bcrypt
 google-auth

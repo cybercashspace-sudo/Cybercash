@@ -42,10 +42,13 @@ def test_app_has_no_fingerprint_authentication_path():
 
 def test_auth_loading_keeps_navigation_touchable():
     login_py = _read("screens/login.py")
+    login_kv = _read("screens/login.kv")
     overlay_py = _read("core/responsive_screen.py")
 
     assert "block_interaction_while_loading = False" in login_py
-    assert 'getattr(self.owner_screen, "block_interaction_while_loading", True)' in overlay_py
+    assert 'id: login_button' in login_kv
+    assert "button.disabled = bool(value)" in login_py
+    assert "return super().on_touch_down(touch)" in overlay_py
 
 
 def test_registration_form_keeps_required_details_without_repeated_helper_copy():

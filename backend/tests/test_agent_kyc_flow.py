@@ -99,6 +99,18 @@ def test_agent_kyc_upload_is_encrypted_and_admin_only(client, db_session, monkey
     assert client.get("/admin/agents/kyc-pending", headers=_headers(user.email)).status_code == 403
 
 
+def test_agent_role_cannot_access_admin_kyc_review_queue(client, db_session):
+    user, agent = _create_paid_agent(db_session, user_id=8824, email="kyc-agent@example.com")
+    user.is_agent = True
+    user.role = "agent"
+    agent.status = "active"
+    db_session.commit()
+
+    response = client.get("/admin/agents/kyc-pending", headers=_headers(user.email))
+
+    assert response.status_code == 403
+
+
 def test_admin_reviews_and_approves_only_a_complete_paid_kyc(client, db_session, admin_auth_headers):
     user, agent = _create_paid_agent(db_session, user_id=8822, email="kyc-approval@example.com")
     from backend.services.kyc_storage import encrypt_identity, encrypt_image, normalize_image

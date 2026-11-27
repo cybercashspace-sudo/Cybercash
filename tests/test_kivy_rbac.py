@@ -4,6 +4,17 @@ import unittest
 import logging
 from unittest.mock import MagicMock
 
+# Preserve real package modules before the temporary Kivy stubs are installed.
+# Otherwise later imports that require kivy.metrics can see the stub package.
+import kivy.metrics as _kivy_metrics  # noqa: F401
+import kivy.uix.boxlayout as _kivy_boxlayout  # noqa: F401
+import kivy.uix.button as _kivy_button  # noqa: F401
+import kivy.uix.floatlayout as _kivy_floatlayout  # noqa: F401
+import kivy.uix.label as _kivy_label  # noqa: F401
+import kivy.uix.popup as _kivy_popup  # noqa: F401
+import kivy.uix.scrollview as _kivy_scrollview  # noqa: F401
+import kivymd.uix.label as _kivymd_label  # noqa: F401
+
 
 _STUBBED_MODULE_PREFIXES = (
     "kivy",
@@ -229,6 +240,42 @@ class TestKivyRBAC(unittest.TestCase):
 
         self.app.ensure_screen.assert_called_with("admin_dashboard")
         self.assertEqual(self.app.root.current, "admin_dashboard")
+
+    def test_admin_screens_are_denied_to_agents_and_users(self):
+        admin_targets = (
+            "admin_dashboard",
+            "admin_users",
+            "admin_agents",
+            "admin_agent_approvals",
+            "admin_transactions",
+            "admin_withdrawals",
+            "admin_revenue",
+            "admin_fraud_alerts",
+        )
+        for role in ("user", "agent"):
+            for target in admin_targets:
+                with self.subTest(role=role, target=target):
+                    self.app.is_admin = False
+                    self.app.user_role = role
+                    self.app.root.current = "wallet"
+                    self.app.ensure_screen.reset_mock()
+
+                    self.app.go_to_screen(target)
+
+                    self.app.ensure_screen.assert_called_with("home")
+                    self.assertNotEqual(self.app.root.current, target)
+
+    def test_admin_dashboard_cannot_be_opened_from_agent_or_user_dashboard(self):
+        self.app.is_admin = True
+        for current_screen in ("agent_dashboard", "settings", "login"):
+            with self.subTest(current_screen=current_screen):
+                self.app.root.current = current_screen
+                self.app.ensure_screen.reset_mock()
+
+                self.app.go_to_screen("admin_dashboard")
+
+                self.app.ensure_screen.assert_called_with("home")
+                self.assertEqual(self.app.root.current, "home")
 
 
 if __name__ == "__main__":
