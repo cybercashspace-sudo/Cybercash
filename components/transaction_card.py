@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
+from kivy.properties import BooleanProperty, ListProperty, NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
@@ -88,6 +88,8 @@ class TransactionCard(RecycleDataViewBehavior, GlassCard):
     status_chip_status = StringProperty("neutral")
     status_chip_icon = StringProperty("information-outline")
     is_read = BooleanProperty(True)
+    detail_callback = ObjectProperty(None, allownone=True)
+    detail_data = ObjectProperty(None, allownone=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -125,7 +127,13 @@ class TransactionCard(RecycleDataViewBehavior, GlassCard):
             currency_symbol=self._sync_fallback,
             is_read=self._sync_fallback,
         )
+        self.bind(on_release=self._dispatch_detail)
         Clock.schedule_once(self._ensure_layout, 0)
+
+    def _dispatch_detail(self, *_args):
+        callback = self.detail_callback
+        if callable(callback) and isinstance(self.detail_data, dict):
+            callback(dict(self.detail_data))
 
     def on_kv_post(self, _base_widget):
         super().on_kv_post(_base_widget)

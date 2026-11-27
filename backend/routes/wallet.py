@@ -85,18 +85,29 @@ async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> De
     return total_sent.quantize(Decimal("0.01"))
 
 
-def _tx_to_dict(t: Transaction) -> dict:
+def _tx_to_dict(t: Transaction, user: User | None = None) -> dict:
     timestamp = t.timestamp
     if timestamp and timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=timezone.utc)
+    metadata = _safe_load_metadata(t.metadata_json)
+    reference = str(
+        t.provider_reference
+        or metadata.get("reference")
+        or metadata.get("provider_reference")
+        or metadata.get("payment_reference")
+        or ""
+    ).strip()
     return {
         "id": t.id,
         "type": t.type,
         "amount": t.amount,
+        "direction": t.entry_type,
         "currency": t.currency,
         "status": t.status,
         "timestamp": timestamp.isoformat() if timestamp else datetime.now(timezone.utc).isoformat(),
-        "metadata_json": t.metadata_json,
+        "reference": reference,
+        "username": str(getattr(user, "full_name", "") or "").strip(),
+        "momo_number": str(getattr(user, "momo_number", "") or getattr(user, "phone_number", "") or "").strip(),
     }
 
 
@@ -625,6 +636,7 @@ async def get_my_transactions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     since_id: int = Query(0, ge=0),
+    before_id: int | None = Query(None, ge=1),
     limit: int = Query(100, ge=1, le=500),
 ):
     """
@@ -632,12 +644,14 @@ async def get_my_transactions(
     """
     try:
         query = select(Transaction).filter(Transaction.user_id == current_user.id)
-        if since_id > 0:
+        if before_id is not None:
+            query = query.filter(Transaction.id < before_id)
+        elif since_id > 0:
             query = query.filter(Transaction.id > since_id)
-        query = query.order_by(Transaction.timestamp.desc()).limit(limit)
+        query = query.order_by(Transaction.id.desc()).limit(limit)
         result = await db.execute(query)
         transactions = result.scalars().all()
-        return [_tx_to_dict(t) for t in transactions]
+        return [_tx_to_dict(t, current_user) for t in transactions]
     finally:
         await db.close()
 
@@ -672,7 +686,7 @@ async def stream_my_transactions(websocket: WebSocket, token: str, since_id: int
                 batch = result.scalars().all()
 
             if batch:
-                payload = [_tx_to_dict(t) for t in batch]
+                payload = [_tx_to_dict(t, user) for t in batch]
                 last_seen_id = max(t["id"] for t in payload)
                 await websocket.send_json(
                     {

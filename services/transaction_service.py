@@ -1,41 +1,24 @@
 from __future__ import annotations
 
-from core.dashboard_cache import load_dashboard_cache, save_dashboard_cache
 from models.transaction import Transaction
 from services.base_service import BaseApiService
 
 
 class TransactionService(BaseApiService):
-    def get_transactions(self, page: int = 1, limit: int = 20):
-        last_error = None
-        for path, params in (
-            ("/transactions", {"page": page, "limit": limit}),
-            ("/transactions/recent", {"page": page, "limit": limit}),
-            ("/wallet/transactions/me", {"page": page, "limit": limit}),
-        ):
-            try:
-                payload = self.get_json(path, params=params)
-                items = self.extract_items(payload)
-                if items:
-                    save_dashboard_cache(transactions=items)
-                return payload
-            except Exception as exc:
-                last_error = exc
-                continue
-        if last_error is not None:
-            raise last_error
-        return []
+    def get_transactions(self, *, before_id: int | None = None, limit: int = 100):
+        params = {"limit": max(1, min(int(limit or 100), 500))}
+        if before_id is not None:
+            params["before_id"] = max(1, int(before_id))
+        return self.get_json("/wallet/transactions/me", params=params)
 
-    def list_transactions(self, page: int = 1, limit: int = 20) -> list[dict]:
-        payload = self.get_transactions(page=page, limit=limit)
+    def list_transactions(self, *, before_id: int | None = None, limit: int = 100) -> list[dict]:
+        payload = self.get_transactions(before_id=before_id, limit=limit)
         return self.extract_items(payload)
 
-    def get_transaction_models(self, page: int = 1, limit: int = 20) -> list[Transaction]:
-        return [Transaction.from_payload(item) for item in self.list_transactions(page=page, limit=limit)]
+    def get_transaction_models(self, *, before_id: int | None = None, limit: int = 100) -> list[Transaction]:
+        return [Transaction.from_payload(item) for item in self.list_transactions(before_id=before_id, limit=limit)]
 
     def load_cached_transactions(self) -> list[dict]:
-        cached = load_dashboard_cache()
-        if not isinstance(cached, dict):
-            return []
-        transactions = cached.get("transactions", [])
-        return [item for item in transactions if isinstance(item, dict)]
+        # Transaction history contains personal data. Do not read from the
+        # shared dashboard cache, which is not scoped to the signed-in user.
+        return []
