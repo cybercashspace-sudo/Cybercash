@@ -153,7 +153,7 @@
                         text_size: self.width, None
 
                 MDLabel:
-                    text: "Your Ghana Card number and photos are encrypted in the app database. Only authenticated administrators can open them for review; email alerts contain a reference only."
+                    text: "Your ID number and photos are encrypted in secure CyberCash storage. Only authorized administrators can review them; email alerts contain a reference only."
                     theme_text_color: "Hint"
                     font_size: "11sp"
                     adaptive_height: True
@@ -167,8 +167,8 @@
                     on_release: root.submit_kyc()
 
         BottomNavBar:
-            nav_variant: "default"
-            active_target: ""
+            nav_variant: "agent"
+            active_target: "agent"
             layout_scale: 1
             text_scale: 1
             icon_scale: 1

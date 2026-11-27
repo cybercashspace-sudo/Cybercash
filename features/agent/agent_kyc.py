@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
+from datetime import date
 
 from kivy.clock import Clock
 from kivy.lang import Builder
@@ -12,21 +14,19 @@ from kivy.uix.button import Button
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
 from kivy.utils import platform
-from kivymd.uix.screen import MDScreen
 
 from api.client import api_client
-from core.navigation import navigate_back
 from core.popup_manager import show_message_dialog
-from core.pull_refresh import PullToRefreshMixin
+from core.responsive_screen import ResponsiveScreen
 
 
 Builder.load_file(os.path.join(os.path.dirname(__file__), "agent_kyc.kv"))
 
 
-class AgentKycScreen(PullToRefreshMixin, MDScreen):
+class AgentKycScreen(ResponsiveScreen):
     loading = BooleanProperty(False)
     can_submit = BooleanProperty(False)
-    status_text = StringProperty("Checking agent registration status…")
+    status_text = StringProperty("Checking agent registration status\u2026")
     kyc_status = StringProperty("loading")
     front_photo_name = StringProperty("No front photo selected")
     back_photo_name = StringProperty("No back photo selected")
@@ -43,7 +43,7 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         self.load_kyc_status()
 
     def go_back(self):
-        return navigate_back(self)
+        return super().go_back()
 
     def load_kyc_status(self):
         if self.loading:
@@ -52,7 +52,10 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         threading.Thread(target=self._status_worker, daemon=True).start()
 
     def _status_worker(self):
-        result = api_client.request("GET", "/agents/me/kyc", timeout=(4, 12))
+        try:
+            result = api_client.request("GET", "/agents/me/kyc", timeout=(4, 12))
+        except Exception:
+            result = {"ok": False, "status_code": 0, "data": {}}
         Clock.schedule_once(lambda _dt, response=result: self._apply_status(response))
 
     def _apply_status(self, response):
@@ -60,13 +63,16 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         if not response.get("ok"):
             self.kyc_status = "unavailable"
             self.can_submit = False
-            detail = str((response.get("data") or {}).get("detail") or "")
             if response.get("status_code") == 403:
                 self.status_text = "Complete agent registration payment before identity review."
+                message = self.status_text
+            elif response.get("status_code") == 401:
+                self.status_text = "Please sign in again to continue identity verification."
+                message = self.status_text
             else:
                 self.status_text = "We could not load your verification status. Try again."
-            if detail:
-                self._show_message("Agent verification", detail)
+                message = self.status_text
+            self._show_message("Agent verification", message)
             return
         payload = response.get("data") or {}
         self.kyc_status = str(payload.get("kyc_status") or "not_submitted")
@@ -128,8 +134,7 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
                 self._show_message("Photo unavailable", "That file could not be opened. Choose another photo.")
                 return
             self._photo_paths[kind] = path
-            name = os.path.basename(path)
-            setattr(self, f"{kind}_photo_name", name)
+            setattr(self, f"{kind}_photo_name", "Photo selected")
             popup.dismiss()
 
         actions.add_widget(Button(text="Use photo", on_release=_use_selected))
@@ -154,11 +159,16 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         if len(full_name) < 2:
             self._show_message("Check your details", "Enter your full legal name as printed on your Ghana Card.")
             return
-        if not dob:
+        try:
+            birth_date = date.fromisoformat(dob)
+        except ValueError:
             self._show_message("Check your details", "Enter your date of birth in YYYY-MM-DD format.")
             return
-        if not card_number:
-            self._show_message("Check your details", "Enter your full Ghana Card ID number.")
+        if birth_date >= date.today():
+            self._show_message("Check your details", "Date of birth must be in the past.")
+            return
+        if not re.fullmatch(r"GHA-\d{9}-\d", card_number):
+            self._show_message("Check your details", "Enter your Ghana Card number like GHA-123456789-0.")
             return
         if not all(self._photo_paths.values()):
             self._show_message("Photos required", "Add the front, back, and selfie-with-ID photos to continue.")
@@ -185,9 +195,9 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         try:
             with open(paths["front"], "rb") as front, open(paths["back"], "rb") as back, open(paths["selfie"], "rb") as selfie:
                 files = {
-                    "ghana_card_front": (os.path.basename(paths["front"]), front, self._mime_for_path(paths["front"])),
-                    "ghana_card_back": (os.path.basename(paths["back"]), back, self._mime_for_path(paths["back"])),
-                    "selfie_with_id": (os.path.basename(paths["selfie"]), selfie, self._mime_for_path(paths["selfie"])),
+                    "ghana_card_front": ("ghana-card-front" + os.path.splitext(paths["front"])[1].lower(), front, self._mime_for_path(paths["front"])),
+                    "ghana_card_back": ("ghana-card-back" + os.path.splitext(paths["back"])[1].lower(), back, self._mime_for_path(paths["back"])),
+                    "selfie_with_id": ("selfie-with-id" + os.path.splitext(paths["selfie"])[1].lower(), selfie, self._mime_for_path(paths["selfie"])),
                 }
                 response = api_client.request_multipart(
                     "POST", "/agents/me/kyc/submit", data=fields, files=files, timeout=(5, 40)
@@ -200,12 +210,30 @@ class AgentKycScreen(PullToRefreshMixin, MDScreen):
         self.loading = False
         payload = response.get("data") or {}
         if not response.get("ok"):
-            detail = str(payload.get("detail") or "Identity submission could not be completed.")
-            self._show_message("Submission not sent", detail)
+            # Keep arbitrary backend response text out of the Kivy UI.
+            messages = {
+                400: "Check your name, date of birth, ID number, and selected photos, then try again.",
+                401: "Please sign in again before submitting your identity documents.",
+                403: "Complete agent registration payment before submitting your documents.",
+                409: "A verification request is already under review or your Agent account is active.",
+                413: "Each photo must be smaller than 4 MB. Choose smaller images and try again.",
+                503: "Secure identity storage is temporarily unavailable. Please try again later.",
+            }
+            message = messages.get(response.get("status_code"), "We could not submit your documents. Check your connection and try again.")
+            self._show_message("Submission not sent", message)
             return
         self.kyc_status = str(payload.get("kyc_status") or "pending_admin_review")
         self.can_submit = False
         self.status_text = "Your identity documents are submitted and awaiting admin approval."
+        self._photo_paths = {"front": "", "back": "", "selfie": ""}
+        self.front_photo_name = "No front photo selected"
+        self.back_photo_name = "No back photo selected"
+        self.selfie_photo_name = "No selfie photo selected"
+        for field_id in ("full_name", "date_of_birth", "ghana_card_number"):
+            field = self.ids.get(field_id)
+            if field is not None:
+                field.text = ""
+        self.consent_accepted = False
         if payload.get("notification_sent"):
             message = "Your information was encrypted and added to the review queue. The approval team was notified by email; your ID number and photos were not attached."
         else:
