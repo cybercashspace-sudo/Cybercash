@@ -26,6 +26,7 @@ from core.event_bus import AppEvents
 from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.paystack_checkout import open_paystack_checkout, warmup_paystack_checkout
 from core.pull_refresh import PullToRefreshMixin
+from core.session import session
 from core.popup_manager import show_confirm_dialog, show_custom_dialog, show_message_dialog
 from components.app_snackbar import show_app_snackbar
 from utils.formatter import safe_float
@@ -1146,6 +1147,7 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
         error_text = ""
         is_agent_valid = False
         agent_status = ""
+        profile_payload = None
         app = MDApp.get_running_app()
         user = getattr(getattr(app, "app_state", None), "user", {}) or {}
         full_name = str(
@@ -1154,6 +1156,16 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
         ).strip()
         greeting_name = full_name.split()[0] if full_name else ""
         user_is_agent = bool(getattr(app, "is_agent_active", False))
+
+        # Login-time profile lookup can fail transiently. Recheck the authoritative
+        # role on dashboard load so legitimate admins are not hidden by stale state.
+        try:
+            profile_result = api_client.get("/auth/me", headers=headers, timeout=(4, 8))
+            candidate = profile_result.get("data", {})
+            if profile_result.get("ok") and isinstance(candidate, dict):
+                profile_payload = candidate
+        except Exception:
+            profile_payload = None
 
         try:
             agent_result = api_client.get("/agents/me", headers=headers, timeout=(4, 8))
@@ -1212,6 +1224,8 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
                 greeting_name=greeting_name,
                 is_agent_valid=is_agent_valid,
                 agent_status=agent_status,
+                profile_payload=profile_payload,
+                token=token,
                 sequence=sequence,
             )
         )
@@ -1226,6 +1240,8 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
         greeting_name: str = "",
         is_agent_valid: bool = False,
         agent_status: str = "",
+        profile_payload: dict | None = None,
+        token: str = "",
         sequence: int = 0,
     ):
         if sequence != self._load_sequence:
@@ -1239,6 +1255,30 @@ class DashboardScreen(PullToRefreshMixin, MDScreen):
             self._finish_pull_refresh()
             return
         self._is_loading = False
+        if isinstance(profile_payload, dict):
+            app = MDApp.get_running_app()
+            # Protect account switches from delayed profile responses.
+            if app is not None and str(getattr(app, "access_token", "") or "").strip() == token:
+                role = str(profile_payload.get("role") or "").strip().lower()
+                is_admin = bool(profile_payload.get("is_admin") or role in {"admin", "super_admin"})
+                is_agent = bool(profile_payload.get("is_agent") or role == "agent")
+                previous_admin_access = bool(getattr(app, "is_admin", False))
+                app.is_admin = is_admin
+                app.user_role = role or ("admin" if is_admin else "agent" if is_agent else "user")
+                app.is_agent_active = is_agent
+                app_state = getattr(app, "app_state", None)
+                if app_state is not None and hasattr(app_state, "set_user"):
+                    try:
+                        app_state.set_user(profile_payload)
+                    except Exception:
+                        pass
+                try:
+                    session.set_user(profile_payload)
+                except Exception:
+                    pass
+                self.is_admin_user = self._has_admin_access()
+                if previous_admin_access != is_admin:
+                    self._close_more_actions_dialog()
         self.is_agent_valid = bool(is_agent_valid)
         self.agent_quick_label = "Agent Dashboard" if self.is_agent_valid else "Become Agent"
         if greeting_name:

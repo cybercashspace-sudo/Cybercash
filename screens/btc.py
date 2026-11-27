@@ -962,8 +962,10 @@ class BTCScreen(ActionScreen):
                 "high_price_usdt": float(market.get("highPrice") or 0.0),
                 "low_price_usdt": float(market.get("lowPrice") or 0.0),
                 "volume_btc": float(market.get("volume") or 0.0),
-                "usd_to_ghs_rate": 12.0,
-                "estimated_ghs_per_btc": last_price * 12.0,
+                "usd_to_ghs_rate": None,
+                "estimated_ghs_per_btc": None,
+                "fx_updated_at": None,
+                "fx_source": None,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "source": "binance",
             }
@@ -998,7 +1000,8 @@ class BTCScreen(ActionScreen):
             change_percent = float(market_payload.get("price_change_percent_24h") or 0.0)
             high_price = float(market_payload.get("high_price_usdt") or 0.0)
             low_price = float(market_payload.get("low_price_usdt") or 0.0)
-            estimated_ghs_per_btc = float(market_payload.get("estimated_ghs_per_btc") or (last_price * float(market_payload.get("usd_to_ghs_rate") or 12.0)))
+            raw_ghs_estimate = market_payload.get("estimated_ghs_per_btc")
+            estimated_ghs_per_btc = float(raw_ghs_estimate) if raw_ghs_estimate else 0.0
             withdrawal_fee = float(market_payload.get("withdrawal_fee_btc") or 0.00005)
             min_deposit = float(market_payload.get("min_deposit_btc") or 0.0001)
             network = str(market_payload.get("network") or "Bitcoin")
@@ -1046,7 +1049,7 @@ class BTCScreen(ActionScreen):
         self.fiat_balance_display = (
             f"~ GHS {btc_balance * self._estimated_ghs_per_btc:,.2f}"
             if self._estimated_ghs_per_btc > 0
-            else "~ GHS 0.00"
+            else "GHS estimate unavailable"
         )
 
         tx_ok, tx_payload = tx_result

@@ -5,6 +5,8 @@ from typing import List
 from datetime import datetime, timezone
 import json
 import logging
+import threading
+import time
 import uuid
 from pydantic import BaseModel, Field
 import requests
@@ -25,6 +27,37 @@ router = APIRouter(
 
 crypto_service = CryptoService()
 logger = logging.getLogger(__name__)
+_fx_cache_lock = threading.Lock()
+_fx_cache = {"rate": None, "updated_at": 0.0, "source_updated_at": None}
+
+
+def _get_usd_ghs_rate():
+    """Read the public daily USD/GHS mid-market series with a short server cache."""
+    now = time.monotonic()
+    with _fx_cache_lock:
+        if _fx_cache["rate"] and now - _fx_cache["updated_at"] < 900:
+            return _fx_cache["rate"], _fx_cache["source_updated_at"]
+    try:
+        response = requests.get(
+            "https://connect.apighana.com/api/live/fx-usd-ghs",
+            timeout=5,
+            headers={"Accept": "application/json"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", {}) if isinstance(payload, dict) else {}
+        rate = float(data.get("latest_value") or 0)
+        if data.get("stale"):
+            return None, None
+        if rate <= 0 or not (rate == rate and abs(rate) != float("inf")):
+            return None, None
+        source_updated_at = data.get("latest_at")
+        with _fx_cache_lock:
+            _fx_cache.update(rate=rate, updated_at=now, source_updated_at=source_updated_at)
+        return rate, source_updated_at
+    except Exception as exc:
+        logger.warning("BTC quote FX feed unavailable (error_type=%s)", type(exc).__name__)
+        return None, None
 
 class CryptoWithdrawalRequest(BaseModel):
     to_address: str
@@ -43,6 +76,7 @@ def get_btc_market_snapshot():
         response = requests.get(
             "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
             timeout=8,
+            headers={"Accept": "application/json"},
         )
         response.raise_for_status()
         payload = response.json()
@@ -51,14 +85,17 @@ def get_btc_market_snapshot():
         high_price = float(payload.get("highPrice") or 0.0)
         low_price = float(payload.get("lowPrice") or 0.0)
         volume = float(payload.get("volume") or 0.0)
+        if last_price <= 0:
+            raise ValueError("Invalid BTC quote")
     except Exception as exc:
+        logger.warning("BTC market feed unavailable (error_type=%s)", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"BTC market data is temporarily unavailable: {exc}",
+            detail="BTC market data is temporarily unavailable. Please try again shortly.",
         )
 
-    usd_to_ghs_rate = 12.0
-    estimated_ghs_per_btc = last_price * usd_to_ghs_rate
+    usd_to_ghs_rate, fx_updated_at = _get_usd_ghs_rate()
+    estimated_ghs_per_btc = last_price * usd_to_ghs_rate if usd_to_ghs_rate else None
     return {
         "symbol": "BTCUSDT",
         "network": btc_details.get("network", "Bitcoin"),
@@ -71,8 +108,10 @@ def get_btc_market_snapshot():
         "volume_btc": volume,
         "usd_to_ghs_rate": usd_to_ghs_rate,
         "estimated_ghs_per_btc": estimated_ghs_per_btc,
+        "fx_updated_at": fx_updated_at,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "source": "binance",
+        "fx_source": "API Ghana" if usd_to_ghs_rate else None,
     }
 
 @router.post("/wallets", response_model=CryptoWalletResponse, status_code=status.HTTP_201_CREATED)
