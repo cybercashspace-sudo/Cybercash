@@ -121,3 +121,39 @@ def test_login_momo_input_normalizes_without_network_lookup(monkeypatch):
 
     assert screen.ids["momo_input"].text == "0241234567"
     assert screen._syncing_momo_input is False
+
+
+def test_login_recovers_if_worker_thread_cannot_start(monkeypatch):
+    from screens import login
+
+    class _UnavailableThread:
+        def __init__(self, **_kwargs):
+            pass
+
+        def start(self):
+            raise RuntimeError("thread resources unavailable")
+
+    class _Harness:
+        _login_inflight = False
+        _login_generation = 3
+
+        def _get_text(self, field):
+            return {"momo_input": "0551234567", "pin_input": "1234"}[field]
+
+        def _set_loading(self, value):
+            self.loading = value
+
+        def _login_worker(self, *_args):
+            raise AssertionError("worker must not run when thread creation fails")
+
+        def show_message(self, message):
+            self.message = message
+
+    monkeypatch.setattr(login, "Thread", _UnavailableThread)
+    screen = _Harness()
+
+    login.LoginScreen.login(screen)
+
+    assert screen._login_inflight is False
+    assert screen.loading is False
+    assert screen.message == "Sign-in is temporarily unavailable. Please try again."

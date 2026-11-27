@@ -188,11 +188,19 @@ class LoginScreen(ResponsiveScreen):
         self._set_loading(True)
         self._login_inflight = True
         generation = self._login_generation
-        Thread(
+        worker = Thread(
             target=self._login_worker,
             args=(momo_number, pin, generation),
             daemon=True,
-        ).start()
+        )
+        try:
+            worker.start()
+        except Exception:
+            # On memory-constrained devices thread creation can fail. Restore
+            # the controls immediately instead of leaving sign-in locked.
+            self._login_inflight = False
+            self._set_loading(False)
+            self.show_message("Sign-in is temporarily unavailable. Please try again.")
 
     def _set_loading(self, value: bool) -> None:
         self.loading = bool(value)
