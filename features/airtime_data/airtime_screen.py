@@ -7,7 +7,7 @@ from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
 from core.navigation import navigate_back
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 
 from features.airtime_data.airtime_controller import AirtimeController
 from features.airtime_data.network_detector import NetworkDetector
@@ -117,4 +117,4 @@ class AirtimeScreen(PullToRefreshMixin, RequestGuardMixin, MDScreen):
         self.detect_network(value)
 
     def show_message(self, text):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)

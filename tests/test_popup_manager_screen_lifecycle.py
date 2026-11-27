@@ -1,6 +1,11 @@
 from types import SimpleNamespace
 
-from core.popup_manager import _bind_popup_lifecycle, _owner_is_active, show_message_dialog
+from core.popup_manager import (
+    _bind_popup_lifecycle,
+    _owner_is_active,
+    show_backend_result_popup,
+    show_message_dialog,
+)
 
 
 def test_owner_is_active_only_for_current_managed_screen():
@@ -20,6 +25,24 @@ def test_stale_screen_response_does_not_open_popup():
 
     assert result is None
     assert owner._active_dialog is None
+
+
+def test_backend_response_popup_sanitizes_internal_errors(monkeypatch):
+    import core.popup_manager as popup_manager
+
+    calls = []
+    monkeypatch.setattr(
+        popup_manager,
+        "show_message_dialog",
+        lambda owner, **kwargs: calls.append((owner, kwargs)),
+    )
+    owner = object()
+
+    show_backend_result_popup(owner, "Traceback: AttributeError: private backend detail")
+
+    assert calls[0][0] is owner
+    assert calls[0][1]["title"] == "Request update"
+    assert calls[0][1]["message"] == "Something went wrong on the server. Please try again."
 
 
 def test_open_popup_is_dismissed_and_unbound_when_screen_leaves():

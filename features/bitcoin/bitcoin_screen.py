@@ -4,7 +4,7 @@ from threading import Thread
 from kivy.clock import Clock
 from kivy.lang import Builder
 from core.screen_actions import ActionScreen
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 
 from features.bitcoin.bitcoin_controller import BitcoinController
 
@@ -162,4 +162,4 @@ class BitcoinScreen(ActionScreen):
         self.show_message("BTC withdrawal flow will open from the backend form.")
 
     def show_message(self, text):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)

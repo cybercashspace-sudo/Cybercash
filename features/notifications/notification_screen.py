@@ -9,7 +9,7 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 
 from features.auth.animations import AuthAnimations
 from features.notifications.notification_controller import NotificationController
@@ -108,7 +108,7 @@ class NotificationScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
             self.show_message("Unable to mark notification as read.")
 
     def show_message(self, text: str):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)
 
     def _sync_empty_state(self):
         rows = list(self.notification_rows or [])

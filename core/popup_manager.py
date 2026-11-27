@@ -275,6 +275,17 @@ def show_message_dialog(
     popup.open()
 
 
+def show_backend_result_popup(owner, message: object, *, title: str = "Request update") -> None:
+    """Show a sanitized backend outcome in a screen-owned dialog."""
+    detail = extract_backend_message(message)
+    if detail.lower().startswith(("loading ", "refreshing ", "checking ", "preparing ", "processing ", "submitting ")):
+        from components.app_snackbar import show_app_snackbar
+
+        show_app_snackbar(detail)
+        return
+    show_message_dialog(owner, title=title, message=detail, close_label="Close")
+
+
 def show_confirm_dialog(
     owner,
     *,

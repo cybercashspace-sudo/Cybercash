@@ -7,7 +7,7 @@ from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
 from core.navigation import navigate_back
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 
 from features.airtime_data.data_controller import DataController
 from features.airtime_data.data_package_card import DataPackageCard
@@ -201,4 +201,4 @@ class DataScreen(PullToRefreshMixin, RequestGuardMixin, MDScreen):
             publish(event_name, payload=payload)
 
     def show_message(self, text):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)

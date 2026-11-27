@@ -10,7 +10,7 @@ from kivy.properties import BooleanProperty, ListProperty, NumericProperty, Stri
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 from core.dashboard_cache import save_dashboard_cache
 from core.popup_manager import show_message_dialog
 from core.session import session
@@ -276,7 +276,7 @@ class TransactionScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
             self.load_more()
 
     def show_message(self, text: str):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)
 
     def _sync_empty_state(self):
         rows = list(self.transactions or [])

@@ -106,19 +106,31 @@ def test_back_navigation_dismisses_popup_before_screen_change():
     assert calls == ["dismiss"]
 
 
-def test_request_overlay_blocks_taps_only_while_a_request_runs():
-    from core.responsive_screen import _RequestLoadingOverlay
+def test_request_activity_keeps_busy_state_without_blocking_screen_with_spinner():
+    import threading
 
-    overlay = _RequestLoadingOverlay()
-    assert overlay.disabled is True
-    overlay.set_active(True)
-    assert overlay.disabled is False
-    assert overlay.opacity == 1
-    assert overlay.spinner.active is True
-    overlay.set_active(False)
-    assert overlay.disabled is True
-    assert overlay.opacity == 0
-    assert overlay.spinner.active is False
+    from core.responsive_screen import ResponsiveScreen
+
+    class _Harness:
+        screen_loading = False
+        loading = True
+        _request_activity_count = 0
+        _request_activity_lock = threading.RLock()
+        _REQUEST_BUSY_PROPERTIES = ResponsiveScreen._REQUEST_BUSY_PROPERTIES
+
+    harness = _Harness()
+    ResponsiveScreen._sync_request_activity(harness)
+    assert harness.screen_loading is True
+
+    harness.loading = False
+    ResponsiveScreen._sync_request_activity(harness)
+    assert harness.screen_loading is False
+
+
+def test_request_overlay_spinner_has_been_removed():
+    import core.responsive_screen as responsive_screen
+
+    assert not hasattr(responsive_screen, "_RequestLoadingOverlay")
 
 
 def test_pull_refresh_screens_show_overlay_from_existing_busy_flags():

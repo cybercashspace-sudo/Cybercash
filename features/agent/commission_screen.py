@@ -5,7 +5,7 @@ from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 
 from features.agent.agent_controller import AgentController
 
@@ -69,4 +69,4 @@ class CommissionScreen(PullToRefreshMixin, MDScreen):
         self.show_message("Commission withdrawal flow will be connected to the backend payout screen.")
 
     def show_message(self, text):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)

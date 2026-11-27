@@ -6,7 +6,7 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 from core.pull_refresh import PullToRefreshMixin
-from components.app_snackbar import show_app_snackbar
+from core.popup_manager import show_backend_result_popup
 from core.navigation import navigate
 
 from features.agent.agent_controller import AgentController
@@ -121,4 +121,4 @@ class AgentDashboard(PullToRefreshMixin, MDScreen):
             publish(event_name, payload=payload)
 
     def show_message(self, text):
-        show_app_snackbar(text)
+        show_backend_result_popup(self, text)
