@@ -1188,20 +1188,8 @@ class AgentScreen(ResponsiveScreen):
         if app is None or not hasattr(app, "go_to_screen"):
             show_message_dialog(self, title="API access", message="API settings are unavailable right now.", close_label="Close")
             return
-        if not app.go_to_screen("agent_dashboard", fallback="agent", transition_style="fade"):
+        if not app.go_to_screen("agent_api", fallback="agent", transition_style="fade"):
             show_message_dialog(self, title="API access", message="Could not open API settings. Please try again.", close_label="Close")
-            return
-        Clock.schedule_once(lambda _dt: self._open_api_manager(app), 0.25)
-
-    @staticmethod
-    def _open_api_manager(app):
-        screen_manager = getattr(app, "root", None)
-        if screen_manager is None or not getattr(screen_manager, "has_screen", lambda _name: False)("agent_dashboard"):
-            return
-        api_screen = screen_manager.get_screen("agent_dashboard")
-        open_manager = getattr(api_screen, "manage_api_keys", None)
-        if callable(open_manager):
-            open_manager()
 
     def _build_tx_card(self, tx: dict) -> MDCard:
         tx_type = str(tx.get("type", "") or "")

@@ -1,6 +1,8 @@
 import threading
 import time
 import uuid
+import math
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivy.properties import BooleanProperty, StringProperty
@@ -166,7 +168,7 @@ KV = """
                         text: "Refresh"
                         size_hint_y: None
                         height: dp(48 * root.layout_scale)
-                        on_release: root.load_wallet()
+                        on_release: root.load_wallet(notify=True)
 
                     MDRaisedButton:
                         text: "History"
@@ -201,6 +203,7 @@ KV = """
 class P2PTransferScreen(ActionScreen):
     balance_display = StringProperty("GHS 0.00")
     wallet_status = StringProperty("Updating balance...")
+    wallet_is_live = BooleanProperty(False)
     transfer_preview = StringProperty("Min GHS 1.00. GHS 100/day free; 0.5% above.")
     fee_status_text = StringProperty("Loading daily fee allowance...")
     transfer_busy = BooleanProperty(False)
@@ -248,7 +251,7 @@ class P2PTransferScreen(ActionScreen):
             number = float(value)
         except (TypeError, ValueError):
             return float(fallback)
-        return number if number >= 0 else float(fallback)
+        return number if math.isfinite(number) and number >= 0 else float(fallback)
 
     def update_transfer_preview(self, raw_amount: str) -> None:
         amount = self._parse_amount(raw_amount)
@@ -337,27 +340,37 @@ class P2PTransferScreen(ActionScreen):
 
     def _load_wallet_worker(self, notify: bool) -> None:
         try:
-            ok, payload = self._request("GET", "/wallet/me")
+            ok, payload = self._request("GET", "/wallet/me", timeout=(4, 8))
         except Exception:
             ok, payload = False, {"detail": "Wallet balance is unavailable. Check your connection."}
         Clock.schedule_once(lambda _dt: self._apply_wallet_result(ok, payload, notify))
 
     def _apply_wallet_result(self, ok: bool, payload: object, notify: bool = False) -> None:
         self._wallet_loading = False
-        if ok and isinstance(payload, dict):
-            balance = self._number(payload.get("balance"), 0.0)
+        if ok and isinstance(payload, dict) and "balance" in payload:
+            raw_balance = payload.get("balance")
+            try:
+                balance = float(raw_balance)
+            except (TypeError, ValueError):
+                balance = float("nan")
+            if not math.isfinite(balance) or balance < 0:
+                ok = False
+        if ok and isinstance(payload, dict) and "balance" in payload:
             self.balance_display = f"GHS {balance:,.2f}"
             self.wallet_status = "Live balance"
+            self.wallet_is_live = True
             if notify:
                 self._set_feedback("Balance updated.", "success")
             return
 
-        self.wallet_status = "Balance unavailable"
+        self.wallet_is_live = False
+        self.wallet_status = "Balance unavailable · Tap Refresh"
         if isinstance(payload, dict) and payload.get("_auth_required"):
+            self.wallet_status = "Sign in to view balance"
             self._show_auth_required("Your session may have expired. Sign in again to continue.")
             return
         if notify:
-            detail = "Balance is unavailable. Check your connection and try again."
+            detail = "Your live balance could not be loaded. Check your connection and try again."
             self._set_feedback(detail, "error")
             self._show_popup("Balance Unavailable", detail)
 
@@ -381,6 +394,9 @@ class P2PTransferScreen(ActionScreen):
 
     def send_funds(self):
         if self.transfer_busy:
+            return
+        if not self.wallet_is_live:
+            self._show_popup("Balance unavailable", "Refresh your live balance before sending. No funds have been sent.")
             return
         recipient = normalize_ghana_number(self.ids.recipient_input.text.strip())
         amount = self._parse_amount(self.ids.amount_input.text)

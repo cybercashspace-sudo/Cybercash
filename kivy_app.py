@@ -121,6 +121,7 @@ SCREEN_SPECS = {
     "profile": ("screens.profile", "ProfileScreen"),
     "settings": ("screens.settings", "SettingsScreen"),
     "agent_dashboard": ("features.agent.agent_dashboard", "AgentDashboard"),
+    "agent_api": ("features.agent.agent_api_screen", "AgentApiScreen"),
     "agent_transactions": ("features.agent.agent_transactions", "AgentTransactionsScreen"),
     "agent_commissions": ("features.agent.commission_screen", "CommissionScreen"),
     "agent_kyc": ("features.agent.agent_kyc", "AgentKycScreen"),
