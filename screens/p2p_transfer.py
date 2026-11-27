@@ -1,5 +1,6 @@
 import threading
 import time
+import uuid
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivy.properties import BooleanProperty, StringProperty
@@ -213,6 +214,8 @@ class P2PTransferScreen(ActionScreen):
         self._transfer_submitting = False
         self._fee_loaded_at = 0.0
         self._pending_transfer = None
+        self._transfer_idempotency_key = ""
+        self._transfer_idempotency_fingerprint = None
         self._p2p_free_limit = P2P_DAILY_FREE_LIMIT_GHS
         self._p2p_total_sent_today = 0.0
         self._p2p_free_remaining = P2P_DAILY_FREE_LIMIT_GHS
@@ -389,6 +392,11 @@ class P2PTransferScreen(ActionScreen):
             self._show_popup("Check amount", "Minimum transfer is GHS 1.00.")
             return
 
+        fingerprint = (recipient, round(amount, 2))
+        if fingerprint != self._transfer_idempotency_fingerprint:
+            self._transfer_idempotency_key = uuid.uuid4().hex
+            self._transfer_idempotency_fingerprint = fingerprint
+
         self.transfer_busy = True
         self.transfer_button_text = "Checking fees..."
         self._set_feedback("Checking today's fee allowance...", "info")
@@ -491,6 +499,7 @@ class P2PTransferScreen(ActionScreen):
                     "source_balance": "balance",
                     "recipient_must_be_agent": False,
                 },
+                extra_headers={"Idempotency-Key": self._transfer_idempotency_key},
             )
         except Exception:
             ok, payload = False, {"detail": "Transfer could not be completed. Check your connection."}
@@ -508,6 +517,8 @@ class P2PTransferScreen(ActionScreen):
                 self.ids.recipient_input.text = ""
                 self.ids.amount_input.text = ""
                 self.update_transfer_preview("")
+                self._transfer_idempotency_key = ""
+                self._transfer_idempotency_fingerprint = None
                 self.load_wallet()
                 self.load_fee_status()
             return
@@ -528,6 +539,8 @@ class P2PTransferScreen(ActionScreen):
             self.ids.recipient_input.text = ""
             self.ids.amount_input.text = ""
             self.update_transfer_preview("")
+            self._transfer_idempotency_key = ""
+            self._transfer_idempotency_fingerprint = None
             self.load_wallet()
             self.load_fee_status()
             return

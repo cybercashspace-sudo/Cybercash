@@ -1,5 +1,6 @@
 from backend.core.security import create_access_token
-from backend.models import User, Wallet
+from backend.core.transaction_types import TransactionType
+from backend.models import Transaction, User, Wallet
 
 
 def _auth_headers(user_id: int) -> dict:
@@ -131,6 +132,45 @@ def test_p2p_transfer_is_free_under_daily_limit(client, db_session):
     assert recipient_wallet is not None
     assert float(sender_wallet.balance) == 190.0
     assert float(recipient_wallet.balance) == 10.0
+
+
+def test_p2p_transfer_idempotency_replays_success_without_duplicate_debit(client, db_session):
+    sender = _create_user_with_wallet(
+        db_session,
+        email="p2p_sender_idempotent@test.com",
+        phone_number="0242000041",
+        balance=100.0,
+    )
+    recipient = _create_user_with_wallet(
+        db_session,
+        email="p2p_recipient_idempotent@test.com",
+        phone_number="0242000042",
+        balance=0.0,
+    )
+    headers = {**_auth_headers(sender.id), "Idempotency-Key": "p2p-test-retry-001"}
+    body = {
+        "recipient_wallet_id": "0242000042",
+        "amount": 10.0,
+        "currency": "GHS",
+        "source_balance": "balance",
+        "recipient_must_be_agent": False,
+    }
+
+    first = client.post("/wallet/transfer", json=body, headers=headers)
+    replay = client.post("/wallet/transfer", json=body, headers=headers)
+
+    assert first.status_code == replay.status_code == 200
+    assert replay.json()["transfer_reference"] == first.json()["transfer_reference"]
+    sender_wallet = db_session.query(Wallet).filter(Wallet.user_id == sender.id).first()
+    recipient_wallet = db_session.query(Wallet).filter(Wallet.user_id == recipient.id).first()
+    sender_transfers = (
+        db_session.query(Transaction)
+        .filter(Transaction.user_id == sender.id, Transaction.type == TransactionType.TRANSFER)
+        .count()
+    )
+    assert float(sender_wallet.balance) == 90.0
+    assert float(recipient_wallet.balance) == 10.0
+    assert sender_transfers == 1
 
 
 def test_p2p_transfer_charges_fee_only_above_daily_free_limit(client, db_session):

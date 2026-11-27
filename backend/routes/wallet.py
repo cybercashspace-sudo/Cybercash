@@ -4,7 +4,7 @@ from decimal import Decimal
 import json
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from backend.database import AsyncSessionLocal, get_db
@@ -108,6 +108,50 @@ def _tx_to_dict(t: Transaction, user: User | None = None) -> dict:
         "reference": reference,
         "username": str(getattr(user, "full_name", "") or "").strip(),
         "momo_number": str(getattr(user, "momo_number", "") or getattr(user, "phone_number", "") or "").strip(),
+    }
+
+
+async def _p2p_transfer_replay(db: AsyncSession, *, user_id: int, idempotency_key: str):
+    """Return the original success payload when a client safely retries a transfer."""
+    result = await db.execute(
+        select(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.idempotency_key == idempotency_key,
+            Transaction.type == TransactionType.TRANSFER,
+            Transaction.status == "completed",
+        )
+    )
+    transaction = result.scalars().first()
+    if transaction is None:
+        return None
+    wallet_result = await db.execute(select(Wallet).filter(Wallet.user_id == user_id))
+    wallet = wallet_result.scalars().first()
+    if wallet is None:
+        return None
+    metadata = _safe_load_metadata(transaction.metadata_json)
+    return {
+        "id": wallet.id,
+        "user_id": wallet.user_id,
+        "currency": wallet.currency,
+        "balance": float(wallet.balance or 0.0),
+        "escrow_balance": float(wallet.escrow_balance or 0.0),
+        "loan_balance": float(wallet.loan_balance or 0.0),
+        "investment_balance": float(wallet.investment_balance or 0.0),
+        "created_at": wallet.created_at,
+        "updated_at": wallet.updated_at,
+        "metadata_json": wallet.metadata_json,
+        "transfer_reference": f"TRX-{int(transaction.id)}",
+        "recipient_wallet_id": str(metadata.get("recipient_wallet_id") or ""),
+        "source_balance": str(metadata.get("source_balance") or "balance"),
+        "recipient_is_agent": bool(metadata.get("recipient_must_be_agent", False)),
+        "transfer_fee": float(metadata.get("transfer_fee") or 0.0),
+        "transfer_fee_rate": float(metadata.get("transfer_fee_rate") or 0.0),
+        "total_debited": float(metadata.get("total_debited") or abs(float(transaction.amount or 0.0))),
+        "p2p_daily_free_limit": float(metadata.get("p2p_daily_free_limit") or 0.0),
+        "p2p_total_sent_today_before": float(metadata.get("p2p_total_sent_today_before") or 0.0),
+        "p2p_free_remaining_before": float(metadata.get("p2p_free_remaining_before") or 0.0),
+        "p2p_fee_free_amount": float(metadata.get("p2p_fee_free_amount") or 0.0),
+        "p2p_feeable_amount": float(metadata.get("p2p_feeable_amount") or 0.0),
     }
 
 
@@ -255,9 +299,18 @@ async def transfer_funds(
     request: TransferFundsRequest,
     db: AsyncSession = Depends(get_db), # Changed type hint
     current_user: User = Depends(get_current_user),
-    ledger_service: LedgerService = Depends(get_ledger_service)
+    ledger_service: LedgerService = Depends(get_ledger_service),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     try:
+        transfer_idempotency_key = str(idempotency_key or "").strip()
+        if len(transfer_idempotency_key) > 128:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transfer request. Please try again.")
+        if transfer_idempotency_key:
+            replay = await _p2p_transfer_replay(db, user_id=current_user.id, idempotency_key=transfer_idempotency_key)
+            if replay is not None:
+                return replay
+
         is_agent_withdraw = bool(request.recipient_must_be_agent)
         if request.amount <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transfer amount must be positive.")
@@ -323,6 +376,13 @@ async def transfer_funds(
         
         sender_wallet = next((w for w in wallets if w.user_id == current_user.id), None)
         recipient_wallet = next((w for w in wallets if w.user_id == recipient_user.id), None)
+
+        # Recheck after acquiring the sender wallet lock. A concurrent retry may
+        # have committed while this request waited for the lock.
+        if transfer_idempotency_key:
+            replay = await _p2p_transfer_replay(db, user_id=current_user.id, idempotency_key=transfer_idempotency_key)
+            if replay is not None:
+                return replay
 
         # Sender's wallet
         if not sender_wallet:
@@ -393,6 +453,7 @@ async def transfer_funds(
             amount=-required_amount,
             currency=request.currency,
             status="completed",
+            idempotency_key=transfer_idempotency_key or None,
             metadata_json=json.dumps(
                 {
                     "direction": "send",

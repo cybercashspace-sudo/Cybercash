@@ -136,6 +136,7 @@ class ActionScreen(ResponsiveScreen):
         payload: dict | None = None,
         params: dict | None = None,
         *,
+        extra_headers: dict | None = None,
         requires_auth: bool = True,
         timeout=None,
         clear_session_on_auth_failure: bool = True,
@@ -146,6 +147,8 @@ class ActionScreen(ResponsiveScreen):
             if not auth_headers:
                 return False, {"detail": "Please sign in to continue.", "_auth_required": True}
             headers.update(auth_headers)
+        if isinstance(extra_headers, dict):
+            headers.update({str(key): str(value) for key, value in extra_headers.items() if key and value is not None})
 
         self._begin_request_activity()
         try:

@@ -356,7 +356,7 @@ KV = """
                             shorten_from: "right"
 
                         MDLabel:
-                            text: "Commission Rate " + root.agent_commission_rate_display + " | Recoverable " + root.recovery_display
+                            text: "Commission Rate " + root.agent_commission_rate_display + " | API access available"
                             font_style: "Body"
                             font_name: FONT_REG
                             font_size: sp(11.5 * root.text_scale)
@@ -549,7 +549,7 @@ KV = """
                         line_color: [0.35, 0.50, 0.41, 0.42]
                         elevation: 0
                         padding: [dp(4 * root.layout_scale)] * 4
-                        on_release: root.open_recovery_dialog()
+                        on_release: root.open_api_access()
                         MDBoxLayout:
                             orientation: "vertical"
                             spacing: "0dp"
@@ -560,15 +560,15 @@ KV = """
                                 height: dp(34 * root.layout_scale)
 
                                 MDIconButton:
-                                    icon: "history"
+                                    icon: "api"
                                     icon_size: str(30 * root.icon_scale) + "sp"
                                     size_hint: None, None
                                     size: dp(30 * root.layout_scale), dp(30 * root.layout_scale)
                                     theme_text_color: "Custom"
                                     text_color: 0.91, 0.75, 0.44, 1
-                                    on_release: root.open_recovery_dialog()
+                                    on_release: root.open_api_access()
                             MDLabel:
-                                text: "Recovery"
+                                text: "API"
                                 halign: "center"
                                 font_name: FONT_SEMI
                                 font_size: sp(12 * root.text_scale)
@@ -720,7 +720,6 @@ class AgentScreen(ResponsiveScreen):
     funding_note = StringProperty("")
     float_display = StringProperty("GHS 0.00")
     commission_display = StringProperty("GHS 0.00")
-    recovery_display = StringProperty("0 item(s)")
     balance_hidden = BooleanProperty(False)
     balance_display = StringProperty("GHS 0.00")
     agent_total_balance = NumericProperty(0.0)
@@ -734,7 +733,6 @@ class AgentScreen(ResponsiveScreen):
     _last_warning_popup = ""
     _action_popup = None
     _more_actions_dialog = None
-    _recovery_payload = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1146,13 +1144,13 @@ class AgentScreen(ResponsiveScreen):
             self.open_cash_withdraw_dialog,
         )
         add_action_card(
-            "Recover",
-            "Restore items",
-            "history",
+            "API",
+            "Manage API keys",
+            "api",
             [0.83, 0.92, 0.60, 1],
             [0.09, 0.10, 0.12, 0.92],
             [0.20, 0.23, 0.28, 0.62],
-            self.open_recovery_dialog,
+            self.open_api_access,
         )
         add_action_card(
             "Sync",
@@ -1185,123 +1183,25 @@ class AgentScreen(ResponsiveScreen):
         dialog.bind(on_dismiss=lambda *_args: setattr(self, "_more_actions_dialog", None))
         self._more_actions_dialog = dialog
 
-    def _format_recovery_item(self, item: dict) -> str:
-        if not isinstance(item, dict):
-            return str(item)
-        tx_type = str(item.get("type") or item.get("reason") or "Recovery").replace("_", " ").title()
-        status = str(item.get("status") or "pending").replace("_", " ").title()
-        timestamp = str(item.get("timestamp") or item.get("created_at") or "")
-        when = self._friendly_time(timestamp) if timestamp else "Recent"
-        try:
-            amount_val = float(item.get("amount") or item.get("value") or 0.0)
-        except Exception:
-            amount_val = 0.0
-        amount_text = f"GHS {self._format_amount(abs(amount_val))}" if amount_val else ""
-        reference = str(item.get("reference") or item.get("id") or "").strip()
-        parts = [tx_type, status, when]
-        if amount_text:
-            parts.append(amount_text)
-        if reference:
-            parts.append(reference)
-        return " | ".join(part for part in parts if part)
-
-    def _recover_transaction(self, item: dict) -> None:
-        tx_id = None
-        if isinstance(item, dict):
-            tx_id = item.get("id") or item.get("transaction_id")
-        if not tx_id:
-            show_message_dialog(
-                self,
-                title="Recovery",
-                message="Recovery is unavailable for this item.",
-                close_label="Close",
-            )
+    def open_api_access(self):
+        app = MDApp.get_running_app()
+        if app is None or not hasattr(app, "go_to_screen"):
+            show_message_dialog(self, title="API access", message="API settings are unavailable right now.", close_label="Close")
             return
-
-        self._close_action_dialog()
-        self._post_agent_action(
-            f"/agent-transactions/me/recover/{tx_id}",
-            payload={},
-            success_message="Recovery submitted successfully.",
-        )
-
-    def open_recovery_dialog(self):
-        items = list(self._recovery_payload or [])
-        if not items:
-            show_message_dialog(
-                self,
-                title="Recovery",
-                message="No recoverable items found right now.",
-                close_label="Close",
-            )
+        if not app.go_to_screen("agent_dashboard", fallback="agent", transition_style="fade"):
+            show_message_dialog(self, title="API access", message="Could not open API settings. Please try again.", close_label="Close")
             return
+        Clock.schedule_once(lambda _dt: self._open_api_manager(app), 0.25)
 
-        layout_scale = float(self.layout_scale or 1.0)
-        text_scale = float(self.text_scale or 1.0)
-
-        content = MDBoxLayout(orientation="vertical", spacing=dp(8 * layout_scale), size_hint_y=None)
-        content.bind(minimum_height=content.setter("height"))
-        content.add_widget(
-            MDLabel(
-                text=f"{len(items)} recoverable item(s)",
-                theme_text_color="Custom",
-                text_color=[0.94, 0.79, 0.46, 1],
-                font_size=f"{14 * text_scale:.1f}sp",
-                bold=True,
-                adaptive_height=True,
-            )
-        )
-        for item in items[:8]:
-            row = MDBoxLayout(
-                orientation="horizontal",
-                spacing=dp(8 * layout_scale),
-                size_hint_y=None,
-                height=dp(40 * layout_scale),
-            )
-            row.add_widget(
-                MDLabel(
-                    text=self._format_recovery_item(item),
-                    theme_text_color="Custom",
-                    text_color=[0.88, 0.90, 0.92, 1],
-                    font_size=f"{11 * text_scale:.1f}sp",
-                    shorten=True,
-                    shorten_from="right",
-                )
-            )
-            tx_id = None
-            if isinstance(item, dict):
-                tx_id = item.get("id") or item.get("transaction_id")
-            recover_button = MDFillRoundFlatIconButton(
-                text="Recover" if tx_id else "Unavailable",
-                icon="restore",
-                md_bg_color=[0.93, 0.77, 0.39, 1],
-                text_color=[0.07, 0.08, 0.10, 1],
-                size_hint=(None, None),
-                height=dp(32 * layout_scale),
-            )
-            recover_button.width = dp(116 * layout_scale)
-            recover_button.disabled = not bool(tx_id)
-            recover_button.bind(on_release=lambda *_args, it=item: self._recover_transaction(it))
-            row.add_widget(recover_button)
-            content.add_widget(row)
-        if len(items) > 8:
-            content.add_widget(
-                MDLabel(
-                    text=f"And {len(items) - 8} more...",
-                    theme_text_color="Custom",
-                    text_color=[0.70, 0.72, 0.77, 1],
-                    font_size=f"{11 * text_scale:.1f}sp",
-                    adaptive_height=True,
-                )
-            )
-
-        self._action_popup = show_custom_dialog(
-            self,
-            title="Recovery",
-            content_cls=content,
-            close_label="Close",
-            auto_dismiss=True,
-        )
+    @staticmethod
+    def _open_api_manager(app):
+        screen_manager = getattr(app, "root", None)
+        if screen_manager is None or not getattr(screen_manager, "has_screen", lambda _name: False)("agent_dashboard"):
+            return
+        api_screen = screen_manager.get_screen("agent_dashboard")
+        open_manager = getattr(api_screen, "manage_api_keys", None)
+        if callable(open_manager):
+            open_manager()
 
     def _build_tx_card(self, tx: dict) -> MDCard:
         tx_type = str(tx.get("type", "") or "")
@@ -1465,7 +1365,6 @@ class AgentScreen(ResponsiveScreen):
         headers = {"Authorization": f"Bearer {token}"}
         structure_payload = {}
         history_payload = []
-        recovery_payload = []
         agent_payload = {}
         error_text = ""
 
@@ -1505,19 +1404,10 @@ class AgentScreen(ResponsiveScreen):
             if not error_text:
                 error_text = sanitize_backend_message(exc, fallback="History sync unavailable.")
 
-        try:
-            rec_resp = requests.get(f"{API_URL}/agent-transactions/me/recovery-candidates", headers=headers, timeout=12)
-            rec_json = rec_resp.json() if rec_resp.content else []
-            if rec_resp.status_code < 400 and isinstance(rec_json, list):
-                recovery_payload = rec_json
-        except Exception:
-            recovery_payload = []
-
         Clock.schedule_once(
             lambda _dt: self._apply_agent_data(
                 structure_payload=structure_payload,
                 history_payload=history_payload,
-                recovery_payload=recovery_payload,
                 agent_payload=agent_payload,
                 error_text=error_text,
             )
@@ -1527,7 +1417,6 @@ class AgentScreen(ResponsiveScreen):
         self,
         structure_payload: dict,
         history_payload: list[dict],
-        recovery_payload: list[dict],
         agent_payload: dict,
         error_text: str,
     ):
@@ -1547,8 +1436,6 @@ class AgentScreen(ResponsiveScreen):
 
         self.agent_total_balance = float_balance + commission_balance
         self._update_balance_display()
-        self.recovery_display = f"{len(recovery_payload)} item(s)"
-        self._recovery_payload = list(recovery_payload or [])
 
         if agent_payload:
             status_raw = str(agent_payload.get("status", "unknown") or "unknown")
@@ -1596,7 +1483,7 @@ class AgentScreen(ResponsiveScreen):
 
     def show_agent_help(self):
         self._show_warning_popup(
-            "Use Fund User for wallet top-ups, Sell Airtime for airtime sales, Data Bundles for live iData bundle sales, Cash Withdrawal for customer payouts, Recovery for recoverable items, and History for all activity."
+            "Use Fund User for wallet top-ups, Sell Airtime for airtime sales, Data Bundles for live iData bundle sales, Cash Withdrawal for customer payouts, API to manage customer checkout keys, and History for all activity."
         )
 
     def open_fund_user_dialog(self) -> None:
