@@ -172,14 +172,19 @@ def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking
 
     assert sent["sender_name"] == "Sender Example"
     assert sent["receiver_name"] == "Receiver Example"
+    assert sent["sender_number"] == sender.phone_number
+    assert sent["receiver_number"] == recipient.phone_number
     assert sent["counterparty_role"] == "Receiver"
     assert sent["description"] == "Sent to Receiver Example"
     assert received["sender_name"] == "Sender Example"
     assert received["receiver_name"] == "Receiver Example"
+    assert received["sender_number"] == sender.phone_number
+    assert received["receiver_number"] == recipient.phone_number
     assert received["counterparty_role"] == "Sender"
     assert received["description"] == "Received from Sender Example"
     assert "metadata_json" not in sent and "metadata_json" not in received
     assert "p2p_names_receiver@test.com" not in str(sent)
+    assert "p2p_names_sender@test.com" not in str(received)
 
 
 def test_p2p_transfer_idempotency_replays_success_without_duplicate_debit(client, db_session):

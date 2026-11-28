@@ -233,14 +233,18 @@ class TransactionScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
         momo = row.get("momo_number") or user.get("momo_number") or user.get("phone_number")
         sender_name = str(row.get("sender_name") or "").strip()
         receiver_name = str(row.get("receiver_name") or "").strip()
+        sender_number = str(row.get("sender_number") or "").strip()
+        receiver_number = str(row.get("receiver_number") or "").strip()
         if str(row.get("type") or "").strip().upper() == "TRANSFER":
             direction = str(row.get("direction") or "").strip().lower()
             if direction in {"debit", "send", "out", "outgoing"}:
                 sender_name = sender_name or str(username or "").strip()
                 receiver_name = receiver_name or str(row.get("counterparty_name") or "").strip()
+                sender_number = sender_number or str(momo or "").strip()
             elif direction in {"credit", "receive", "in", "incoming"}:
                 receiver_name = receiver_name or str(username or "").strip()
                 sender_name = sender_name or str(row.get("counterparty_name") or "").strip()
+                receiver_number = receiver_number or str(momo or "").strip()
         try:
             amount = float(row.get("amount") or 0.0)
         except (TypeError, ValueError):
@@ -253,6 +257,8 @@ class TransactionScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
             "Username": self._compact_detail(username, "Account holder"),
             "Sender": self._compact_detail(sender_name),
             "Receiver": self._compact_detail(receiver_name),
+            "Sender Number": self._compact_detail(sender_number),
+            "Receiver Number": self._compact_detail(receiver_number),
             "MoMo Number": self._compact_detail(momo),
             "Type and Amount": f"{self._compact_detail(row.get('type'), 'Transaction', 60)} - {amount_text}",
             "Time and Date": self._format_transaction_time(row.get("created_at", "")),
@@ -269,6 +275,8 @@ class TransactionScreen(PullToRefreshMixin, RefreshableScreenMixin, MDScreen):
                 "Username",
                 "Sender",
                 "Receiver",
+                "Sender Number",
+                "Receiver Number",
                 "MoMo Number",
                 "Type and Amount",
                 "Time and Date",

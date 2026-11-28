@@ -125,6 +125,7 @@ def test_transfer_transaction_details_show_authenticated_sender_and_receiver(mon
             "username": "Sender Example",
             "momo_number": "0242000051",
             "counterparty_name": "Receiver Example",
+            "receiver_number": "0242000052",
             "reference": "TRX-7",
             "status": "completed",
         },
@@ -132,4 +133,7 @@ def test_transfer_transaction_details_show_authenticated_sender_and_receiver(mon
 
     assert details["Sender"] == "Sender Example"
     assert details["Receiver"] == "Receiver Example"
+    assert details["Sender Number"] == "0242000051"
+    assert details["Receiver Number"] == "0242000052"
+    assert details["MoMo Number"] == "0242000051"
     assert details["Reference"] == "TRX-7"

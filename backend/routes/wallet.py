@@ -91,6 +91,8 @@ def _tx_to_dict(
     *,
     sender_name: str = "",
     receiver_name: str = "",
+    sender_number: str = "",
+    receiver_number: str = "",
 ) -> dict:
     timestamp = t.timestamp
     if timestamp and timestamp.tzinfo is None:
@@ -125,6 +127,8 @@ def _tx_to_dict(
         "momo_number": str(getattr(user, "momo_number", "") or getattr(user, "phone_number", "") or "").strip(),
         "sender_name": sender_name,
         "receiver_name": receiver_name,
+        "sender_number": sender_number,
+        "receiver_number": receiver_number,
         "counterparty_name": counterparty_name,
         "counterparty_role": counterparty_role,
         "description": description,
@@ -135,8 +139,8 @@ async def _transaction_counterparty_names(
     db: AsyncSession,
     transactions: list[Transaction],
     current_user: User,
-) -> dict[int, tuple[str, str]]:
-    """Resolve transfer names without returning counterpart phone numbers or raw metadata."""
+) -> dict[int, tuple[str, str, str, str]]:
+    """Resolve transfer parties for the authenticated transaction participants only."""
     details: dict[int, dict] = {}
     counterpart_ids: set[int] = set()
     counterpart_numbers: set[str] = set()
@@ -180,8 +184,11 @@ async def _transaction_counterparty_names(
                 if number:
                     users_by_number[str(number).strip()] = candidate
 
-    names: dict[int, tuple[str, str]] = {}
+    names: dict[int, tuple[str, str, str, str]] = {}
     own_name = str(getattr(current_user, "full_name", "") or "").strip()
+    own_number = str(
+        getattr(current_user, "momo_number", "") or getattr(current_user, "phone_number", "") or ""
+    ).strip()
     for transaction_id, detail in details.items():
         candidate = None
         try:
@@ -190,10 +197,13 @@ async def _transaction_counterparty_names(
             candidate = None
         candidate = candidate or users_by_number.get(detail["number"])
         counterpart_name = detail["name"] or str(getattr(candidate, "full_name", "") or "").strip()
+        counterpart_number = str(
+            getattr(candidate, "momo_number", "") or getattr(candidate, "phone_number", "") or ""
+        ).strip()
         if detail["direction"] == "receive":
-            names[transaction_id] = (counterpart_name, own_name)
+            names[transaction_id] = (counterpart_name, own_name, counterpart_number, own_number)
         else:
-            names[transaction_id] = (own_name, counterpart_name)
+            names[transaction_id] = (own_name, counterpart_name, own_number, counterpart_number)
     return names
 
 
@@ -809,13 +819,17 @@ async def get_my_transactions(
         names_by_transaction = await _transaction_counterparty_names(db, transactions, current_user)
         response = []
         for transaction in transactions:
-            sender_name, receiver_name = names_by_transaction.get(int(transaction.id), ("", ""))
+            sender_name, receiver_name, sender_number, receiver_number = names_by_transaction.get(
+                int(transaction.id), ("", "", "", "")
+            )
             response.append(
                 _tx_to_dict(
                     transaction,
                     current_user,
                     sender_name=sender_name,
                     receiver_name=receiver_name,
+                    sender_number=sender_number,
+                    receiver_number=receiver_number,
                 )
             )
         return response

@@ -70,6 +70,8 @@ class TransactionController:
             "momo_number": str(payload.get("momo_number") or payload.get("phone_number") or "").strip(),
             "sender_name": str(payload.get("sender_name") or "").strip(),
             "receiver_name": str(payload.get("receiver_name") or "").strip(),
+            "sender_number": str(payload.get("sender_number") or "").strip(),
+            "receiver_number": str(payload.get("receiver_number") or "").strip(),
             "counterparty_name": str(payload.get("counterparty_name") or "").strip(),
             "counterparty_role": str(payload.get("counterparty_role") or "").strip(),
             "is_read": bool(payload.get("is_read", True)),
