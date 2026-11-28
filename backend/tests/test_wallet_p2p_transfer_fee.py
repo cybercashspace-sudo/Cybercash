@@ -1,6 +1,6 @@
 from backend.core.security import create_access_token
 from backend.core.transaction_types import TransactionType
-from backend.models import Transaction, User, Wallet
+from backend.models import Transaction, User, UserNotification, Wallet
 
 
 def _auth_headers(user_id: int) -> dict:
@@ -197,6 +197,19 @@ def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking
     assert "metadata_json" not in sent and "metadata_json" not in received
     assert "p2p_names_receiver@test.com" not in str(sent)
     assert "p2p_names_sender@test.com" not in str(received)
+    sender_notice = (
+        db_session.query(UserNotification)
+        .filter(UserNotification.user_id == sender.id, UserNotification.transaction_id == sent["id"])
+        .one()
+    )
+    recipient_notice = (
+        db_session.query(UserNotification)
+        .filter(UserNotification.user_id == recipient.id, UserNotification.transaction_id == received["id"])
+        .one()
+    )
+    assert "to Receiver Example (0242000052)" in sender_notice.message
+    assert "from Sender Example (0242000051)" in recipient_notice.message
+    assert "@test.com" not in sender_notice.message + recipient_notice.message
     email_by_user = {user_id: kwargs for user_id, _kind, _amount, kwargs in email_calls}
     assert email_by_user[sender.id]["sender_name"] == "Sender Example"
     assert email_by_user[sender.id]["sender_number"] == sender.phone_number

@@ -51,6 +51,12 @@ def _safe_load_metadata(metadata_json: str | None) -> dict:
         return {}
 
 
+def _transaction_party_label(user: User) -> str:
+    name = " ".join(str(getattr(user, "full_name", "") or "").split()) or "CyberCash user"
+    number = str(getattr(user, "momo_number", "") or getattr(user, "phone_number", "") or "").strip()
+    return f"{name} ({number})" if number else name
+
+
 async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> Decimal:
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -612,13 +618,18 @@ async def transfer_funds(
         await db.flush()
 
         transfer_reference = f"TRX-{int(sender_transaction.id)}"
+        sender_party = _transaction_party_label(current_user)
+        recipient_party = _transaction_party_label(recipient_user)
         db.add_all(
             [
                 UserNotification(
                     user_id=current_user.id,
                     notification_type="transfer_sent",
                     title="Transfer sent",
-                    message=f"Your transfer of {request.currency.upper()} {requested_amount:.2f} was sent successfully. Reference: {transfer_reference}.",
+                    message=(
+                        f"Transfer sent: {request.currency.upper()} {requested_amount:.2f} "
+                        f"to {recipient_party}. Reference: {transfer_reference}."
+                    ),
                     transaction_id=sender_transaction.id,
                     dedupe_key=f"transaction:{sender_transaction.id}:user:{current_user.id}:success",
                 ),
@@ -626,7 +637,10 @@ async def transfer_funds(
                     user_id=recipient_user.id,
                     notification_type="transfer_received",
                     title="Transfer received",
-                    message=f"You received {request.currency.upper()} {requested_amount:.2f}. Reference: {transfer_reference}.",
+                    message=(
+                        f"Transfer received: {request.currency.upper()} {requested_amount:.2f} "
+                        f"from {sender_party}. Reference: {transfer_reference}."
+                    ),
                     transaction_id=recipient_transaction.id,
                     dedupe_key=f"transaction:{recipient_transaction.id}:user:{recipient_user.id}:success",
                 ),
