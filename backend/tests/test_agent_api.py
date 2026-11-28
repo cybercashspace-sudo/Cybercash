@@ -33,10 +33,10 @@ def active_agent(db_session: Session):
     return agent, wallet, headers
 
 
-def _create_key(client: TestClient, agent_auth_headers: dict) -> str:
+def _create_key(client: TestClient, agent_auth_headers: dict, mode: str = "live") -> str:
     response = client.post(
         "/agents/me/api-keys",
-        json={"name": "Test storefront"},
+        json={"name": "Test storefront", "mode": mode},
         headers=agent_auth_headers,
     )
     assert response.status_code == 201, response.text
@@ -60,7 +60,9 @@ def test_agent_api_key_secret_is_returned_once_and_only_hash_is_stored(
     assert listed.status_code == 200
     assert "api_key" not in listed.text
     assert secret not in listed.text
-    assert listed.json()["items"][0]["prefix"] == secret[:16]
+    assert listed.json()["items"][0]["prefix"] == secret[:24]
+    assert listed.json()["items"][0]["mode"] == "live"
+    assert listed.json()["items"][0]["public_key"].startswith("cc_pub_")
 
 
 def test_inactive_agent_cannot_create_api_keys(client: TestClient, db_session: Session, active_agent):
@@ -104,6 +106,8 @@ def test_agent_cannot_exceed_active_api_key_limit(client: TestClient, db_session
         db_session.add(AgentAPIKey(
             agent_id=agent.id,
             name=f"Store {index}",
+            mode="live",
+            public_key=f"cc_pub_fixture_{index}",
             key_prefix=f"cc_agent_test{index}",
             key_hash=hashlib.sha256(f"secret-{index}".encode()).hexdigest(),
         ))
@@ -196,6 +200,46 @@ def test_customer_checkout_is_idempotent_and_does_not_credit_before_confirmation
     )
     assert status_response.status_code == 200
     assert status_response.json()["status"] == "completed"
+
+
+def test_test_api_key_never_calls_payment_provider_or_credits_wallet(
+    client: TestClient,
+    db_session: Session,
+    active_agent,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _agent, active_agent_wallet, headers = active_agent
+    secret = _create_key(client, headers, mode="test")
+
+    async def should_not_call_provider(self, **kwargs):
+        pytest.fail("test mode must never call the live payment provider")
+
+    monkeypatch.setattr(PaystackService, "initiate_payment", should_not_call_provider)
+    request_headers = {
+        "X-CyberCash-API-Key": secret,
+        "Idempotency-Key": "sandbox-order-1001",
+    }
+    body = {"amount": "25.50", "customer_email": "buyer@example.com"}
+    first = client.post("/agent-api/v1/payments/checkout", json=body, headers=request_headers)
+    retry = client.post("/agent-api/v1/payments/checkout", json=body, headers=request_headers)
+
+    assert first.status_code == retry.status_code == 201
+    assert first.json() == retry.json()
+    assert first.json()["status"] == "test"
+    assert first.json()["reference"].startswith("CC-TEST-")
+    assert first.json()["authorization_url"] is None
+    transaction = db_session.query(Transaction).filter_by(provider_reference=first.json()["reference"]).one()
+    assert transaction.provider == "cybercash_test"
+    assert transaction.status == "test"
+    assert Decimal(str(active_agent_wallet.balance)) == Decimal("0.00")
+
+    status_response = client.get(
+        f"/agent-api/v1/payments/{first.json()['reference']}",
+        headers={"X-CyberCash-API-Key": secret},
+    )
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] == "test"
+    assert status_response.json()["environment"] == "test"
 
 
 def test_revoked_agent_key_cannot_start_a_checkout(

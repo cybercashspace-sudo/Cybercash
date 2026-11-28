@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import secrets
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -94,6 +95,21 @@ def _apply_schema_patches(sync_conn) -> None:
             sync_conn.execute(
                 text("ALTER TABLE transactions ADD COLUMN metadata_json VARCHAR")
             )
+
+    # -------- AGENT API KEYS PATCH --------
+    if "agent_api_keys" in inspector.get_table_names():
+        api_key_cols = {c["name"] for c in inspector.get_columns("agent_api_keys")}
+        if "mode" not in api_key_cols:
+            sync_conn.execute(text("ALTER TABLE agent_api_keys ADD COLUMN mode VARCHAR(8) NOT NULL DEFAULT 'live'"))
+        if "public_key" not in api_key_cols:
+            sync_conn.execute(text("ALTER TABLE agent_api_keys ADD COLUMN public_key VARCHAR(40)"))
+            rows = sync_conn.execute(text("SELECT id FROM agent_api_keys WHERE public_key IS NULL")).fetchall()
+            for row in rows:
+                sync_conn.execute(
+                    text("UPDATE agent_api_keys SET public_key = :public_key WHERE id = :id"),
+                    {"public_key": "cc_pub_" + secrets.token_urlsafe(18), "id": row[0]},
+                )
+            sync_conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_agent_api_keys_public_key ON agent_api_keys (public_key)"))
 
     # -------- USERS PATCH --------
     if "users" in inspector.get_table_names():

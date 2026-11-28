@@ -28,14 +28,18 @@ class AgentApiScreen(ResponsiveScreen):
         self.controller = AgentController()
         self._api_keys_busy = False
         self._screen_active = False
+        self._selected_mode = "test"
+        self._created_public_label = ""
 
     def on_enter(self, *_args):
         self._screen_active = True
+        self.select_api_mode(self._selected_mode)
         self.load_api_keys()
 
     def on_leave(self, *_args):
         self._screen_active = False
         self._clear_api_secret()
+        self._created_public_label = ""
         parent = getattr(super(), "on_leave", None)
         if callable(parent):
             return parent(*_args)
@@ -61,7 +65,14 @@ class AgentApiScreen(ResponsiveScreen):
         self.ids.api_key_secret.text = ""
         self.ids.copy_api_key_button.disabled = True
         self.ids.api_key_status.text = "Generating a secure key…"
-        self._start_api_worker("create", name)
+        self._start_api_worker("create", (name, self._selected_mode))
+
+    def select_api_mode(self, mode: str):
+        if mode not in {"test", "live"} or self._api_keys_busy:
+            return
+        self._selected_mode = mode
+        self.ids.test_mode_button.md_bg_color = (0.48, 0.34, 0.06, 1) if mode == "test" else (0.14, 0.15, 0.17, 1)
+        self.ids.live_mode_button.md_bg_color = (0.48, 0.34, 0.06, 1) if mode == "live" else (0.14, 0.15, 0.17, 1)
 
     def revoke_api_key(self, key_id: int):
         if self._api_keys_busy:
@@ -94,7 +105,8 @@ class AgentApiScreen(ResponsiveScreen):
             if action == "list":
                 result = self.controller.api_keys()
             elif action == "create":
-                result = self.controller.create_api_key(str(value))
+                name, mode = value
+                result = self.controller.create_api_key(str(name), str(mode))
             else:
                 result = self.controller.revoke_api_key(int(value))
             Clock.schedule_once(lambda _dt, a=action, data=result: self._apply_api_key_result(a, data))
@@ -140,7 +152,10 @@ class AgentApiScreen(ResponsiveScreen):
                 return
             self.ids.api_key_secret.text = secret
             self.ids.copy_api_key_button.disabled = False
-            self.ids.api_key_status.text = "Key created. Copy it now; it will not be shown again."
+            mode = str(payload.get("mode") or "live").upper()
+            public_key = str(payload.get("public_key") or "")
+            self._created_public_label = f"{mode} secret created. Copy it now. Public ID: {public_key}"
+            self.ids.api_key_status.text = self._created_public_label
             self.load_api_keys()
             return
         self._clear_api_secret()
@@ -164,22 +179,38 @@ class AgentApiScreen(ResponsiveScreen):
             revoked = bool(row.get("revoked"))
             if not revoked:
                 active_count += 1
-            item = MDBoxLayout(orientation="horizontal", spacing=dp(6), size_hint_y=None, height=dp(42))
-            item.add_widget(MDLabel(
-                text=f"{row.get('name', 'API key')} · {row.get('prefix', '')} · {'Revoked' if revoked else 'Active'}",
+            item = MDBoxLayout(orientation="vertical", spacing=dp(2), size_hint_y=None, height=dp(62))
+            top = MDBoxLayout(orientation="horizontal", spacing=dp(4), size_hint_y=None, height=dp(34))
+            top.add_widget(MDLabel(
+                text=f"{row.get('name', 'API key')} · {str(row.get('mode') or 'live').upper()} · {'Revoked' if revoked else 'Active'}",
                 shorten=True,
                 theme_text_color="Secondary",
             ))
+            public_key = str(row.get("public_key") or "")
+            if public_key:
+                top.add_widget(MDTextButton(
+                    text="Copy ID",
+                    size_hint_x=None,
+                    width=dp(68),
+                    on_release=lambda _btn, value=public_key: self.copy_public_key(value),
+                ))
             if not revoked:
-                item.add_widget(MDRaisedButton(
+                top.add_widget(MDRaisedButton(
                     text="Revoke",
                     size_hint_x=None,
                     width=dp(82),
                     on_release=lambda _btn, kid=row.get("id"): self.revoke_api_key(int(kid)),
                 ))
+            item.add_widget(top)
+            item.add_widget(MDLabel(
+                text=f"Public ID: {public_key}" if public_key else "Public ID unavailable",
+                shorten=True,
+                theme_text_color="Secondary",
+                font_size=dp(11),
+            ))
             container.add_widget(item)
         if self.ids.api_key_secret.text:
-            self.ids.api_key_status.text = "Key created. Copy it now; it will not be shown again."
+            self.ids.api_key_status.text = self._created_public_label or "Key created. Copy it now; it will not be shown again."
         elif active_count == 0:
             self.ids.api_key_status.text = "No active API keys yet. Create one to get started."
         else:
@@ -200,6 +231,12 @@ class AgentApiScreen(ResponsiveScreen):
             return
         Clipboard.copy(secret)
         self.ids.api_key_status.text = "Key copied. Store it securely; it cannot be viewed again."
+
+    def copy_public_key(self, value: str):
+        public_key = str(value or "").strip()
+        if public_key.startswith("cc_pub_"):
+            Clipboard.copy(public_key)
+            self.ids.api_key_status.text = "Public ID copied. It cannot authenticate API requests."
 
     def _clear_api_secret(self):
         if "api_key_secret" in self.ids:

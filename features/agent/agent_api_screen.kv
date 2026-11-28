@@ -50,7 +50,7 @@
                 MDCard:
                     orientation: "vertical"
                     size_hint_y: None
-                    height: dp(128)
+                    height: dp(150)
                     radius: [dp(20)]
                     elevation: 0
                     md_bg_color: 0.09, 0.10, 0.12, 1
@@ -66,7 +66,7 @@
                         adaptive_height: True
 
                     MDLabel:
-                        text: "Generate API keys for your website or app. Confirmed Paystack payments are credited to your CyberCash wallet. Keep each secret private."
+                        text: "Create test keys for safe integration checks, or live keys for real Paystack checkouts. Confirmed live payments reach your CyberCash wallet. Keep secret keys on your server."
                         theme_text_color: "Secondary"
                         font_size: sp(13)
                         adaptive_height: True
@@ -74,7 +74,7 @@
                 MDCard:
                     orientation: "vertical"
                     size_hint_y: None
-                    height: dp(330)
+                    height: dp(390)
                     radius: [dp(20)]
                     elevation: 0
                     md_bg_color: 0.09, 0.10, 0.12, 1
@@ -107,6 +107,21 @@
                         line_color_focus: 1, 0.76, 0.12, 1
                         size_hint_y: None
                         height: dp(52)
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(40)
+                        spacing: dp(8)
+
+                        MDRaisedButton:
+                            id: test_mode_button
+                            text: "Test mode"
+                            on_release: root.select_api_mode("test")
+
+                        MDRaisedButton:
+                            id: live_mode_button
+                            text: "Live mode"
+                            on_release: root.select_api_mode("live")
 
                     MDLabel:
                         id: api_key_status

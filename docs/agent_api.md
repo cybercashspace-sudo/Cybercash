@@ -1,16 +1,24 @@
 # CyberCash Agent Checkout API
 
-Approved Agents can generate API keys from **Agent Dashboard → API**. API access has no CyberCash subscription fee; Paystack or other payment-provider fees can still apply.
+Approved, active Agents can manage API credentials from **Agent Dashboard → API**. Creating a key has no CyberCash subscription fee; payment-provider fees can still apply to live Paystack transactions.
 
-API keys are secrets. Use them only from a trusted server you control. Do not put a key in a browser, mobile app, public source repository, or customer-visible page. CyberCash stores only a one-way hash and shows the full key once. Revoke a key immediately if it may have been exposed.
+## Keys and environments
 
-## Create a customer checkout
+Choose **Test mode** while integrating and **Live mode** only when ready to accept real payments. A generated secret is shown once, then only its prefix is listed. Store it in a server-side environment variable; never embed it in a browser, mobile app, public repository, or customer-visible page. Revoke it if exposed.
+
+Each secret is paired with a `cc_pub_...` public ID. The public ID identifies the integration only; it grants no access and cannot authenticate API calls or receive money. Checkout requires the matching secret in `X-CyberCash-API-Key`.
+
+Test keys create idempotent simulated checkout records with `CC-TEST-...` references. They never contact Paystack, create a payment URL, or credit a wallet. Test responses have `status: "test"` and `authorization_url: null`. Use this mode to verify your server integration without moving funds.
+
+Live keys start real Paystack checkouts. A wallet is credited only after CyberCash verifies Paystack's payment confirmation. Keep live secrets on a trusted server.
+
+## Create a checkout
 
 Send a server-to-server request to:
 
 ```text
 POST https://<your-cybercash-backend>/agent-api/v1/payments/checkout
-X-CyberCash-API-Key: <agent-api-key>
+X-CyberCash-API-Key: <agent-api-secret>
 Idempotency-Key: <unique-order-id>
 Content-Type: application/json
 ```
@@ -22,9 +30,11 @@ Content-Type: application/json
 }
 ```
 
-Amounts are in GHS, from GHS 1.00 to GHS 10,000.00, with up to two decimal places. Open the returned `authorization_url` for the customer to pay. The endpoint creates a pending checkout only; it does not credit a wallet from a client-supplied success response. CyberCash credits the Agent wallet after Paystack confirms the payment through its verified confirmation flow.
+Amounts are in GHS from 1.00 to 10,000.00, with up to two decimal places. For live keys, open the returned `authorization_url` so the customer can pay. For test keys, the response is simulated and has no payment URL.
 
-Example response:
+Use a stable, unique `Idempotency-Key` for each order and reuse it for retries of that order. Reusing it with a different amount or customer email returns a conflict rather than creating another checkout.
+
+Live response example:
 
 ```json
 {
@@ -36,15 +46,25 @@ Example response:
 }
 ```
 
-Use a stable, unique `Idempotency-Key` for each order and reuse it for retries of that same order. Reusing it with a different amount or customer email returns a conflict instead of creating another checkout.
+Test response example:
 
-## Check payment status
+```json
+{
+  "status": "test",
+  "reference": "CC-TEST-example",
+  "authorization_url": null,
+  "amount": "25.50",
+  "currency": "GHS"
+}
+```
+
+## Check status
 
 ```text
 GET https://<your-cybercash-backend>/agent-api/v1/payments/<reference>
-X-CyberCash-API-Key: <agent-api-key>
+X-CyberCash-API-Key: <agent-api-secret>
 ```
 
-The response contains the reference, amount, currency, and current state (`pending`, `completed`, or `failed`). Only the API key that created that checkout can query it. A payment is final only when its state is `completed`.
+The response includes the reference, status, amount, currency, and environment. Only the key that created a checkout can query it. Live payment is final only when the status is `completed`; a test checkout remains `test` and never represents a real payment.
 
-An Agent can have up to five active keys. Key creation and revocation are available in the signed-in app; creating a key requires an approved active Agent account.
+An Agent can have up to five active keys across both environments. Creating or revoking a key requires a verified, active account and an approved, active Agent profile.

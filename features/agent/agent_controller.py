@@ -94,8 +94,8 @@ class AgentController:
     def api_keys(self):
         return self.service.api_keys()
 
-    def create_api_key(self, name: str):
-        return self.service.create_api_key(name)
+    def create_api_key(self, name: str, mode: str = "live"):
+        return self.service.create_api_key(name, mode)
 
     def revoke_api_key(self, key_id: int):
         return self.service.revoke_api_key(key_id)

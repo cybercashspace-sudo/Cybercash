@@ -1,11 +1,14 @@
 from decimal import Decimal
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateAgentAPIKeyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=2, max_length=60)
+    mode: Literal["test", "live"] = "live"
 
 
 class AgentCheckoutRequest(BaseModel):
@@ -17,6 +20,6 @@ class AgentCheckoutRequest(BaseModel):
 class AgentCheckoutResponse(BaseModel):
     status: str
     reference: str
-    authorization_url: str
+    authorization_url: str | None = None
     amount: Decimal
     currency: str = "GHS"

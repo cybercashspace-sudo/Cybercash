@@ -40,6 +40,8 @@ def _safe_key_record(key: AgentAPIKey) -> dict:
     return {
         "id": key.id,
         "name": key.name,
+        "mode": str(getattr(key, "mode", "live") or "live"),
+        "public_key": str(getattr(key, "public_key", "") or ""),
         "prefix": key.key_prefix,
         "created_at": key.created_at.isoformat() if key.created_at else None,
         "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
@@ -137,17 +139,25 @@ async def create_my_api_key(
         name = request.name.strip()
         if len(name) < 2:
             raise HTTPException(status_code=422, detail="API key name must contain at least 2 characters.")
-        raw_key = "cc_agent_" + secrets.token_urlsafe(32)
+        mode = request.mode
+        raw_key = f"cc_agent_{mode}_" + secrets.token_urlsafe(32)
+        public_key = "cc_pub_" + secrets.token_urlsafe(18)
         api_key = AgentAPIKey(
             agent_id=agent.id,
             name=name,
-            key_prefix=raw_key[:16],
+            mode=mode,
+            public_key=public_key,
+            key_prefix=raw_key[:24],
             key_hash=_key_digest(raw_key),
         )
         db.add(api_key)
         await db.commit()
         await db.refresh(api_key)
-        return {**_safe_key_record(api_key), "api_key": raw_key, "message": "Copy this key now. It cannot be shown again."}
+        return {
+            **_safe_key_record(api_key),
+            "api_key": raw_key,
+            "message": "Copy this secret key now. It cannot be shown again.",
+        }
     finally:
         await db.close()
 
@@ -209,13 +219,14 @@ async def create_customer_checkout(
             metadata = _read_metadata(existing.metadata_json)
             if Decimal(str(existing.amount)).quantize(GHS_QUANTIZER) != amount or metadata.get("customer_email_hash") != customer_email_hash:
                 raise HTTPException(status_code=409, detail="This Idempotency-Key was already used for a different checkout.")
+            is_test = str(metadata.get("environment") or "live") == "test"
             checkout_url = str(metadata.get("authorization_url") or "")
-            if not checkout_url:
+            if not is_test and not checkout_url:
                 raise HTTPException(status_code=409, detail="This checkout is already being processed. Check its status using the returned reference.")
             response = AgentCheckoutResponse(
                 status=existing.status,
                 reference=str(existing.provider_reference or ""),
-                authorization_url=checkout_url,
+                authorization_url=checkout_url or None,
                 amount=amount,
             )
             await db.commit()
@@ -228,31 +239,41 @@ async def create_customer_checkout(
         if bool(wallet.is_frozen):
             raise HTTPException(status_code=403, detail="This wallet cannot accept payments right now. Contact CyberCash support.")
 
-        callback_url = str(http_request.url_for("paystack_checkout_status"))
-        amount_subunit = int((amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
-        try:
-            provider_result = await paystack_service.initiate_payment(
-                email=email,
-                amount=amount_subunit,
-                currency="GHS",
-                metadata={
-                    "user_id": str(agent.user_id),
-                    "agent_id": str(agent.id),
-                    "agent_api_key_id": str(api_key.id),
-                    "purpose": "agent_customer_payment",
-                    "idempotency_key": internal_idem,
-                },
-                callback_url=callback_url,
-            )
-        except HTTPException as exc:
-            raise HTTPException(status_code=502, detail="The payment provider could not start checkout. Please try again.") from exc
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail="The payment provider could not start checkout. Please try again.") from exc
+        is_test = api_key.mode == "test"
+        if is_test:
+            # Test credentials are isolated from Paystack and wallet crediting.
+            reference = "CC-TEST-" + secrets.token_hex(12)
+            checkout_url = ""
+            checkout_status = "test"
+            provider = "cybercash_test"
+        else:
+            callback_url = str(http_request.url_for("paystack_checkout_status"))
+            amount_subunit = int((amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
+            try:
+                provider_result = await paystack_service.initiate_payment(
+                    email=email,
+                    amount=amount_subunit,
+                    currency="GHS",
+                    metadata={
+                        "user_id": str(agent.user_id),
+                        "agent_id": str(agent.id),
+                        "agent_api_key_id": str(api_key.id),
+                        "purpose": "agent_customer_payment",
+                        "idempotency_key": internal_idem,
+                    },
+                    callback_url=callback_url,
+                )
+            except HTTPException as exc:
+                raise HTTPException(status_code=502, detail="The payment provider could not start checkout. Please try again.") from exc
+            except Exception as exc:
+                raise HTTPException(status_code=502, detail="The payment provider could not start checkout. Please try again.") from exc
 
-        reference = str(provider_result.get("reference") or "").strip()
-        checkout_url = str(provider_result.get("authorization_url") or "").strip()
-        if not reference or not checkout_url:
-            raise HTTPException(status_code=502, detail="The payment provider returned an incomplete checkout. Please try again.")
+            reference = str(provider_result.get("reference") or "").strip()
+            checkout_url = str(provider_result.get("authorization_url") or "").strip()
+            if not reference or not checkout_url:
+                raise HTTPException(status_code=502, detail="The payment provider returned an incomplete checkout. Please try again.")
+            checkout_status = "pending"
+            provider = "paystack"
 
         transaction = Transaction(
             user_id=agent.user_id,
@@ -262,12 +283,13 @@ async def create_customer_checkout(
             entry_type="credit",
             amount=amount,
             currency="GHS",
-            status="pending",
-            provider="paystack",
+            status=checkout_status,
+            provider=provider,
             provider_reference=reference,
             idempotency_key=internal_idem,
             metadata_json=json.dumps({
                 "purpose": "agent_customer_payment",
+                "environment": "test" if is_test else "live",
                 "agent_api_key_id": api_key.id,
                 "customer_email_hash": customer_email_hash,
                 "authorization_url": checkout_url,
@@ -277,9 +299,9 @@ async def create_customer_checkout(
         db.add(transaction)
         await db.commit()
         return AgentCheckoutResponse(
-            status="pending",
+            status=checkout_status,
             reference=reference,
-            authorization_url=checkout_url,
+            authorization_url=checkout_url or None,
             amount=amount,
         )
     finally:
@@ -296,7 +318,7 @@ async def get_customer_checkout_status(
         api_key, agent = await _authenticate_api_key(db, api_key_value)
         result = await db.execute(
             select(Transaction).where(
-                Transaction.provider == "paystack",
+                Transaction.provider.in_(["paystack", "cybercash_test"]),
                 Transaction.provider_reference == reference,
                 Transaction.user_id == agent.user_id,
                 Transaction.agent_id == agent.id,
@@ -313,6 +335,7 @@ async def get_customer_checkout_status(
             "status": transaction.status,
             "amount": str(transaction.amount),
             "currency": transaction.currency or "GHS",
+            "environment": str(metadata.get("environment") or "live"),
         }
         await db.commit()
         return response

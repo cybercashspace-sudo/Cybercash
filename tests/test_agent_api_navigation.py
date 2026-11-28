@@ -37,5 +37,5 @@ def test_api_key_generation_stays_on_one_backend_and_surfaces_safe_error():
     service = AgentService()
     service.post_json = lambda *args, **kwargs: calls.append((args, kwargs)) or {"api_key": "once"}
     assert service.create_api_key("My store") == {"api_key": "once"}
-    assert calls[0][0] == ("/agents/me/api-keys", {"name": "My store"})
+    assert calls[0][0] == ("/agents/me/api-keys", {"name": "My store", "mode": "live"})
     assert calls[0][1]["failover"] is False
