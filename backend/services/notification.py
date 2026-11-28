@@ -58,6 +58,13 @@ def _humanize_transaction_type(value: str | None, *, direction: str | None = Non
     return label
 
 
+def _format_transfer_party(name: str | None, number: str | None, role: str) -> str:
+    clean_name = " ".join(str(name or "").split())[:100] or role
+    clean_number = " ".join(str(number or "").split())[:32]
+    identity = f"{clean_name} ({clean_number})" if clean_number else clean_name
+    return f"{role}: {identity}."
+
+
 class NotificationService:
     async def send_to_user(
         self,
@@ -115,6 +122,10 @@ class NotificationService:
         currency: str = "GHS",
         subject: str = "Transaction update",
         direction: str | None = None,
+        sender_name: str | None = None,
+        sender_number: str | None = None,
+        receiver_name: str | None = None,
+        receiver_number: str | None = None,
         idempotency_key: str | None = None,
     ) -> dict:
         try:
@@ -136,6 +147,12 @@ class NotificationService:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
         if label in {"deposit", "withdrawal", "wallet top up"}:
             message = f"CyberCash: Your {label} of {amount_text} was completed successfully."
+        if label in {"transfer sent", "transfer received"} and any(
+            (sender_name, sender_number, receiver_name, receiver_number)
+        ):
+            sender = _format_transfer_party(sender_name, sender_number, "Sender")
+            receiver = _format_transfer_party(receiver_name, receiver_number, "Receiver")
+            message = f"{message} {sender} {receiver}"
         return await self.send_to_user(user, message, subject=subject, idempotency_key=idempotency_key)
 
     async def send_to_user_id(

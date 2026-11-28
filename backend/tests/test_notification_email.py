@@ -106,6 +106,37 @@ async def test_send_transaction_notification_sends_for_completed_transaction(mon
     assert "ghs" in sends[0][2].lower()
 
 
+@pytest.mark.asyncio
+async def test_transfer_email_includes_both_party_names_and_numbers_safely(monkeypatch):
+    sends = []
+
+    async def fake_send_email(subject, recipients, body, **kwargs):
+        sends.append((subject, recipients, body, kwargs))
+        return {"status": "queued", "provider": "email"}
+
+    monkeypatch.setattr(notification, "send_email", fake_send_email)
+    user = SimpleNamespace(id=8, email="sender@example.com")
+
+    result = await notification.NotificationService().send_transaction_notification(
+        user,
+        "transfer",
+        25,
+        direction="send",
+        sender_name="Ama Mensah",
+        sender_number="0241234567",
+        receiver_name="Kojo <Test>",
+        receiver_number="0207654321",
+        idempotency_key="transaction:8:user:8:success",
+    )
+
+    assert result["status"] == "queued"
+    assert len(sends) == 1
+    body = sends[0][2]
+    assert "Sender: Ama Mensah (0241234567)" in body
+    assert "Receiver: Kojo &lt;Test&gt; (0207654321)" in body
+    assert sends[0][3]["idempotency_key"] == "transaction:8:user:8:success"
+
+
 @pytest.mark.parametrize(
     ("transaction_type", "expected_label"),
     [

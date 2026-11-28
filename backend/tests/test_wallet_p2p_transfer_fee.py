@@ -134,7 +134,19 @@ def test_p2p_transfer_is_free_under_daily_limit(client, db_session):
     assert float(recipient_wallet.balance) == 10.0
 
 
-def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking_metadata(client, db_session):
+def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking_metadata(
+    client, db_session, monkeypatch
+):
+    email_calls = []
+
+    async def capture_transaction_email(self, user, transaction_type, amount, **kwargs):
+        email_calls.append((user.id, transaction_type, amount, kwargs))
+        return {"status": "queued", "provider": "email"}
+
+    monkeypatch.setattr(
+        "backend.routes.wallet.NotificationService.send_transaction_notification",
+        capture_transaction_email,
+    )
     sender = _create_user_with_wallet(
         db_session,
         email="p2p_names_sender@test.com",
@@ -185,6 +197,15 @@ def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking
     assert "metadata_json" not in sent and "metadata_json" not in received
     assert "p2p_names_receiver@test.com" not in str(sent)
     assert "p2p_names_sender@test.com" not in str(received)
+    email_by_user = {user_id: kwargs for user_id, _kind, _amount, kwargs in email_calls}
+    assert email_by_user[sender.id]["sender_name"] == "Sender Example"
+    assert email_by_user[sender.id]["sender_number"] == sender.phone_number
+    assert email_by_user[sender.id]["receiver_name"] == "Receiver Example"
+    assert email_by_user[sender.id]["receiver_number"] == recipient.phone_number
+    assert email_by_user[recipient.id]["sender_name"] == "Sender Example"
+    assert email_by_user[recipient.id]["sender_number"] == sender.phone_number
+    assert email_by_user[recipient.id]["receiver_name"] == "Receiver Example"
+    assert email_by_user[recipient.id]["receiver_number"] == recipient.phone_number
 
 
 def test_p2p_transfer_idempotency_replays_success_without_duplicate_debit(client, db_session):
