@@ -18,6 +18,9 @@ def test_agent_kyc_screen_has_back_button_four_agent_nav_and_document_uploads():
     assert 'root.choose_photo("back")' in layout
     assert 'root.choose_photo("selfie")' in layout
     assert 'root.submit_kyc()' in layout
+    assert 'refresh_callback: root.pull_to_refresh' in layout
+    assert "def pull_to_refresh(self):" in source
+    assert "failover=False" in source
 
 
 def test_kyc_submission_error_popup_does_not_display_backend_response_text():
@@ -72,3 +75,52 @@ def test_successful_kyc_submission_clears_local_identity_form_and_photo_paths():
     assert harness.front_photo_name == "No front photo selected"
     assert harness.ids["ghana_card_number"].text == ""
     assert harness.consent_accepted is False
+
+
+
+def test_kyc_upload_is_not_replayed_to_a_fallback_backend(monkeypatch, tmp_path):
+    from features.agent import agent_kyc
+    from features.agent.agent_kyc import AgentKycScreen
+
+    paths = {}
+    for kind in ("front", "back", "selfie"):
+        path = tmp_path / f"{kind}.jpg"
+        path.write_bytes(b"test image")
+        paths[kind] = str(path)
+
+    calls = []
+    callbacks = []
+    monkeypatch.setattr(
+        agent_kyc.api_client,
+        "request_multipart",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or {"ok": True, "status_code": 200, "data": {}},
+    )
+    monkeypatch.setattr(agent_kyc.Clock, "schedule_once", lambda callback, *_args: callbacks.append(callback))
+
+    class _Harness:
+        _mime_for_path = staticmethod(AgentKycScreen._mime_for_path)
+
+    AgentKycScreen._submit_worker(_Harness(), {"consent": "true"}, paths, 4)
+
+    assert calls[0][0][0:2] == ("POST", "/agents/me/kyc/submit")
+    assert calls[0][1]["failover"] is False
+    assert len(callbacks) == 1
+
+
+def test_kyc_response_finishes_loading_without_showing_popup_on_another_screen():
+    from features.agent.agent_kyc import AgentKycScreen
+
+    messages = []
+
+    class _Manager:
+        current_screen = object()
+
+    class _Harness:
+        loading = True
+        manager = _Manager()
+        _show_message = lambda self, *args: messages.append(args)
+
+    harness = _Harness()
+    AgentKycScreen._apply_submission(harness, {"ok": False, "status_code": 500}, 1)
+    assert harness.loading is False
+    assert messages == []

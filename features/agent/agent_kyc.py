@@ -36,10 +36,13 @@ class AgentKycScreen(ResponsiveScreen):
     def __init__(self, **kwargs):
         self._photo_paths = {"front": "", "back": "", "selfie": ""}
         self._file_popup = None
+        self._request_generation = 0
+        self._screen_active = False
         super().__init__(**kwargs)
         self.bind(on_leave=self._on_leave)
 
     def on_pre_enter(self, *_args):
+        self._screen_active = True
         self.load_kyc_status()
 
     def go_back(self):
@@ -49,17 +52,34 @@ class AgentKycScreen(ResponsiveScreen):
         if self.loading:
             return
         self.loading = True
-        threading.Thread(target=self._status_worker, daemon=True).start()
+        self._request_generation += 1
+        generation = self._request_generation
+        self.status_text = "Checking agent registration status?"
+        try:
+            threading.Thread(target=self._status_worker, args=(generation,), daemon=True).start()
+        except Exception:
+            self.loading = False
+            self.kyc_status = "unavailable"
+            self.can_submit = False
+            self.status_text = "We could not load your verification status. Try again."
+            self._show_message("Agent verification", self.status_text)
 
-    def _status_worker(self):
+    def pull_to_refresh(self):
+        self.load_kyc_status()
+
+    def _status_worker(self, generation):
         try:
             result = api_client.request("GET", "/agents/me/kyc", timeout=(4, 12))
         except Exception:
             result = {"ok": False, "status_code": 0, "data": {}}
-        Clock.schedule_once(lambda _dt, response=result: self._apply_status(response))
+        Clock.schedule_once(lambda _dt, response=result, gen=generation: self._apply_status(response, gen))
 
-    def _apply_status(self, response):
+    def _apply_status(self, response, generation=None):
+        if generation is not None and generation != getattr(self, "_request_generation", generation):
+            return
         self.loading = False
+        if not AgentKycScreen._is_screen_active(self):
+            return
         if not response.get("ok"):
             self.kyc_status = "unavailable"
             self.can_submit = False
@@ -89,6 +109,12 @@ class AgentKycScreen(ResponsiveScreen):
     def _is_submit_allowed(self):
         return bool(self.can_submit)
 
+    def _is_screen_active(self):
+        manager = getattr(self, "manager", None)
+        if manager is None:
+            return bool(getattr(self, "_screen_active", True))
+        return getattr(manager, "current_screen", None) is self
+
     def choose_photo(self, kind: str):
         if self.loading:
             return
@@ -110,6 +136,8 @@ class AgentKycScreen(ResponsiveScreen):
         self._open_file_chooser(kind, labels[kind])
 
     def _on_photo_permission(self, kind, grants):
+        if not AgentKycScreen._is_screen_active(self):
+            return
         if not grants or not any(bool(grant) for grant in grants):
             Clock.schedule_once(lambda _dt: self._show_message("Photo access needed", "Allow photo access to select the required identity photos."))
             return
@@ -177,6 +205,8 @@ class AgentKycScreen(ResponsiveScreen):
             self._show_message("Consent required", "Confirm that these details and photos belong to you.")
             return
         self.loading = True
+        self._request_generation += 1
+        generation = self._request_generation
         fields = {
             "full_name": full_name,
             "date_of_birth": dob,
@@ -184,14 +214,18 @@ class AgentKycScreen(ResponsiveScreen):
             "consent": "true",
         }
         paths = dict(self._photo_paths)
-        threading.Thread(target=self._submit_worker, args=(fields, paths), daemon=True).start()
+        try:
+            threading.Thread(target=self._submit_worker, args=(fields, paths, generation), daemon=True).start()
+        except Exception:
+            self.loading = False
+            self._show_message("Submission not sent", "We could not start the secure upload. Please try again.")
 
     @staticmethod
     def _mime_for_path(path):
         extension = os.path.splitext(path)[1].lower()
         return {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(extension, "application/octet-stream")
 
-    def _submit_worker(self, fields, paths):
+    def _submit_worker(self, fields, paths, generation):
         try:
             with open(paths["front"], "rb") as front, open(paths["back"], "rb") as back, open(paths["selfie"], "rb") as selfie:
                 files = {
@@ -200,14 +234,18 @@ class AgentKycScreen(ResponsiveScreen):
                     "selfie_with_id": ("selfie-with-id" + os.path.splitext(paths["selfie"])[1].lower(), selfie, self._mime_for_path(paths["selfie"])),
                 }
                 response = api_client.request_multipart(
-                    "POST", "/agents/me/kyc/submit", data=fields, files=files, timeout=(5, 40)
+                    "POST", "/agents/me/kyc/submit", data=fields, files=files, timeout=(5, 40), failover=False
                 )
         except Exception:
             response = {"ok": False, "status_code": 0, "data": {"detail": "We could not upload your photos. Check your connection and try again."}}
-        Clock.schedule_once(lambda _dt, result=response: self._apply_submission(result))
+        Clock.schedule_once(lambda _dt, result=response, gen=generation: self._apply_submission(result, gen))
 
-    def _apply_submission(self, response):
+    def _apply_submission(self, response, generation=None):
+        if generation is not None and generation != getattr(self, "_request_generation", generation):
+            return
         self.loading = False
+        if not AgentKycScreen._is_screen_active(self):
+            return
         payload = response.get("data") or {}
         if not response.get("ok"):
             # Keep arbitrary backend response text out of the Kivy UI.
@@ -244,6 +282,7 @@ class AgentKycScreen(ResponsiveScreen):
         show_message_dialog(self, title=title, message=message, close_label="Close")
 
     def _on_leave(self, *_args):
+        self._screen_active = False
         popup = self._file_popup
         self._file_popup = None
         if popup is not None:
