@@ -199,6 +199,14 @@ def test_agent_registration_payment_request_stays_on_primary_after_server_error(
     assert api.session.urls == ["https://primary.test/agents/register"]
 
 
+def test_http_adapter_does_not_retry_post_requests():
+    from api.client import APIClient
+
+    api = APIClient(base_url="https://primary.test")
+    retry = api.session.get_adapter("https://").max_retries
+    assert "POST" not in retry.allowed_methods
+
+
 def test_agent_registration_verify_uses_last_successful_authenticated_backend():
     api = client.APIClient(base_url="https://primary.test")
     api.base_urls = ["https://primary.test", "https://fallback.test"]

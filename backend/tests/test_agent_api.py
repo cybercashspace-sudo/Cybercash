@@ -75,6 +75,28 @@ def test_inactive_agent_cannot_create_api_keys(client: TestClient, db_session: S
     assert response.status_code == 403
 
 
+def test_agent_cannot_exceed_active_api_key_limit(client: TestClient, db_session: Session, active_agent):
+    agent, _wallet, headers = active_agent
+    for index in range(5):
+        db_session.add(AgentAPIKey(
+            agent_id=agent.id,
+            name=f"Store {index}",
+            key_prefix=f"cc_agent_test{index}",
+            key_hash=hashlib.sha256(f"secret-{index}".encode()).hexdigest(),
+        ))
+    db_session.commit()
+
+    response = client.post(
+        "/agents/me/api-keys",
+        json={"name": "Another store"},
+        headers=headers,
+    )
+
+    assert response.status_code == 409
+    assert "up to 5 active API keys" in response.json()["detail"]
+    assert db_session.query(AgentAPIKey).filter_by(agent_id=agent.id).count() == 5
+
+
 def test_checkout_requires_key_and_idempotency_header(client: TestClient):
     response = client.post(
         "/agent-api/v1/payments/checkout",

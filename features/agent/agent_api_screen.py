@@ -13,6 +13,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 
 from core.navigation import navigate
+from core.message_sanitizer import extract_backend_message, sanitize_backend_message
 from core.popup_manager import show_backend_result_popup, show_confirm_dialog
 from core.responsive_screen import ResponsiveScreen
 from features.agent.agent_controller import AgentController
@@ -97,8 +98,29 @@ class AgentApiScreen(ResponsiveScreen):
             else:
                 result = self.controller.revoke_api_key(int(value))
             Clock.schedule_once(lambda _dt, a=action, data=result: self._apply_api_key_result(a, data))
-        except Exception:
-            Clock.schedule_once(lambda _dt: self._api_key_error())
+        except Exception as exc:
+            message = self._friendly_api_error(exc)
+            Clock.schedule_once(lambda _dt, msg=message: self._api_key_error(msg))
+
+    @staticmethod
+    def _friendly_api_error(exc: Exception) -> str:
+        """Show a safe, actionable server message without exposing internals."""
+        response = getattr(exc, "response", None)
+        payload = getattr(response, "data", None)
+        if payload is None and response is not None:
+            try:
+                payload = response.json()
+            except Exception:
+                payload = None
+        if payload is not None:
+            return extract_backend_message(
+                payload,
+                fallback="API access could not be updated. Please try again.",
+            )
+        return sanitize_backend_message(
+            exc,
+            fallback="API access could not be updated. Check your connection and try again.",
+        )
 
     def _apply_api_key_result(self, action: str, result):
         self._api_keys_busy = False
@@ -163,7 +185,7 @@ class AgentApiScreen(ResponsiveScreen):
         else:
             self.ids.api_key_status.text = f"{active_count} active key(s). Secret values cannot be viewed again."
 
-    def _api_key_error(self, message: str = "API settings could not be updated. Check your connection and try again."):
+    def _api_key_error(self, message: str = "API access could not be updated. Check your connection and try again."):
         self._api_keys_busy = False
         if "generate_api_key_button" in self.ids:
             self.ids.generate_api_key_button.disabled = False

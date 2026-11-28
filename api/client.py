@@ -159,7 +159,10 @@ class APIClient:
             status=1,
             backoff_factor=0.25,
             status_forcelist=RETRY_STATUS_CODES,
-            allowed_methods=frozenset({"GET", "POST", "PUT", "PATCH"}),
+            # POST can create money movements, API credentials, or other
+            # one-time resources. Replaying after a server error may duplicate
+            # an operation that committed before its response was lost.
+            allowed_methods=frozenset({"GET", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}),
             raise_on_status=False,
         )
         adapter = HTTPAdapter(max_retries=retry)

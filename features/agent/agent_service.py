@@ -18,7 +18,9 @@ class AgentService(BaseApiService):
         return self.get_json("/agents/me/api-keys")
 
     def create_api_key(self, name: str):
-        return self.post_json("/agents/me/api-keys", {"name": name})
+        # This operation returns the secret only once. Keep it on the active
+        # backend and do not transparently replay it on a timeout/failover.
+        return self.post_json("/agents/me/api-keys", {"name": name}, failover=False)
 
     def revoke_api_key(self, key_id: int):
         return self.request_json("DELETE", f"/agents/me/api-keys/{int(key_id)}")
