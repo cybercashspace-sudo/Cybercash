@@ -134,6 +134,54 @@ def test_p2p_transfer_is_free_under_daily_limit(client, db_session):
     assert float(recipient_wallet.balance) == 10.0
 
 
+def test_p2p_transaction_history_shows_sender_and_receiver_names_without_leaking_metadata(client, db_session):
+    sender = _create_user_with_wallet(
+        db_session,
+        email="p2p_names_sender@test.com",
+        phone_number="0242000051",
+        balance=50.0,
+    )
+    sender.full_name = "Sender Example"
+    recipient = _create_user_with_wallet(
+        db_session,
+        email="p2p_names_receiver@test.com",
+        phone_number="0242000052",
+        balance=0.0,
+    )
+    recipient.full_name = "Receiver Example"
+    db_session.commit()
+
+    transfer = client.post(
+        "/wallet/transfer",
+        json={
+            "recipient_wallet_id": recipient.phone_number,
+            "amount": 5.0,
+            "currency": "GHS",
+            "source_balance": "balance",
+            "recipient_must_be_agent": False,
+        },
+        headers=_auth_headers(sender.id),
+    )
+    assert transfer.status_code == 200, transfer.text
+
+    sender_history = client.get("/wallet/transactions/me", headers=_auth_headers(sender.id))
+    recipient_history = client.get("/wallet/transactions/me", headers=_auth_headers(recipient.id))
+    assert sender_history.status_code == recipient_history.status_code == 200
+    sent = next(row for row in sender_history.json() if row["type"] == "TRANSFER")
+    received = next(row for row in recipient_history.json() if row["type"] == "TRANSFER")
+
+    assert sent["sender_name"] == "Sender Example"
+    assert sent["receiver_name"] == "Receiver Example"
+    assert sent["counterparty_role"] == "Receiver"
+    assert sent["description"] == "Sent to Receiver Example"
+    assert received["sender_name"] == "Sender Example"
+    assert received["receiver_name"] == "Receiver Example"
+    assert received["counterparty_role"] == "Sender"
+    assert received["description"] == "Received from Sender Example"
+    assert "metadata_json" not in sent and "metadata_json" not in received
+    assert "p2p_names_receiver@test.com" not in str(sent)
+
+
 def test_p2p_transfer_idempotency_replays_success_without_duplicate_debit(client, db_session):
     sender = _create_user_with_wallet(
         db_session,

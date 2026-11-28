@@ -6,6 +6,7 @@ from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ColorProperty, DictProperty, NumericProperty, StringProperty
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.screenmanager import Screen
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -16,6 +17,10 @@ from kivymd.uix.label import MDLabel
 from components.notification_badge import NotificationBadge
 from core.feedback_engine import tap_feedback
 from core.navigation import navigate
+
+
+class _BottomNavItem(ButtonBehavior, MDBoxLayout):
+    """Make both the nav icon and its label part of one large tap target."""
 
 
 class BottomNavBar(MDCard):
@@ -288,11 +293,12 @@ class BottomNavBar(MDCard):
             target = str(item["target"])
             is_active = target == self.active_target
             text_color = self.active_color if is_active else self.inactive_color
-            container = MDBoxLayout(
+            container = _BottomNavItem(
                 orientation="vertical",
                 size_hint=(1, 1),
                 spacing=dp(2 * layout_scale),
                 padding=0,
+                on_release=lambda _item, item_target=target: self._navigate(item_target),
             )
             icon_wrap = MDCard(
                 size_hint=(None, None),
@@ -302,7 +308,6 @@ class BottomNavBar(MDCard):
                 line_color=[0.95, 0.74, 0.12, 0.28] if is_active else [1, 1, 1, 0.06],
                 elevation=0,
                 pos_hint={"center_x": 0.5, "center_y": 0.5},
-                on_release=lambda _btn, item_target=target: self._navigate(item_target),
             )
             icon_button = MDIconButton(
                 icon=item["icon"],

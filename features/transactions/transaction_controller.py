@@ -68,6 +68,10 @@ class TransactionController:
             "reference": reference,
             "username": str(payload.get("username") or payload.get("full_name") or "").strip(),
             "momo_number": str(payload.get("momo_number") or payload.get("phone_number") or "").strip(),
+            "sender_name": str(payload.get("sender_name") or "").strip(),
+            "receiver_name": str(payload.get("receiver_name") or "").strip(),
+            "counterparty_name": str(payload.get("counterparty_name") or "").strip(),
+            "counterparty_role": str(payload.get("counterparty_role") or "").strip(),
             "is_read": bool(payload.get("is_read", True)),
         }
 

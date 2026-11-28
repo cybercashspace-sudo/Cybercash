@@ -6,7 +6,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from backend.database import AsyncSessionLocal, get_db
 from backend.models import Agent, User, Wallet, Transaction, UserNotification
 from backend.dependencies.auth import get_current_user
@@ -85,7 +85,13 @@ async def _resolve_p2p_total_sent_today(db: AsyncSession, *, user_id: int) -> De
     return total_sent.quantize(Decimal("0.01"))
 
 
-def _tx_to_dict(t: Transaction, user: User | None = None) -> dict:
+def _tx_to_dict(
+    t: Transaction,
+    user: User | None = None,
+    *,
+    sender_name: str = "",
+    receiver_name: str = "",
+) -> dict:
     timestamp = t.timestamp
     if timestamp and timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=timezone.utc)
@@ -97,6 +103,15 @@ def _tx_to_dict(t: Transaction, user: User | None = None) -> dict:
         or metadata.get("payment_reference")
         or ""
     ).strip()
+    direction = str(metadata.get("direction") or t.entry_type or "").strip().lower()
+    counterparty_name = receiver_name if direction in {"send", "debit", "out", "outgoing"} else sender_name
+    counterparty_role = "Receiver" if direction in {"send", "debit", "out", "outgoing"} else "Sender"
+    description = ""
+    if str(t.type or "").strip().upper() == str(TransactionType.TRANSFER).upper():
+        if counterparty_name:
+            description = f"{'Sent to' if counterparty_role == 'Receiver' else 'Received from'} {counterparty_name}"
+        else:
+            description = f"{'Sent to' if counterparty_role == 'Receiver' else 'Received from'} a CyberCash user"
     return {
         "id": t.id,
         "type": t.type,
@@ -108,7 +123,78 @@ def _tx_to_dict(t: Transaction, user: User | None = None) -> dict:
         "reference": reference,
         "username": str(getattr(user, "full_name", "") or "").strip(),
         "momo_number": str(getattr(user, "momo_number", "") or getattr(user, "phone_number", "") or "").strip(),
+        "sender_name": sender_name,
+        "receiver_name": receiver_name,
+        "counterparty_name": counterparty_name,
+        "counterparty_role": counterparty_role,
+        "description": description,
     }
+
+
+async def _transaction_counterparty_names(
+    db: AsyncSession,
+    transactions: list[Transaction],
+    current_user: User,
+) -> dict[int, tuple[str, str]]:
+    """Resolve transfer names without returning counterpart phone numbers or raw metadata."""
+    details: dict[int, dict] = {}
+    counterpart_ids: set[int] = set()
+    counterpart_numbers: set[str] = set()
+    for transaction in transactions:
+        if str(transaction.type or "").strip().upper() != str(TransactionType.TRANSFER).upper():
+            continue
+        metadata = _safe_load_metadata(transaction.metadata_json)
+        direction = str(metadata.get("direction") or transaction.entry_type or "").strip().lower()
+        receiving = direction in {"receive", "credit", "in", "incoming", "received"}
+        name_key = "sender_name" if receiving else "recipient_name"
+        id_key = "sender_user_id" if receiving else "recipient_user_id"
+        number_key = "sender_wallet_id" if receiving else "recipient_wallet_id"
+        counterpart_id = metadata.get(id_key)
+        try:
+            if counterpart_id is not None:
+                counterpart_ids.add(int(counterpart_id))
+        except (TypeError, ValueError):
+            pass
+        number = str(metadata.get(number_key) or "").strip()
+        if number:
+            counterpart_numbers.add(number)
+        details[int(transaction.id)] = {
+            "direction": "receive" if receiving else "send",
+            "name": str(metadata.get(name_key) or "").strip(),
+            "id": counterpart_id,
+            "number": number,
+        }
+
+    users_by_id: dict[int, User] = {}
+    users_by_number: dict[str, User] = {}
+    clauses = []
+    if counterpart_ids:
+        clauses.append(User.id.in_(counterpart_ids))
+    if counterpart_numbers:
+        clauses.extend((User.phone_number.in_(counterpart_numbers), User.momo_number.in_(counterpart_numbers)))
+    if clauses:
+        result = await db.execute(select(User).where(or_(*clauses)))
+        for candidate in result.scalars().all():
+            users_by_id[int(candidate.id)] = candidate
+            for number in (candidate.phone_number, candidate.momo_number):
+                if number:
+                    users_by_number[str(number).strip()] = candidate
+
+    names: dict[int, tuple[str, str]] = {}
+    own_name = str(getattr(current_user, "full_name", "") or "").strip()
+    for transaction_id, detail in details.items():
+        candidate = None
+        try:
+            candidate = users_by_id.get(int(detail["id"])) if detail["id"] is not None else None
+        except (TypeError, ValueError):
+            candidate = None
+        candidate = candidate or users_by_number.get(detail["number"])
+        counterpart_name = detail["name"] or str(getattr(candidate, "full_name", "") or "").strip()
+        if detail["direction"] == "receive":
+            names[transaction_id] = (counterpart_name, own_name)
+        else:
+            names[transaction_id] = (own_name, counterpart_name)
+    return names
 
 
 async def _p2p_transfer_replay(db: AsyncSession, *, user_id: int, idempotency_key: str):
@@ -458,6 +544,10 @@ async def transfer_funds(
                 {
                     "direction": "send",
                     "recipient_wallet_id": recipient_user.momo_number or recipient_user.phone_number,
+                    "recipient_user_id": recipient_user.id,
+                    "recipient_name": str(recipient_user.full_name or "").strip(),
+                    "sender_user_id": current_user.id,
+                    "sender_name": str(current_user.full_name or "").strip(),
                     "source_balance": source_balance_key,
                     "recipient_must_be_agent": is_agent_withdraw,
                     "transfer_kind": "withdraw_to_agent" if is_agent_withdraw else "wallet_transfer",
@@ -495,6 +585,10 @@ async def transfer_funds(
                 {
                     "direction": "receive",
                     "sender_wallet_id": current_user.momo_number or current_user.phone_number,
+                    "sender_user_id": current_user.id,
+                    "sender_name": str(current_user.full_name or "").strip(),
+                    "recipient_user_id": recipient_user.id,
+                    "recipient_name": str(recipient_user.full_name or "").strip(),
                     "source_balance": source_balance_key,
                     "transfer_kind": "withdraw_to_agent" if is_agent_withdraw else "wallet_transfer",
                     "transferred_amount": requested_amount,
@@ -712,7 +806,19 @@ async def get_my_transactions(
         query = query.order_by(Transaction.id.desc()).limit(limit)
         result = await db.execute(query)
         transactions = result.scalars().all()
-        return [_tx_to_dict(t, current_user) for t in transactions]
+        names_by_transaction = await _transaction_counterparty_names(db, transactions, current_user)
+        response = []
+        for transaction in transactions:
+            sender_name, receiver_name = names_by_transaction.get(int(transaction.id), ("", ""))
+            response.append(
+                _tx_to_dict(
+                    transaction,
+                    current_user,
+                    sender_name=sender_name,
+                    receiver_name=receiver_name,
+                )
+            )
+        return response
     finally:
         await db.close()
 

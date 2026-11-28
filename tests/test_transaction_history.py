@@ -98,3 +98,38 @@ def test_transaction_card_dispatches_whitelisted_detail_payload():
     TransactionCard._dispatch_detail(card)
 
     assert received == [{"Reference": "TX-50", "Status": "completed"}]
+
+
+def test_transfer_transaction_details_show_authenticated_sender_and_receiver(monkeypatch):
+    from types import SimpleNamespace
+
+    from kivymd.app import MDApp
+    from features.transactions.transaction_screen import TransactionScreen
+
+    monkeypatch.setattr(MDApp, "get_running_app", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        "features.transactions.transaction_screen.session.get_user",
+        lambda: {"full_name": "Sender Example", "phone_number": "0242000051"},
+    )
+    class _Harness:
+        _compact_detail = staticmethod(TransactionScreen._compact_detail)
+        _format_transaction_time = staticmethod(TransactionScreen._format_transaction_time)
+
+    details = TransactionScreen._transaction_detail_fields(
+        _Harness(),
+        {
+            "type": "TRANSFER",
+            "amount": -5,
+            "currency": "GHS",
+            "direction": "debit",
+            "username": "Sender Example",
+            "momo_number": "0242000051",
+            "counterparty_name": "Receiver Example",
+            "reference": "TRX-7",
+            "status": "completed",
+        },
+    )
+
+    assert details["Sender"] == "Sender Example"
+    assert details["Receiver"] == "Receiver Example"
+    assert details["Reference"] == "TRX-7"

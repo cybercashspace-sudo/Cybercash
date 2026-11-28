@@ -91,3 +91,10 @@ def test_cards_bottom_nav_item_routes_to_registered_card_screen(monkeypatch):
     _NavHarness()._navigate(cards_item["target"])
 
     assert calls and calls[0][0] == "virtual_card"
+
+
+def test_cards_bottom_nav_hit_target_includes_icon_and_label():
+    from kivy.uix.behaviors import ButtonBehavior
+    from core.bottom_nav import _BottomNavItem
+
+    assert ButtonBehavior in _BottomNavItem.__mro__
