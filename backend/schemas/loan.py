@@ -49,6 +49,8 @@ class LoanPolicyResponse(BaseModel):
     is_agent_eligible: bool
     auto_deduction_enabled: bool = True
     base_fee_percentage: float
+    fee_rate_base_period_days: int = 30
+    period_fee_percentages: dict[str, float]
     late_fee_percentage: float
     late_fee_grace_hours: int
     period_help_text: str

@@ -9,6 +9,7 @@ from .. import models # Keep models import as it's used directly
 from backend.database import get_db
 from backend.dependencies.auth import get_current_user
 from ..services import loan_service # Import your loan_service
+from ..services.loan_service import loan_fee_percentage_for_duration
 from backend.schemas.loan_application import LoanApplicationCreate, LoanApplicationInDB # Explicit imports
 from backend.schemas.loan_admin import AgentCreditProfileResponse, LoanApplicationDecisionRequest # Explicit import
 from backend.schemas.loan import LoanInDB, LoanAutoDeductionUpdateRequest, LoanAutoDeductionResponse, LoanPolicyResponse # Explicit import
@@ -82,6 +83,11 @@ async def preview_loan_offer(
             status="simulated",
             application_date=datetime.now()
         )
+
+        if int(application_request.repayment_duration or 0) not in (
+            loan_service.USER_LOAN_PERIODS + loan_service.AGENT_ONLY_LOAN_PERIODS
+        ):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a supported loan repayment period.")
         
         # Calculate risk score (from loan_service, but directly)
         risk_score = await loan_service.calculate_risk_score(db, agent.id, application_request)
@@ -89,7 +95,7 @@ async def preview_loan_offer(
 
         # Simulate loan offer generation (similar to approve_loan_application but without status changes)
         approved_amount = 0.0
-        fee_percentage = 0.0
+        base_fee_percentage = 0.0
         offered_repayment_duration = application_request.repayment_duration
 
         if risk_score >= settings.RISK_SCORE_APPROVAL_THRESHOLD:
@@ -98,11 +104,16 @@ async def preview_loan_offer(
             approved_amount = min(application_request.amount, max_eligible)
             
             if risk_score >= 80:
-                fee_percentage = 3.0
+                base_fee_percentage = 3.0
             elif risk_score >= 65:
-                fee_percentage = 5.0
+                base_fee_percentage = 5.0
             else:
-                fee_percentage = 8.0
+                base_fee_percentage = 8.0
+
+        fee_percentage = loan_fee_percentage_for_duration(
+            offered_repayment_duration,
+            base_fee_percentage,
+        )
         
         simulated_application.approved_amount = approved_amount
         simulated_application.fee_percentage = fee_percentage
@@ -222,15 +233,18 @@ async def approve_application(
             review_note=request.review_note,
         )
     else:
-        db_application = await loan_service.approve_loan_application(
-            db=db,
-            application_id=application_id,
-            admin_user_id=current_user.id,
-            approved_amount=request.approved_amount,
-            fee_percentage=request.fee_percentage,
-            offered_repayment_duration=request.offered_repayment_duration,
-            review_note=request.review_note,
-        )
+        try:
+            db_application = await loan_service.approve_loan_application(
+                db=db,
+                application_id=application_id,
+                admin_user_id=current_user.id,
+                approved_amount=request.approved_amount,
+                fee_percentage=request.fee_percentage,
+                offered_repayment_duration=request.offered_repayment_duration,
+                review_note=request.review_note,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     try:
         if not db_application:

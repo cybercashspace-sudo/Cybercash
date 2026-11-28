@@ -75,6 +75,29 @@ def test_inactive_agent_cannot_create_api_keys(client: TestClient, db_session: S
     assert response.status_code == 403
 
 
+@pytest.mark.parametrize("account_change", [{"is_active": False}, {"is_verified": False}])
+def test_disabled_or_unverified_owner_cannot_manage_api_keys(
+    client: TestClient,
+    db_session: Session,
+    active_agent,
+    account_change: dict,
+):
+    agent, _wallet, headers = active_agent
+    owner = db_session.query(User).filter_by(id=agent.user_id).one()
+    for field, value in account_change.items():
+        setattr(owner, field, value)
+    db_session.commit()
+
+    response = client.post(
+        "/agents/me/api-keys",
+        json={"name": "Test storefront"},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    assert "Verify and activate" in response.json()["detail"]
+
+
 def test_agent_cannot_exceed_active_api_key_limit(client: TestClient, db_session: Session, active_agent):
     agent, _wallet, headers = active_agent
     for index in range(5):

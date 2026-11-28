@@ -17,6 +17,7 @@ from ..schemas.loan_admin import LoanOverviewResponse, AgentCreditProfileRespons
 USER_LOAN_PERIODS = (1, 7, 14, 30)
 AGENT_ONLY_LOAN_PERIODS = (60, 90)
 BASE_LOAN_FEE_PERCENTAGE = Decimal("15.00")
+LOAN_FEE_BASE_PERIOD_DAYS = 30
 LATE_LOAN_FEE_PERCENTAGE = Decimal("20.00")
 LATE_FEE_GRACE_HOURS = 24
 OPEN_LOAN_STATUSES = ("active", "overdue")
@@ -26,6 +27,19 @@ def _money(value: Any) -> Decimal:
     if value is None:
         return Decimal("0.00")
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def loan_fee_percentage_for_duration(
+    duration_days: int,
+    base_percentage: Decimal | int | float | str = BASE_LOAN_FEE_PERCENTAGE,
+) -> Decimal:
+    """Scale the 30-day fee rate to the selected repayment term."""
+    days = int(duration_days)
+    if days <= 0:
+        raise ValueError("Loan duration must be greater than zero.")
+    return (Decimal(str(base_percentage)) * Decimal(days) / Decimal(LOAN_FEE_BASE_PERIOD_DAYS)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
 
 def _loan_owner_filter(model, user_id: int, active_agent_id: int | None = None):
@@ -75,6 +89,11 @@ async def get_loan_policy_for_user(db: AsyncSession, user: models.User) -> dict:
         "is_agent_eligible": bool(active_agent),
         "auto_deduction_enabled": True,
         "base_fee_percentage": BASE_LOAN_FEE_PERCENTAGE,
+        "fee_rate_base_period_days": LOAN_FEE_BASE_PERIOD_DAYS,
+        "period_fee_percentages": {
+            str(period): loan_fee_percentage_for_duration(period)
+            for period in allowed_periods
+        },
         "late_fee_percentage": LATE_LOAN_FEE_PERCENTAGE,
         "late_fee_grace_hours": LATE_FEE_GRACE_HOURS,
         "period_help_text": (
@@ -82,7 +101,8 @@ async def get_loan_policy_for_user(db: AsyncSession, user: models.User) -> dict:
             f"Available periods: {get_allowed_periods_text(allowed_periods)}."
         ),
         "fee_help_text": (
-            f"Each loan adds a {BASE_LOAN_FEE_PERCENTAGE:.0f}% service fee upfront. "
+            f"Service fee is prorated from {BASE_LOAN_FEE_PERCENTAGE:.0f}% per {LOAN_FEE_BASE_PERIOD_DAYS} days "
+            "based on the selected repayment term. "
             f"If a balance is still unpaid {LATE_FEE_GRACE_HOURS} hours after the due date, "
             f"a one-time {LATE_LOAN_FEE_PERCENTAGE:.0f}% overdue fee is added on the original loan amount."
         ),
@@ -355,7 +375,8 @@ async def create_self_service_loan(
     if pending_application:
         raise ValueError("You already have a loan request being processed. Complete that loan first.")
 
-    base_fee_amount = _money(amount * (BASE_LOAN_FEE_PERCENTAGE / Decimal("100.00")))
+    fee_percentage = loan_fee_percentage_for_duration(duration)
+    base_fee_amount = _money(amount * (fee_percentage / Decimal("100.00")))
     total_due = _money(amount + base_fee_amount)
     now = datetime.now()
     repayment_due_date = now + timedelta(days=duration)
@@ -368,7 +389,7 @@ async def create_self_service_loan(
         repayment_duration=duration,
         purpose=application.purpose,
         approved_amount=amount,
-        fee_percentage=BASE_LOAN_FEE_PERCENTAGE,
+        fee_percentage=fee_percentage,
         offered_repayment_duration=duration,
         status="disbursed",
         approved_date=now,
@@ -385,7 +406,7 @@ async def create_self_service_loan(
         application_id=db_application.id,
         amount=amount,
         repayment_duration=duration,
-        base_fee_percentage=BASE_LOAN_FEE_PERCENTAGE,
+        base_fee_percentage=fee_percentage,
         base_fee_amount=base_fee_amount,
         late_fee_percentage=LATE_LOAN_FEE_PERCENTAGE,
         late_fee_amount=Decimal("0.00"),
@@ -403,9 +424,9 @@ async def create_self_service_loan(
         {
             "loan_id": db_loan.id,
             "application_id": db_application.id,
-            "fee_percentage": BASE_LOAN_FEE_PERCENTAGE,
-            "base_fee_amount": base_fee_amount,
-            "wallet_loan_balance_increase": total_due,
+            "fee_percentage": str(fee_percentage),
+            "base_fee_amount": str(base_fee_amount),
+            "wallet_loan_balance_increase": str(total_due),
             "repayment_due_date": repayment_due_date.isoformat(),
             "repayment_duration": duration,
         }
@@ -710,8 +731,11 @@ async def approve_loan_application(
 
     default_fee = Decimal("3.00") if risk_level == "Very Safe" else Decimal("5.00") if risk_level == "Safe" else Decimal("8.00")
     final_amount = Decimal(str(approved_amount)) if approved_amount is not None else min(Decimal(str(db_application.amount)), recommended_limit)
-    final_fee = Decimal(str(fee_percentage)) if fee_percentage is not None else default_fee
     final_duration = offered_repayment_duration if offered_repayment_duration is not None else db_application.repayment_duration
+    if int(final_duration or 0) not in USER_LOAN_PERIODS + AGENT_ONLY_LOAN_PERIODS:
+        raise ValueError("Choose a supported loan repayment period.")
+    base_fee = Decimal(str(fee_percentage)) if fee_percentage is not None else default_fee
+    final_fee = loan_fee_percentage_for_duration(final_duration, base_fee)
 
     if final_amount <= 0:
         db_application.status = "rejected"
@@ -811,9 +835,9 @@ async def disburse_loan(db: AsyncSession, application_id: int):
         metadata={
             "loan_id": db_loan.id,
             "application_id": db_application.id,
-            "fee_percentage": loan_fee_percentage,
-            "base_fee_amount": loan_fee_amount,
-            "wallet_loan_balance_increase": total_outstanding,
+            "fee_percentage": str(loan_fee_percentage),
+            "base_fee_amount": str(loan_fee_amount),
+            "wallet_loan_balance_increase": str(total_outstanding),
             "repayment_due_date": repayment_due_date.isoformat(),
             "repayment_duration": offered_duration,
         },

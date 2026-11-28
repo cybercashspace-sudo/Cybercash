@@ -17,6 +17,7 @@ class _PeriodHarness:
     _show_popup = lambda *_args, **_kwargs: None
     period_available = LoanScreen.period_available
     update_amount_preview = LoanScreen.update_amount_preview
+    _fee_percentage_for_period = LoanScreen._fee_percentage_for_period
     _parse_float = staticmethod(LoanScreen._parse_float)
 
 
@@ -28,6 +29,18 @@ def test_loan_period_selection_updates_preview_like_investment():
     assert screen.selected_duration == 30
     assert "within 30 days" in screen.amount_preview_text
     assert LoanScreen.period_button_bg(screen, 30) == [0.93, 0.77, 0.39, 1]
+
+
+def test_loan_preview_prorates_service_fee_for_selected_days():
+    screen = _PeriodHarness()
+
+    LoanScreen.set_duration(screen, 7)
+
+    assert "GHS 3.50 service fee at 3.50%" in screen.amount_preview_text
+    assert "Repay GHS 103.50 within 7 days" in screen.amount_preview_text
+
+    LoanScreen.set_duration(screen, 30)
+    assert "GHS 15.00 service fee at 15.00%" in screen.amount_preview_text
 
 
 def test_unsupported_loan_period_does_not_change_selection():

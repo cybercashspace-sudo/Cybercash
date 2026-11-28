@@ -1,10 +1,11 @@
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from threading import Thread
 
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.lang import Builder
-from kivy.properties import BooleanProperty, ListProperty, NumericProperty, StringProperty
+from kivy.properties import BooleanProperty, DictProperty, ListProperty, NumericProperty, StringProperty
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.label import MDLabel
@@ -311,6 +312,7 @@ class LoanScreen(ActionScreen):
         "Load your active loan to see if manual repayment is available."
     )
     allowed_periods = ListProperty([1, 7, 14, 30])
+    period_fee_percentages = DictProperty({})
     selected_duration = NumericProperty(7)
     active_loan_id = NumericProperty(0)
     outstanding_balance = NumericProperty(0.0)
@@ -527,12 +529,22 @@ class LoanScreen(ActionScreen):
             self.allowed_periods = sorted({days for item in raw_periods if (days := self._parse_int(item)) > 0})
             if not self.allowed_periods:
                 self.allowed_periods = [1, 7, 14, 30]
+            raw_fee_schedule = payload.get("period_fee_percentages")
+            if isinstance(raw_fee_schedule, dict):
+                self.period_fee_percentages = {
+                    str(days): value
+                    for key, value in raw_fee_schedule.items()
+                    if (days := self._parse_int(key)) in self.allowed_periods
+                    and isinstance(value, (int, float, str))
+                    and self._parse_float(str(value)) >= 0
+                }
             self.is_agent_eligible = bool(payload.get("is_agent_eligible", False))
             self._ensure_selected_duration()
             self.update_amount_preview(self.ids.apply_amount.text if "apply_amount" in self.ids else "")
             return
 
         self.allowed_periods = [1, 7, 14, 30]
+        self.period_fee_percentages = {}
         self.is_agent_eligible = False
         self._ensure_selected_duration()
 
@@ -611,13 +623,34 @@ class LoanScreen(ActionScreen):
             )
             return
 
-        service_fee = round(amount * 0.15, 2)
-        scheduled_total = round(amount + service_fee, 2)
-        overdue_fee = round(amount * 0.20, 2)
+        fee_percentage = self._fee_percentage_for_period(duration)
+        principal = Decimal(str(amount))
+        service_fee = (principal * fee_percentage / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        scheduled_total = principal + service_fee
+        overdue_fee = (principal * Decimal("0.20")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
         day_label = "day" if duration == 1 else "days"
         self.amount_preview_text = (
             f"Repay GHS {scheduled_total:,.2f} within {duration} {day_label} "
-            f"(includes GHS {service_fee:,.2f} service fee). Late fee may be GHS {overdue_fee:,.2f}."
+            f"(includes GHS {service_fee:,.2f} service fee at {fee_percentage:.2f}%). "
+            f"Late fee may be GHS {overdue_fee:,.2f}."
+        )
+
+    def _fee_percentage_for_period(self, duration: int) -> Decimal:
+        fee_schedule = getattr(self, "period_fee_percentages", {})
+        raw_rate = fee_schedule.get(str(duration))
+        if raw_rate is None:
+            raw_rate = fee_schedule.get(duration)
+        if raw_rate is not None:
+            try:
+                return Decimal(str(raw_rate)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            except Exception:
+                pass
+        return (Decimal("15.00") * Decimal(duration) / Decimal("30")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
     def apply_loan(self):

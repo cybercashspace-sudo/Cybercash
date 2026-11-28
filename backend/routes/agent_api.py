@@ -57,6 +57,10 @@ async def _active_agent(db: AsyncSession, user_id: int, *, lock: bool = False) -
         raise HTTPException(status_code=403, detail="An approved Agent account is required.")
     if str(agent.status or "").strip().lower() != "active":
         raise HTTPException(status_code=403, detail="API access is available after Agent approval.")
+    owner_result = await db.execute(select(User).where(User.id == user_id))
+    owner = owner_result.scalars().first()
+    if owner is None or not bool(owner.is_active) or not bool(owner.is_verified):
+        raise HTTPException(status_code=403, detail="Verify and activate your account before managing API keys.")
     return agent
 
 
