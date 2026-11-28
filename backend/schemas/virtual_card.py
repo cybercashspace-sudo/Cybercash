@@ -25,7 +25,7 @@ class VirtualCardInDB(VirtualCardBase):
     user_id: int
     card_number: str
     expiry_date: str
-    cvv_hashed: str # Should be handled securely on frontend/backend, not exposed directly
+    cvv: Optional[str] = None
     balance: float
     status: str
     issuance_fee_paid: float

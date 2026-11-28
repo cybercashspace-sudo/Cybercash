@@ -1,7 +1,7 @@
 import json
 
 from backend.core.security import create_access_token
-from backend.models import Agent, Transaction, User, Wallet
+from backend.models import Agent, Transaction, User, VirtualCard, Wallet
 
 
 def _auth_headers(user: User) -> dict[str, str]:
@@ -34,10 +34,21 @@ def test_virtual_card_creation_charges_user_ghs_25(client, db_session):
     assert response.status_code == 201
     payload = response.json()
     assert payload["issuance_fee_paid"] == 25.0
+    assert len(payload["cvv"]) == 3 and payload["cvv"].isdigit()
+    assert "cvv_hashed" not in payload
+    card_number = payload["card_number"]
+    digits = [int(digit) for digit in card_number]
+    checksum = sum(
+        (digit * 2 - 9 if digit * 2 > 9 else digit * 2) if index % 2 == 0 else digit
+        for index, digit in enumerate(reversed(digits[:-1]))
+    ) + digits[-1]
+    assert len(card_number) == 16 and card_number.startswith("4") and checksum % 10 == 0
 
     db_session.expire_all()
     updated_wallet = db_session.query(Wallet).filter(Wallet.user_id == user.id).first()
     assert updated_wallet.balance == 75.0
+    issued_card = db_session.query(VirtualCard).filter_by(user_id=user.id).one()
+    assert issued_card.cvv_hashed == ""
 
     fee_tx = db_session.query(Transaction).filter(Transaction.user_id == user.id).order_by(Transaction.id.desc()).first()
     assert fee_tx is not None

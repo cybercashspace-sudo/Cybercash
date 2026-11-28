@@ -2,8 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from decimal import Decimal
-import random
-import hashlib # For CVV hashing
+import secrets
 import uuid
 from typing import List # Added import
 
@@ -24,15 +23,21 @@ class VirtualCardService:
         self.transaction_engine = transaction_engine
 
     def _generate_card_details(self):
+        """Generate a locally usable Visa-format test PAN and one-time CVV.
+
+        This does not provision a card on external Visa rails; that requires an
+        issuer integration. The CVV is returned once and is not persisted.
         """
-        Simulates generation of card number, expiry, and CVV.
-        In a real system, this would come from a card issuer API.
-        """
-        card_number = ''.join([str(random.randint(0, 9)) for _ in range(16)])
-        expiry_month = str(random.randint(1, 12)).zfill(2)
-        expiry_year = str(datetime.now().year + random.randint(3, 5))[-2:] # 3-5 years from now
+        partial_number = "4" + "".join(str(secrets.randbelow(10)) for _ in range(14))
+        checksum_sum = 0
+        for index, digit in enumerate(reversed(partial_number)):
+            value = int(digit) * (2 if index % 2 == 0 else 1)
+            checksum_sum += value - 9 if value > 9 else value
+        card_number = partial_number + str((-checksum_sum) % 10)
+        expiry_month = str(secrets.randbelow(12) + 1).zfill(2)
+        expiry_year = str(datetime.now().year + secrets.randbelow(3) + 3)[-2:]
         expiry_date = f"{expiry_month}/{expiry_year}"
-        cvv = ''.join([str(random.randint(0, 9)) for _ in range(3)])
+        cvv = "".join(str(secrets.randbelow(10)) for _ in range(3))
         return card_number, expiry_date, cvv
 
     @staticmethod
@@ -98,14 +103,13 @@ class VirtualCardService:
         user_wallet.balance = wallet_balance - issuance_fee
         
         card_number, expiry_date, cvv = self._generate_card_details()
-        cvv_hashed = hashlib.sha256(cvv.encode()).hexdigest()
 
         # Create virtual card
         virtual_card = models.VirtualCard(
             user_id=user_id,
             card_number=card_number,
             expiry_date=expiry_date,
-            cvv_hashed=cvv_hashed,
+            cvv_hashed="",
             currency=card_request.currency,
             balance=0.0, # Cards are issued with 0 balance initially
             spending_limit=card_request.spending_limit,
@@ -113,6 +117,9 @@ class VirtualCardService:
             type=card_request.type,
             issuance_fee_paid=issuance_fee
         )
+        # The response schema exposes this transient value only for this
+        # issuance response; the CVV is deliberately not persisted.
+        virtual_card.cvv = cvv
         self.db.add(virtual_card)
         await self.db.flush() # Flush to get card ID for transaction metadata
 
@@ -262,7 +269,8 @@ class VirtualCardService:
         card_number, expiry_date, cvv = self._generate_card_details()
         virtual_card.card_number = card_number
         virtual_card.expiry_date = expiry_date
-        virtual_card.cvv_hashed = hashlib.sha256(cvv.encode()).hexdigest()
+        virtual_card.cvv_hashed = ""
+        virtual_card.cvv = cvv
         virtual_card.provider_card_id = f"reissue-{uuid.uuid4().hex[:24]}"
         virtual_card.status = "active"
 

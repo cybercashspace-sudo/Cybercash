@@ -92,7 +92,7 @@ KV = """
                                 font_size: sp(14 * root.text_scale)
 
                             MDLabel:
-                                text: "VISA"
+                                text: "VIRTUAL"
                                 theme_text_color: "Custom"
                                 text_color: TEXT_MAIN
                                 bold: True
@@ -171,6 +171,13 @@ KV = """
                     md_bg_color: GOLD_SOFT
                     text_color: BG
                     on_release: root.request_card()
+
+                MDLabel:
+                    text: "For CyberCash card flows. External merchant use requires an issuer connection."
+                    theme_text_color: "Custom"
+                    text_color: TEXT_SUB
+                    font_size: sp(11 * root.text_scale)
+                    adaptive_height: True
 
                 GridLayout:
                     cols: 2
@@ -523,6 +530,7 @@ class VirtualCardScreen(ActionScreen):
         self._card_refresh_generation = 0
         self._clipboard_clear_event = None
         self._copied_card_number = ""
+        self._pending_one_time_cvv = ""
 
     @staticmethod
     def _friendly_card_error(payload, fallback: str) -> str:
@@ -579,8 +587,15 @@ class VirtualCardScreen(ActionScreen):
         self.card_request_busy = False
         ok, payload = result
         if ok:
+            self._pending_one_time_cvv = str(payload.get("cvv") or "") if isinstance(payload, dict) else ""
+            if isinstance(payload, dict):
+                self._apply_card_payload(payload)
             self.card_loaded = False
-            self._show_popup("Card Requested", "Your virtual card is ready. Refreshing your card details now.")
+            self._show_popup(
+                "Card Requested",
+                "Your in-app card is ready. Its security code is shown once; open Show Details now and save it securely. "
+                "CyberCash does not store the security code.",
+            )
             self.refresh_data(notify_popup=False)
             return
         detail = self._friendly_card_error(
@@ -765,6 +780,10 @@ class VirtualCardScreen(ActionScreen):
             card = self._select_card_record(card_payload)
             if isinstance(card, dict):
                 self._apply_card_payload(card)
+                if self._pending_one_time_cvv:
+                    self._raw_cvv = self._pending_one_time_cvv
+                    self._pending_one_time_cvv = ""
+                    self._sync_sensitive_fields()
             else:
                 self._apply_empty_card_state()
         else:
@@ -915,6 +934,7 @@ class VirtualCardScreen(ActionScreen):
         self.details_visible = False
         self._raw_number = ""
         self._raw_cvv = ""
+        self._pending_one_time_cvv = ""
         self.card_loaded = False
         self.card_number_display = "**** **** **** ****"
         self.cvv = "***"
@@ -992,7 +1012,11 @@ class VirtualCardScreen(ActionScreen):
             return
 
         def finish_replace(_payload):
-            self._show_popup("Card Replaced", "Your virtual card was replaced successfully. Your balance remains on the card.")
+            self._pending_one_time_cvv = str(_payload.get("cvv") or "") if isinstance(_payload, dict) else ""
+            self._show_popup(
+                "Card Replaced",
+                "Your card was replaced and its security code is shown once. Open Show Details now and save it securely.",
+            )
             self.refresh_data()
 
         self._request_card_action(

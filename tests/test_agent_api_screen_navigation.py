@@ -18,6 +18,16 @@ def test_agent_dashboard_opens_the_dedicated_api_screen():
     assert agent_api_screen.AgentApiScreen.__name__ == "AgentApiScreen"
 
 
+def test_api_key_text_fields_have_explicit_dark_theme_text_and_border_colors():
+    from pathlib import Path
+
+    api_kv = Path("features/agent/agent_api_screen.kv").read_text(encoding="utf-8")
+    assert api_kv.count('mode: "rectangle"') == 2
+    assert api_kv.count("                        text_color_normal:") == 2
+    assert api_kv.count("hint_text_color_normal:") == 2
+    assert api_kv.count("line_color_focus:") == 2
+
+
 def test_send_balance_requires_a_valid_live_backend_value():
     from screens.p2p_transfer import P2PTransferScreen
 

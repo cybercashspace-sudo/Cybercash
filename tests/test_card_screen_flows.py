@@ -31,3 +31,17 @@ def test_card_details_are_hidden_after_screen_exit():
 
 def test_card_backend_result_text_is_not_rendered_below_the_screen():
     assert "root.feedback_text" not in KV
+
+
+def test_card_screen_keeps_issuance_cvv_once_and_clears_it_when_leaving():
+    source = inspect.getsource(VirtualCardScreen)
+    assert "_pending_one_time_cvv" in source
+    assert "shown once" in source
+    assert "self._pending_one_time_cvv = \"\"" in source
+
+
+def test_virtual_card_response_does_not_expose_stored_cvv_hash():
+    from backend.schemas.virtual_card import VirtualCardInDB
+
+    assert "cvv_hashed" not in VirtualCardInDB.model_fields
+    assert "cvv" in VirtualCardInDB.model_fields
