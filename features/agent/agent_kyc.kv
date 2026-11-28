@@ -35,11 +35,11 @@
 
                 MDCard:
                     size_hint_y: None
-                    height: dp(82)
                     radius: [dp(16)]
                     md_bg_color: app.ui_surface
                     elevation: 0
                     padding: dp(14)
+                    height: self.minimum_height
                     MDLabel:
                         text: root.status_text
                         theme_text_color: "Custom"
@@ -63,12 +63,16 @@
                 MDTextField:
                     id: date_of_birth
                     hint_text: "Date of birth (YYYY-MM-DD)"
+                    helper_text: "For example, 1990-04-23"
+                    helper_text_mode: "on_focus"
                     mode: "rectangle"
                     disabled: root.loading or not root.can_submit
 
                 MDTextField:
                     id: ghana_card_number
                     hint_text: "Ghana Card ID (GHA-000000000-0)"
+                    helper_text: "Enter the number exactly as printed on your card"
+                    helper_text_mode: "on_focus"
                     mode: "rectangle"
                     disabled: root.loading or not root._is_submit_allowed()
 
@@ -153,7 +157,7 @@
                         text_size: self.width, None
 
                 MDLabel:
-                    text: "Your ID number and photos are encrypted in secure CyberCash storage. Only authorized administrators can review them; email alerts contain a reference only."
+                    text: "Photos are resized securely before upload. Your ID details and photos are encrypted; only authorized administrators can review them. Email alerts contain a reference only."
                     theme_text_color: "Hint"
                     font_size: "11sp"
                     adaptive_height: True

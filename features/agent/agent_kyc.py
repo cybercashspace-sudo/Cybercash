@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import threading
+from io import BytesIO
 from datetime import date
 
 from kivy.clock import Clock
@@ -14,6 +15,7 @@ from kivy.uix.button import Button
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
 from kivy.utils import platform
+from PIL import Image, ImageOps
 
 from api.client import api_client
 from core.popup_manager import show_message_dialog
@@ -21,6 +23,9 @@ from core.responsive_screen import ResponsiveScreen
 
 
 Builder.load_file(os.path.join(os.path.dirname(__file__), "agent_kyc.kv"))
+
+MAX_KYC_UPLOAD_BYTES = int(3.5 * 1024 * 1024)
+MAX_KYC_IMAGE_PIXELS = 60_000_000
 
 
 class AgentKycScreen(ResponsiveScreen):
@@ -54,7 +59,7 @@ class AgentKycScreen(ResponsiveScreen):
         self.loading = True
         self._request_generation += 1
         generation = self._request_generation
-        self.status_text = "Checking agent registration status?"
+        self.status_text = "Checking agent registration status…"
         try:
             threading.Thread(target=self._status_worker, args=(generation,), daemon=True).start()
         except Exception:
@@ -225,17 +230,49 @@ class AgentKycScreen(ResponsiveScreen):
         extension = os.path.splitext(path)[1].lower()
         return {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(extension, "application/octet-stream")
 
+    @staticmethod
+    def _prepare_upload_photo(path):
+        """Orient and compress a selected photo before the bounded upload."""
+        try:
+            with Image.open(path) as source:
+                width, height = source.size
+                if width <= 0 or height <= 0 or width * height > MAX_KYC_IMAGE_PIXELS:
+                    raise ValueError("This photo is too large to process safely. Choose a lower-resolution image.")
+                source.load()
+                image = ImageOps.exif_transpose(source).convert("RGB")
+        except (OSError, SyntaxError, Image.DecompressionBombError) as exc:
+            raise ValueError("Choose a valid JPG, PNG, or WebP image, then try again.") from exc
+
+        for edge in (1800, 1600, 1400, 1200, 1000):
+            resized = image.copy()
+            resized.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+            for quality in (84, 78, 72, 66):
+                output = BytesIO()
+                resized.save(output, format="JPEG", quality=quality, optimize=True)
+                photo = output.getvalue()
+                if len(photo) <= MAX_KYC_UPLOAD_BYTES:
+                    return photo
+        raise ValueError("This photo is still too large after compression. Choose a smaller image.")
+
     def _submit_worker(self, fields, paths, generation):
         try:
-            with open(paths["front"], "rb") as front, open(paths["back"], "rb") as back, open(paths["selfie"], "rb") as selfie:
+            with BytesIO(self._prepare_upload_photo(paths["front"])) as front, \
+                    BytesIO(self._prepare_upload_photo(paths["back"])) as back, \
+                    BytesIO(self._prepare_upload_photo(paths["selfie"])) as selfie:
                 files = {
-                    "ghana_card_front": ("ghana-card-front" + os.path.splitext(paths["front"])[1].lower(), front, self._mime_for_path(paths["front"])),
-                    "ghana_card_back": ("ghana-card-back" + os.path.splitext(paths["back"])[1].lower(), back, self._mime_for_path(paths["back"])),
-                    "selfie_with_id": ("selfie-with-id" + os.path.splitext(paths["selfie"])[1].lower(), selfie, self._mime_for_path(paths["selfie"])),
+                    "ghana_card_front": ("ghana-card-front.jpg", front, "image/jpeg"),
+                    "ghana_card_back": ("ghana-card-back.jpg", back, "image/jpeg"),
+                    "selfie_with_id": ("selfie-with-id.jpg", selfie, "image/jpeg"),
                 }
                 response = api_client.request_multipart(
                     "POST", "/agents/me/kyc/submit", data=fields, files=files, timeout=(5, 40), failover=False
                 )
+        except ValueError as exc:
+            response = {
+                "ok": False,
+                "status_code": 413 if "large" in str(exc).lower() else 400,
+                "data": {},
+            }
         except Exception:
             response = {"ok": False, "status_code": 0, "data": {"detail": "We could not upload your photos. Check your connection and try again."}}
         Clock.schedule_once(lambda _dt, result=response, gen=generation: self._apply_submission(result, gen))

@@ -1,6 +1,8 @@
+from io import BytesIO
 from pathlib import Path
 
 from kivy_app import SCREEN_SPECS
+from PIL import Image
 
 
 def test_agent_kyc_screen_has_back_button_four_agent_nav_and_document_uploads():
@@ -85,7 +87,7 @@ def test_kyc_upload_is_not_replayed_to_a_fallback_backend(monkeypatch, tmp_path)
     paths = {}
     for kind in ("front", "back", "selfie"):
         path = tmp_path / f"{kind}.jpg"
-        path.write_bytes(b"test image")
+        Image.new("RGB", (96, 96), (30, 90, 160)).save(path, format="JPEG")
         paths[kind] = str(path)
 
     calls = []
@@ -99,12 +101,27 @@ def test_kyc_upload_is_not_replayed_to_a_fallback_backend(monkeypatch, tmp_path)
 
     class _Harness:
         _mime_for_path = staticmethod(AgentKycScreen._mime_for_path)
+        _prepare_upload_photo = staticmethod(AgentKycScreen._prepare_upload_photo)
 
     AgentKycScreen._submit_worker(_Harness(), {"consent": "true"}, paths, 4)
 
     assert calls[0][0][0:2] == ("POST", "/agents/me/kyc/submit")
     assert calls[0][1]["failover"] is False
     assert len(callbacks) == 1
+
+
+def test_kyc_photo_is_oriented_resized_and_compressed_before_upload(tmp_path):
+    from features.agent.agent_kyc import AgentKycScreen, MAX_KYC_UPLOAD_BYTES
+
+    path = tmp_path / "large-source.png"
+    Image.new("RGB", (2400, 1600), (80, 120, 160)).save(path, format="PNG", compress_level=0)
+    assert path.stat().st_size > MAX_KYC_UPLOAD_BYTES
+
+    prepared = AgentKycScreen._prepare_upload_photo(str(path))
+    with Image.open(BytesIO(prepared)) as photo:
+        assert photo.format == "JPEG"
+        assert max(photo.size) <= 1800
+    assert len(prepared) <= MAX_KYC_UPLOAD_BYTES
 
 
 def test_kyc_response_finishes_loading_without_showing_popup_on_another_screen():
