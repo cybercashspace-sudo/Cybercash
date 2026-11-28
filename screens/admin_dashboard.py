@@ -408,7 +408,7 @@ KV = """
                                 pos_hint: {"center_x": 0.5}
                                 disabled: True
                             MDLabel:
-                                text: "Agent\nApprovals"
+                                text: "Agent\\nApprovals"
                                 halign: "center"
                                 theme_text_color: "Custom"
                                 text_color: app.ui_text_primary

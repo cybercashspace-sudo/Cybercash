@@ -12,12 +12,11 @@ class RequestGuardMixin:
         super().__init__(**kwargs)
 
     def on_kv_post(self, base_widget):
+        # ResponsiveScreen already tracks the loading property and request count.
+        # Do not install the removed full-screen request overlay here.
         parent = getattr(super(), "on_kv_post", None)
         if callable(parent):
             parent(base_widget)
-        from core.responsive_screen import install_request_overlay
-
-        install_request_overlay(self, ("loading",))
 
     def _next_request_generation(self) -> int:
         self._request_generation += 1
