@@ -139,6 +139,7 @@ class ActionScreen(ResponsiveScreen):
         extra_headers: dict | None = None,
         requires_auth: bool = True,
         timeout=None,
+        failover: bool = True,
         clear_session_on_auth_failure: bool = True,
     ) -> tuple[bool, object]:
         headers = {}
@@ -159,6 +160,7 @@ class ActionScreen(ResponsiveScreen):
                 params=params,
                 headers=headers,
                 timeout=timeout,
+                failover=failover,
             )
         finally:
             self._end_request_activity()

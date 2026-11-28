@@ -312,6 +312,13 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
     sale_status = StringProperty("")
     sale_status_display = StringProperty("Not submitted")
 
+    def __init__(self, **kwargs):
+        self._active_quote_details = None
+        super().__init__(**kwargs)
+
+    def _set_loading(self, value: bool) -> None:
+        self.loading = bool(value)
+
     def _set_selected_network(self, network: str, helper_text: str | None = None) -> None:
         self.selected_network = str(network or "").strip().upper()
         if helper_text is not None:
@@ -322,6 +329,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
             self.network_helper_text = "We will auto-detect the network from the phone number."
     def _reset_submission_state(self) -> None:
         self.sale_id = ""
+        self._active_quote_details = None
         self._set_sale_status(None)
         self.merchant_number = "Generate a number to begin."
         self._set_feedback("", "info")
@@ -416,6 +424,19 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
 
         self._set_selected_network(network)
         self._update_estimate(str(amount))
+        quote_details = (phone, network, round(amount, 2))
+        if (
+            getattr(self, "sale_id", "")
+            and quote_details == getattr(self, "_active_quote_details", None)
+            and getattr(self, "merchant_number", "")
+        ):
+            self._set_feedback("Your current merchant number is still ready to use.", "info")
+            self._show_popup(
+                "Merchant number ready",
+                f"Send GHS {amount:,.2f} airtime to {self.merchant_number}.\n"
+                f"Estimated MoMo payout: {self.payout_estimate}",
+            )
+            return
         self._start_request(
             "Requesting merchant number...",
             self._generate_merchant_number_worker,
@@ -441,7 +462,11 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         self._set_feedback(message, "info")
         request_id = self._next_request_generation()
         self._set_loading(True)
-        Thread(target=worker, args=(request_id, *args), daemon=True).start()
+        try:
+            Thread(target=worker, args=(request_id, *args), daemon=True).start()
+        except Exception:
+            self._set_loading(False)
+            self._set_feedback("Couldn't start the request. Please try again.", "error")
 
     def _generate_merchant_number_worker(self, request_id, phone, network, amount) -> None:
         try:
@@ -449,6 +474,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
                 "POST",
                 "/api/airtime/cash/quote",
                 payload={"phone": phone, "network": network, "amount": amount, "currency": "GHS"},
+                failover=False,
             )
         except Exception as exc:
             Clock.schedule_once(
@@ -473,6 +499,7 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
                 "POST",
                 "/api/airtime/cash/confirm",
                 payload={"sale_id": sale_id},
+                failover=False,
             )
         except Exception as exc:
             Clock.schedule_once(
@@ -486,19 +513,26 @@ class AirtimeCashScreen(RequestGuardMixin, ActionScreen):
         if not self._is_current_request(request_id):
             return
         self._set_loading(False)
-        self._set_feedback("Couldn't complete that request. Check your connection and try again.", "error")
+        safe_message = self._extract_detail({"detail": message})
+        self._set_feedback(safe_message or "Couldn't complete that request. Check your connection and try again.", "error")
 
     def _apply_merchant_number_result(self, request_id, ok, payload, amount, phone, network) -> None:
         if not self._is_current_request(request_id):
             return
         try:
             if ok and isinstance(payload, dict):
-                self.sale_id = str(payload.get("sale_id") or "")
-                self._set_sale_status(payload.get("status"))
-                self.merchant_number = str(payload.get("merchant_number") or "").strip()
-                if not self.merchant_number:
-                    self._set_feedback("A merchant number was not returned. Please try again.", "error")
+                sale_id = str(payload.get("sale_id") or "").strip()
+                merchant_number = str(payload.get("merchant_number") or "").strip()
+                if not sale_id or not merchant_number:
+                    self.sale_id = ""
+                    self._active_quote_details = None
+                    self.merchant_number = "Generate a number to begin."
+                    self._set_feedback("The service returned an incomplete quote. Please try again.", "error")
                     return
+                self.sale_id = sale_id
+                self._active_quote_details = (str(phone), str(network), round(float(amount), 2))
+                self._set_sale_status(payload.get("status"))
+                self.merchant_number = merchant_number
                 payout_rate = payload.get("payout_rate")
                 if payout_rate is not None:
                     try:
