@@ -26,12 +26,51 @@ def test_binance_admin_requires_admin(client, db_session):
     assert resp.status_code == 403
 
 
-def test_binance_admin_health_ok(client, admin_auth_headers):
+def test_binance_admin_health_ok(client, admin_auth_headers, monkeypatch):
+    from backend.routes import binance_admin as binance_admin_route
+
+    monkeypatch.setattr(binance_admin_route.binance_service, "is_configured", lambda: False)
     resp = client.get("/admin/binance/health", headers=admin_auth_headers)
     assert resp.status_code == 200, resp.text
     payload = resp.json()
     assert "configured" in payload
+    assert payload["connected"] is False
     assert payload["base_url"]
+
+
+def test_binance_health_verifies_private_read_connection(client, admin_auth_headers, monkeypatch):
+    from backend.routes import binance_admin as binance_admin_route
+
+    monkeypatch.setattr(binance_admin_route.binance_service, "is_configured", lambda: True)
+
+    async def _fake_account():
+        return {"accountType": "SPOT", "balances": []}
+
+    monkeypatch.setattr(binance_admin_route.binance_service, "get_account", _fake_account)
+
+    resp = client.get("/admin/binance/health", headers=admin_auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["configured"] is True
+    assert resp.json()["connected"] is True
+    assert resp.json()["message"] == "Binance connection verified."
+
+
+def test_binance_health_hides_provider_error_details(client, admin_auth_headers, monkeypatch):
+    from backend.routes import binance_admin as binance_admin_route
+    monkeypatch.setattr(binance_admin_route.binance_service, "is_configured", lambda: True)
+
+    async def _rejected_account():
+        raise RuntimeError("secret-value and provider internals")
+
+    monkeypatch.setattr(binance_admin_route.binance_service, "get_account", _rejected_account)
+
+    resp = client.get("/admin/binance/health", headers=admin_auth_headers)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["configured"] is True
+    assert payload["connected"] is False
+    assert "secret-value" not in resp.text
+    assert "provider internals" not in resp.text
 
 
 def test_binance_admin_balance_uses_service(client, admin_auth_headers, monkeypatch):

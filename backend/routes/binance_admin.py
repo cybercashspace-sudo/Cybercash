@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +12,7 @@ from backend.services.binance_service import BinanceApiError, BinanceService
 
 
 router = APIRouter(prefix="/admin/binance", tags=["Admin Binance"])
+logger = logging.getLogger(__name__)
 binance_service = BinanceService()
 _BTC_DASHBOARD_CACHE: dict = {"ts": 0.0, "payload": None}
 _BTC_DASHBOARD_TTL_SECONDS = 8.0
@@ -27,10 +29,38 @@ class BinanceWithdrawRequest(BaseModel):
 
 @router.get("/health")
 async def binance_health(admin_user: User = Depends(require_admin)):
+    configured = binance_service.is_configured()
+    if not configured:
+        return {
+            "configured": False,
+            "connected": False,
+            "base_url": binance_service.base_url,
+            "withdrawals_enabled": bool(getattr(settings, "BINANCE_WITHDRAWALS_ENABLED", False)),
+            "message": "Add the Binance API key and secret to the backend's private environment settings.",
+            "server_time": datetime.now(timezone.utc).isoformat(),
+        }
+
+    try:
+        # Signed account access verifies the key and its read permission without
+        # exposing account data or performing any financial operation.
+        await binance_service.get_account()
+    except Exception as exc:
+        logger.warning("Binance connection check failed (error_type=%s)", type(exc).__name__)
+        return {
+            "configured": True,
+            "connected": False,
+            "base_url": binance_service.base_url,
+            "withdrawals_enabled": bool(getattr(settings, "BINANCE_WITHDRAWALS_ENABLED", False)),
+            "message": "Binance rejected the connection. Check the key, secret, and read permission in the backend settings.",
+            "server_time": datetime.now(timezone.utc).isoformat(),
+        }
+
     return {
-        "configured": binance_service.is_configured(),
+        "configured": True,
+        "connected": True,
         "base_url": binance_service.base_url,
         "withdrawals_enabled": bool(getattr(settings, "BINANCE_WITHDRAWALS_ENABLED", False)),
+        "message": "Binance connection verified.",
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
